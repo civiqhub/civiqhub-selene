@@ -1,0 +1,94 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check that the tag points to a commit on main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: Check that the tag matches the version
+        run: python .github/scripts/check-version.py "$GITHUB_REF_NAME"
+      - run: python -m pip install --upgrade build twine
+      - run: python -m build
+      - run: twine check --strict dist/*
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: dist/
+
+  # Trusted Publishing: PyPI trusts this workflow and the `pypi` environment
+  # through OIDC, so no API token is stored. The action also uploads attestations.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/civiqhub-selene/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+
+  # Service image, enabled once services/api has an implementation. It installs the
+  # wheel built above, never a rebuild. Pin every action by commit SHA when enabling.
+  #
+  # image:
+  #   needs: publish
+  #   runs-on: ubuntu-latest
+  #   environment: ghcr
+  #   permissions:
+  #     contents: read
+  #     packages: write
+  #     id-token: write
+  #     attestations: write
+  #   steps:
+  #     - uses: actions/checkout@<sha> # vX
+  #       with:
+  #         persist-credentials: false
+  #     - uses: actions/download-artifact@<sha> # vX
+  #       with:
+  #         name: dist
+  #         path: dist/
+  #     - uses: docker/login-action@<sha> # vX
+  #       with:
+  #         registry: ghcr.io
+  #         username: ${{ github.actor }}
+  #         password: ${{ secrets.GITHUB_TOKEN }}
+  #     - id: push
+  #       uses: docker/build-push-action@<sha> # vX
+  #       with:
+  #         context: .
+  #         file: services/api/Dockerfile
+  #         push: true
+  #         tags: ghcr.io/civiqhub/civiqhub-selene:${{ github.ref_name }}
+  #         provenance: mode=max
+  #         sbom: true
+  #     - uses: actions/attest-build-provenance@<sha> # vX
+  #       with:
+  #         subject-name: ghcr.io/civiqhub/civiqhub-selene
+  #         subject-digest: ${{ steps.push.outputs.digest }}
+  #         push-to-registry: true
+  #     - uses: sigstore/cosign-installer@<sha> # vX
+  #     - run: cosign sign --yes "ghcr.io/civiqhub/civiqhub-selene@${{ steps.push.outputs.digest }}"

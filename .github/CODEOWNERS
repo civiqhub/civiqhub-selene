@@ -1,0 +1,11 @@
+# Maintainers of civiqhub-selene (see GOVERNANCE.md).
+# Every pull request requests a review from the owners of the files it touches.
+
+*                   @yanis-civiqhub
+
+# Changes to governance, licensing and release automation.
+/.github/           @yanis-civiqhub
+/LICENSE            @yanis-civiqhub
+/NOTICE             @yanis-civiqhub
+/GOVERNANCE.md      @yanis-civiqhub
+/SECURITY.md        @yanis-civiqhub

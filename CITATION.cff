@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+title: "SELENE: open scientific engine by CiviqHub"
+abstract: >-
+  SELENE is the open-source scientific engine of CiviqHub for analysing collective
+  deliberation, usable as a Python library or behind a containerised service.
+  Early scaffold, not functional yet.
+authors:
+  - given-names: Yanis
+    family-names: Gomes
+    affiliation: CiviqHub SAS
+  - name: CiviqHub SAS
+    website: "https://civiqhub.com"
+version: 0.0.1
+license: Apache-2.0
+repository-code: "https://github.com/civiqhub/civiqhub-selene"
+url: "https://civiqhub.com"
+keywords:
+  - civiqhub
+  - selene
+  - collective decision
+  - deliberation

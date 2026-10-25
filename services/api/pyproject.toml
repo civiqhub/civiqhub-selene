@@ -1,0 +1,21 @@
+# HTTP wrapper of the SELENE engine, packaged into the service image only.
+# It is not a second library: "Private :: Do Not Upload" makes PyPI reject it.
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "selene-api"
+version = "0.0.1"
+description = "HTTP service wrapper of the SELENE engine. Early scaffold, not functional yet."
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "CiviqHub SAS", email = "contact@civiqhub.com" }]
+classifiers = ["Private :: Do Not Upload"]
+# The image installs the engine wheel built by the release CI, at the same version.
+# Server dependencies are added with the first implementation, and locked.
+dependencies = ["civiqhub-selene==0.0.1"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/selene_api"]
