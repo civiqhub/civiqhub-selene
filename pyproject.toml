@@ -46,8 +46,9 @@ Changelog = "https://github.com/civiqhub/civiqhub-selene/blob/main/CHANGELOG.md"
 
 [dependency-groups]
 test = ["pytest>=9.1"]
-lint = ["ruff==0.17.2", "mypy==2.4.0"]
-dev = [{ include-group = "test" }, { include-group = "lint" }, "build>=1.6", "twine>=7.0"]
+# mypy also checks the tests, so it needs pytest.
+lint = [{ include-group = "test" }, "ruff==0.17.2", "mypy==2.4.0"]
+dev = [{ include-group = "lint" }, "build>=1.6", "twine>=7.0"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/civiqhub_selene"]
