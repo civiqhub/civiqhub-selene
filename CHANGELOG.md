@@ -8,6 +8,10 @@ Changes to a method, its parameters or its reference vectors are listed explicit
 
 ## [Unreleased]
 
+### Added
+
+- Core contract shared by every method, on the standard library alone: the `SeleneError` hierarchy (`errors`), the provenance and result types `Method`, `Randomness`, `Provenance`, `Result`, `Unavailable`, `StandardError` and `Interval` (`types`), the `Estimator` base class whose `estimate` is written once (`estimator`), the `Registry` of estimators read from the `civiqhub_selene.estimators` entry points (`registry`), and the contract kit `EstimatorContract` (`testing`).
+
 ## [0.0.1] - 2026-10-25
 
 ### Added
