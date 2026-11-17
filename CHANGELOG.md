@@ -8,6 +8,10 @@ Changes to a method, its parameters or its reference vectors are listed explicit
 
 ## [Unreleased]
 
+### Changed
+
+- The development branch carries the version `0.1.0.dev0`, so that the provenance of a result computed from it (`engine_version`) cannot be mistaken for the published 0.0.1. The service scaffold under `services/api` stays at 0.0.1 until the next release.
+
 ### Added
 
 - Core contract shared by every method, on the standard library alone: the `SeleneError` hierarchy (`errors`), the provenance and result types `Method`, `Randomness`, `Provenance`, `Result`, `Unavailable`, `StandardError` and `Interval` (`types`), the `Estimator` base class whose `estimate` is written once (`estimator`), the `Registry` of estimators read from the `civiqhub_selene.estimators` entry points (`registry`), and the contract kit `EstimatorContract` (`testing`).

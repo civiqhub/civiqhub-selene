@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "civiqhub-selene"
-version = "0.0.1"
+version = "0.1.0.dev0"
 description = "SELENE, the open scientific engine of CiviqHub. Early scaffold, not functional yet."
 readme = "README.md"
 requires-python = ">=3.11"
