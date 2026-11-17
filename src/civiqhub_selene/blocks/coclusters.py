@@ -75,6 +75,20 @@ class Cocluster:
         )
 
 
+def state_log_probabilities(vote_rate: FloatArray, vote_shares: FloatArray) -> FloatArray:
+    """Return the log-probability of each state of a shown cell, per co-cluster.
+
+    Shape (Q, L, K + 1) from a vote rate of shape (Q, L) and vote shares of shape
+    (Q, L, K). State 0 (shown without a vote): ``log(1 - vote_rate)``; state ``k``:
+    ``log(vote_rate) + log(vote_shares[k])``. Probabilities are floored at 1e-300
+    before the logarithm.
+    """
+    rate = vote_rate[..., np.newaxis]
+    probabilities = np.concatenate([1.0 - rate, rate * vote_shares], axis=-1)
+    logs: FloatArray = np.log(np.maximum(probabilities, _MIN_PROBABILITY))
+    return logs
+
+
 def _array(values: ArrayLike, name: str) -> FloatArray:
     try:
         array: FloatArray = np.array(values, dtype=np.float64)
@@ -209,10 +223,7 @@ class CoclusterTable(Displayable):
         state ``k``: ``log(vote_rate) + log(vote_shares[k])``. Probabilities are
         floored at 1e-300 before the logarithm.
         """
-        rate = self.vote_rate[..., np.newaxis]
-        probabilities = np.concatenate([1.0 - rate, rate * self.vote_shares], axis=-1)
-        logs: FloatArray = np.log(np.maximum(probabilities, _MIN_PROBABILITY))
-        return logs
+        return state_log_probabilities(self.vote_rate, self.vote_shares)
 
     def to_dict(self) -> dict[str, Any]:
         """Return plain lists: the scores, the three tables, and the latent parameters if any."""
