@@ -1,0 +1,48 @@
+{
+  "description": "Reference values of the numerics of civiqhub_selene.blocks. Synthetic inputs only.",
+  "engine_version": "0.0.1",
+  "thresholds": [1.5, 2.5, 3.5, 4.5],
+  "level_probabilities": [
+    {
+      "mean": 3.0,
+      "spread": 1.0,
+      "expected": [0.0668072, 0.2417303, 0.3829249, 0.2417303, 0.0668072],
+      "tolerance": 1e-7,
+      "source": "Standard normal distribution function at -1.5, -0.5, 0.5 and 1.5 (ticket SEL-4.2)."
+    }
+  ],
+  "truncated_moments": [
+    {
+      "mean": 3.0,
+      "spread": 1.0,
+      "first": [1.0613228334, 2.0793553948, 3.0, 3.9206446052, 4.9386771666],
+      "second": [1.2759527502, 4.4006609557, 9.0805891546, 15.4483962184, 24.5400787497],
+      "tolerance": 1e-6,
+      "source": "Closed form, checked against a direct numerical integration of the truncated normal density."
+    },
+    {
+      "mean": 4.2,
+      "spread": 0.8,
+      "first": [1.2930432639, 2.2331560718, 3.1409543722, 4.0246748143, 5.0407536922],
+      "second": [1.7103466044, 5.0368217521, 9.9335210391, 16.2767345371, 25.5945571225],
+      "tolerance": 1e-6,
+      "source": "Closed form, checked against a direct numerical integration of the truncated normal density."
+    }
+  ],
+  "fit_latent_normal": [
+    {"counts": [10, 0, 5, 5, 20], "mean": 4.59741399, "spread": 4.26435349},
+    {"counts": [3, 9, 14, 6, 2], "mean": 2.84819831, "spread": 0.99896684},
+    {"counts": [0.5, 1.25, 4.0, 2.5, 0.75], "mean": 3.19858159, "spread": 0.95302041},
+    {"counts": [40, 20, 5, 1, 0], "mean": 1.23063037, "spread": 0.98216422},
+    {"counts": [1, 2, 30, 2, 1], "mean": 3.0, "spread": 0.53720073}
+  ],
+  "fit_latent_normal_settings": {
+    "start_mean": 3.0,
+    "start_spread": 1.0,
+    "min_spread": 0.3,
+    "tolerance": 1e-9,
+    "max_iterations": 80,
+    "comparison_tolerance": 1e-6,
+    "source": "Expectation-maximisation of the engine, 80 steps at most. The same counts give the same mean and spread to five decimals in the JavaScript engine of the explainer 'LBM and MM-OLBM step by step' (17 November 2026)."
+  }
+}

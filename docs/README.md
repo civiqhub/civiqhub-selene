@@ -1,6 +1,10 @@
 # Documentation
 
-Empty for now. Documentation is written together with the code it describes.
+Documentation is written together with the code it describes.
+
+Available:
+
+- **[Architecture](architecture.md):** the contract every method shares, the data of co-clustering, the pipeline of a block model, how to add a method and how the tests are organised.
 
 Planned sections:
 

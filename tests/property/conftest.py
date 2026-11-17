@@ -4,7 +4,14 @@
 """Property-based tests: invariants that hold for every valid input.
 
 Examples: bounds of a statistic, invariance under relabelling of opaque identifiers,
-and independence of the ordinal and semantic readings. A property-testing library is
-added to the ``test`` dependency group with the first property test; its profiles and
-seeds are configured here so that failures can be replayed.
+and independence of the ordinal and semantic readings. Shared strategies go here.
+
+Inputs are generated with Hypothesis, a test-only dependency. The profile below has no
+deadline, so that a slow CI runner does not turn a correct property into a failure, and
+derandomises the search, so that a run is reproducible.
 """
+
+from hypothesis import settings
+
+settings.register_profile("selene", deadline=None, derandomize=True, max_examples=60)
+settings.load_profile("selene")
