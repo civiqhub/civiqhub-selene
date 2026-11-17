@@ -13,6 +13,12 @@ SELENE is the open-source scientific engine of [CiviqHub](https://civiqhub.com) 
 pip install civiqhub-selene
 ```
 
+The core and the ordinal family use the standard library only. Co-clustering needs NumPy, behind an optional extra:
+
+```bash
+pip install "civiqhub-selene[blocks]"
+```
+
 The distribution is named `civiqhub-selene`; the package is imported as `civiqhub_selene`:
 
 ```python

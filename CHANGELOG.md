@@ -11,6 +11,8 @@ Changes to a method, its parameters or its reference vectors are listed explicit
 ### Added
 
 - Core contract shared by every method, on the standard library alone: the `SeleneError` hierarchy (`errors`), the provenance and result types `Method`, `Randomness`, `Provenance`, `Result`, `Unavailable`, `StandardError` and `Interval` (`types`), the `Estimator` base class whose `estimate` is written once (`estimator`), the `Registry` of estimators read from the `civiqhub_selene.estimators` entry points (`registry`), and the contract kit `EstimatorContract` (`testing`).
+- `ordinal.VoteCounts`, the five vote counts of an item on the agreement scale, with exact shares.
+- Optional extra `blocks` (`pip install "civiqhub-selene[blocks]"`), which depends on NumPy 2.0 or later (BSD-3-Clause) and opens the `civiqhub_selene.blocks` subpackage for co-clustering. Without the extra, importing `civiqhub_selene.blocks` raises `MissingExtraError`; the core and `ordinal` stay on the standard library, which the new `test-core` CI job checks.
 
 ## [0.0.1] - 2026-10-25
 

@@ -31,12 +31,14 @@ classifiers = [
 ]
 dependencies = []
 
-# Reserved extras, one per engine area. Each stays empty until the first tested
+# Extras, one per engine area. A reserved extra stays empty until the first tested
 # implementation of that area needs a dependency (see CONTRIBUTING.md).
 [project.optional-dependencies]
 ordinal = []
 semantic = []
 landscape = []
+# Co-clustering (civiqhub_selene.blocks). NumPy is BSD-3-Clause.
+blocks = ["numpy>=2.0"]
 
 [project.urls]
 Homepage = "https://civiqhub.com"
@@ -45,7 +47,8 @@ Issues = "https://github.com/civiqhub/civiqhub-selene/issues"
 Changelog = "https://github.com/civiqhub/civiqhub-selene/blob/main/CHANGELOG.md"
 
 [dependency-groups]
-test = ["pytest>=9.1"]
+# Hypothesis (MPL-2.0) is a test tool only: it is never a dependency of the package.
+test = ["pytest>=9.1", "hypothesis>=6.170"]
 # mypy also checks the tests, so it needs pytest.
 lint = [{ include-group = "test" }, "ruff==0.17.2", "mypy==2.4.0"]
 dev = [{ include-group = "lint" }, "build>=1.6", "twine>=7.0"]
@@ -69,6 +72,7 @@ testpaths = ["tests"]
 addopts = ["--import-mode=importlib", "--strict-config", "--strict-markers", "-ra"]
 xfail_strict = true
 filterwarnings = ["error"]
+markers = ["blocks: tests that need the blocks extra"]
 
 [tool.ruff]
 target-version = "py311"
