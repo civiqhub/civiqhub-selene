@@ -29,18 +29,34 @@ import dataclasses
 import hashlib
 import html
 import json
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, TypeAlias
+from enum import StrEnum
+from typing import Any, Generic, TypeAlias, TypeVar, final
+
+from civiqhub_selene.errors import InvalidParameterError, UnavailableError
 
 __all__ = [
+    "RESULT_SCHEMA",
     "Displayable",
+    "Interval",
     "Method",
     "Provenance",
     "Randomness",
+    "Result",
     "Settings",
+    "StandardError",
+    "Unavailable",
+    "UnavailableReason",
+    "Uncertainty",
     "canonical",
     "settings_of",
 ]
+
+RESULT_SCHEMA = "civiqhub_selene.result/0"
+"""Schema identifier written by :meth:`Result.to_dict`."""
+
+T_co = TypeVar("T_co", covariant=True)
 
 Settings: TypeAlias = tuple[tuple[str, Any], ...]
 """Effective settings of a computation: ``(name, value)`` pairs sorted by name.
@@ -253,3 +269,187 @@ class Provenance:
             "lineage": list(self.lineage),
             "fingerprint": self.fingerprint(),
         }
+
+
+class UnavailableReason(StrEnum):
+    """Why a method has no value to return."""
+
+    NO_VOTES = "no_votes"
+    NOT_ENOUGH_DATA = "not_enough_data"
+    UNSUPPORTED_INPUT = "unsupported_input"
+
+
+@dataclass(frozen=True)
+class Unavailable:
+    """An explained absence of value.
+
+    Attributes:
+        reason: The kind of absence.
+        detail: One English sentence that names the numbers at stake.
+    """
+
+    reason: UnavailableReason
+    detail: str
+
+    def __str__(self) -> str:
+        return self.detail
+
+
+class Uncertainty(ABC):
+    """Uncertainty of a value. ``None`` in a result means "not defined", never "zero"."""
+
+    @property
+    @abstractmethod
+    def half_width(self) -> float:
+        """Half the width of the uncertainty around the value."""
+
+
+@dataclass(frozen=True)
+class StandardError(Uncertainty):
+    """Standard error of an estimate.
+
+    Attributes:
+        value: The standard error, in the unit of the estimate.
+    """
+
+    value: float
+
+    @property
+    def half_width(self) -> float:
+        return self.value
+
+
+@dataclass(frozen=True)
+class Interval(Uncertainty):
+    """Interval around an estimate.
+
+    Attributes:
+        lower: Lower bound.
+        upper: Upper bound, at least ``lower``.
+        confidence: Confidence level, strictly between 0 and 1.
+
+    Raises:
+        InvalidParameterError: If ``lower > upper`` or ``confidence`` is not in ``(0, 1)``.
+    """
+
+    lower: float
+    upper: float
+    confidence: float
+
+    def __post_init__(self) -> None:
+        if not self.lower <= self.upper:
+            raise InvalidParameterError(
+                f"Interval needs lower <= upper, got lower={self.lower!r} and upper={self.upper!r}"
+            )
+        if not 0 < self.confidence < 1:
+            raise InvalidParameterError(
+                "Interval needs a confidence strictly between 0 and 1, "
+                f"got confidence={self.confidence!r}"
+            )
+
+    @property
+    def half_width(self) -> float:
+        return (self.upper - self.lower) / 2
+
+
+@final
+@dataclass(frozen=True, eq=False, repr=False)
+class Result(Displayable, Generic[T_co]):
+    """The only type a method of the engine returns.
+
+    It carries a value or an explained absence, the provenance, and the uncertainty
+    when the method defines one. It decides nothing: it describes.
+
+    Two results of the same computation are equal: equality and hash follow
+    :meth:`fingerprint`. A result is neither true nor false; test ``is_available``.
+
+    Attributes:
+        outcome: The value, or the :class:`Unavailable` that explains its absence.
+        provenance: How the result was produced.
+        uncertainty: The uncertainty of the value, or ``None`` when the method does
+            not define one. ``None`` is not a zero uncertainty.
+    """
+
+    outcome: T_co | Unavailable
+    provenance: Provenance
+    uncertainty: Uncertainty | None = None
+
+    @property
+    def is_available(self) -> bool:
+        """Whether the result holds a value."""
+        return not isinstance(self.outcome, Unavailable)
+
+    @property
+    def value(self) -> T_co:
+        """The value.
+
+        Raises:
+            UnavailableError: If the result has no value. The message gives the reason
+                and the detail of the absence.
+        """
+        if isinstance(self.outcome, Unavailable):
+            raise UnavailableError(
+                f"{self.method} has no value ({self.outcome.reason.value}): {self.outcome.detail}"
+            )
+        return self.outcome
+
+    @property
+    def unavailable(self) -> Unavailable | None:
+        """The explained absence, or ``None`` when there is a value."""
+        return self.outcome if isinstance(self.outcome, Unavailable) else None
+
+    @property
+    def method(self) -> Method:
+        """The method that produced the result."""
+        return self.provenance.method
+
+    def fingerprint(self) -> str:
+        """Return the identity of the computation, as :meth:`Provenance.fingerprint`."""
+        return self.provenance.fingerprint()
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the result as a dictionary under the schema :data:`RESULT_SCHEMA`.
+
+        The value is written through its own ``to_dict()`` when it has one, as it is
+        otherwise.
+        """
+        data: dict[str, Any] = {
+            "schema": RESULT_SCHEMA,
+            "available": self.is_available,
+            "provenance": self.provenance.to_dict(),
+        }
+        if isinstance(self.outcome, Unavailable):
+            data["unavailable"] = {
+                "reason": self.outcome.reason.value,
+                "detail": self.outcome.detail,
+            }
+        else:
+            to_dict = getattr(self.outcome, "to_dict", None)
+            data["value"] = to_dict() if callable(to_dict) else self.outcome
+        if self.uncertainty is not None:
+            data["uncertainty"] = {
+                "type": type(self.uncertainty).__name__,
+                **dict(settings_of(self.uncertainty)),
+            }
+        return data
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Result):
+            return NotImplemented
+        return self.fingerprint() == other.fingerprint()
+
+    def __hash__(self) -> int:
+        return hash(self.fingerprint())
+
+    def __bool__(self) -> bool:
+        raise TypeError("a Result is neither true nor false; test result.is_available")
+
+    def __format__(self, format_spec: str) -> str:
+        if isinstance(self.outcome, Unavailable):
+            return f"unavailable ({self.outcome.reason.value}, {self.method})"
+        return f"{format(self.outcome, format_spec)} ({self.method})"
+
+    def _describe(self) -> list[str]:
+        if isinstance(self.outcome, Unavailable):
+            return [f"Result({self.outcome.reason.value}, {self.method})", self.outcome.detail]
+        return [f"Result({self.method})", *str(self.outcome).splitlines()]
