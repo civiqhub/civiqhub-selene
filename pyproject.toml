@@ -40,6 +40,11 @@ landscape = []
 # Co-clustering (civiqhub_selene.blocks). NumPy is BSD-3-Clause.
 blocks = ["numpy>=2.0"]
 
+# Estimators the engine ships, by key "family.choice". A package adds its own under the
+# same group; reading the registry imports nothing.
+[project.entry-points."civiqhub_selene.estimators"]
+"coclustering.single" = "civiqhub_selene.blocks.single:LatentBlockModel"
+
 [project.urls]
 Homepage = "https://civiqhub.com"
 Source = "https://github.com/civiqhub/civiqhub-selene"
