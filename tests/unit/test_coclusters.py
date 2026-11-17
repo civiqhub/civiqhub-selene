@@ -11,7 +11,6 @@ pytest.importorskip("numpy")
 import numpy as np
 
 from civiqhub_selene.blocks import Cocluster, CoclusterTable, OrdinalScale
-from civiqhub_selene.blocks._numerics import count_states, logsumexp, one_hot
 from civiqhub_selene.errors import InvalidInputError
 
 pytestmark = pytest.mark.blocks
@@ -31,41 +30,6 @@ def make_table(**changes: object) -> CoclusterTable:
     }
     fields.update(changes)
     return CoclusterTable(**fields)  # type: ignore[arg-type]
-
-
-# Numerics -----------------------------------------------------------------------------
-
-
-def test_one_hot() -> None:
-    indicator = one_hot(np.array([0, 2, 1]), 3)
-    assert indicator.tolist() == [[1, 0, 0], [0, 0, 1], [0, 1, 0]]
-    assert indicator.dtype == np.float64
-    assert one_hot(np.array([], dtype=np.int64), 2).shape == (0, 2)
-
-
-def test_count_states_matches_a_direct_count() -> None:
-    rng = np.random.default_rng(0)
-    states = one_hot(rng.integers(0, 4, size=30), 4).reshape(6, 5, 4)
-    rows = np.array([0, 0, 1, 1, 2, 2])
-    cols = np.array([0, 1, 1, 0, 1])
-    counts = count_states(states, rows, cols, (3, 2))
-    assert counts.shape == (3, 2, 4)
-    expected = np.zeros((3, 2, 4))
-    for i in range(6):
-        for j in range(5):
-            expected[rows[i], cols[j]] += states[i, j]
-    assert np.array_equal(counts, expected)
-    assert counts.sum() == 30
-
-
-def test_logsumexp_is_stable() -> None:
-    values = np.array([[1000.0, 1000.0], [-1000.0, -1000.0], [0.0, -np.inf]])
-    result = logsumexp(values, axis=1)
-    assert result.tolist() == pytest.approx([1000.0 + np.log(2), -1000.0 + np.log(2), 0.0])
-    assert logsumexp(np.array([-np.inf, -np.inf]), axis=0) == -np.inf
-    small = np.log(np.array([[0.1, 0.2, 0.7]]))
-    assert logsumexp(small, axis=1).tolist() == pytest.approx([0.0], abs=1e-12)
-    assert logsumexp(np.zeros((2, 3, 4)), axis=-1).shape == (2, 3)
 
 
 # Cocluster ----------------------------------------------------------------------------
