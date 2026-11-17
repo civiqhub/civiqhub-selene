@@ -14,16 +14,22 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from functools import cached_property
 from itertools import pairwise
-from typing import Any, NamedTuple, TypeAlias
+from typing import TYPE_CHECKING, Any, NamedTuple, TypeAlias
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from civiqhub_selene.blocks._arrays import BoolArray, FloatArray, IntArray
+from civiqhub_selene.blocks._numerics import count_states
+from civiqhub_selene.blocks.partition import ItemBlock, Partition, VoterGroup
 from civiqhub_selene.errors import InvalidInputError, InvalidParameterError
+from civiqhub_selene.ordinal.counts import SCORES, VoteCounts
 from civiqhub_selene.types import Displayable
 
-__all__ = ["OrdinalScale", "Vote", "VoteMatrix"]
+if TYPE_CHECKING:
+    from civiqhub_selene.blocks.coclusters import CoclusterTable
+
+__all__ = ["GroupedVotes", "OrdinalScale", "Vote", "VoteMatrix"]
 
 Selector: TypeAlias = slice | str | Iterable[str]
 """One side of a selection: ``:``, one identifier, or a collection of identifiers."""
@@ -444,6 +450,30 @@ class VoteMatrix(Displayable):
             self.scale,
         )
 
+    def group_by(
+        self,
+        groups: Partition[VoterGroup] | None = None,
+        blocks: Partition[ItemBlock] | None = None,
+    ) -> "GroupedVotes":
+        """Read the matrix through groups of voters and blocks of items.
+
+        A side left out counts as a single cluster that holds everyone.
+
+        Raises:
+            InvalidInputError: If a partition does not cover the voters, or the items,
+                of the matrix in the same order.
+        """
+        n_voters, n_items = self.shape
+        if groups is None:
+            groups = Partition.from_voter_labels(
+                self.voters, np.zeros(n_voters, dtype=np.int64), n_clusters=1
+            )
+        if blocks is None:
+            blocks = Partition.from_item_labels(
+                self.items, np.zeros(n_items, dtype=np.int64), n_clusters=1
+            )
+        return GroupedVotes(self, groups, blocks)
+
     def hold_out(self, cells: BoolArray) -> "VoteMatrix":
         """Return the same matrix where ``cells`` are treated as never shown.
 
@@ -523,6 +553,153 @@ class VoteMatrix(Displayable):
             identity,
             f"{shown_share:.1%} of the {n_cells} cells shown, "
             f"{voted_share:.1%} of the shown cells voted",
+        ]
+
+
+@dataclass(frozen=True, eq=False, repr=False)
+class GroupedVotes(Displayable):
+    """A vote matrix read through groups of voters and blocks of items.
+
+    The groups and the blocks can come from a model or from anywhere else. Only the
+    plain labels of the partitions are read here: a degree of membership is not.
+
+    Attributes:
+        votes: The vote matrix.
+        groups: A partition of the voters of the matrix, in the same order.
+        blocks: A partition of the items of the matrix, in the same order.
+
+    Raises:
+        InvalidInputError: If a partition does not cover the voters, or the items, of
+            the matrix in the same order.
+    """
+
+    votes: VoteMatrix
+    groups: Partition[VoterGroup]
+    blocks: Partition[ItemBlock]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.votes, VoteMatrix):
+            raise InvalidInputError(f"votes are a VoteMatrix, got {self.votes!r}")
+        for partition, kind, side, expected in (
+            (self.groups, VoterGroup, "voters", self.votes.voters),
+            (self.blocks, ItemBlock, "items", self.votes.items),
+        ):
+            if not isinstance(partition, Partition) or not issubclass(partition.kind, kind):
+                raise InvalidInputError(
+                    f"the {side} are grouped by a Partition of {kind.__name__}, got {partition!r}"
+                )
+            if partition.ids != expected:
+                raise InvalidInputError(
+                    f"the partition does not cover the {side} of the matrix in the same order: "
+                    f"{len(partition.ids)} identifiers for {len(expected)} {side}. "
+                    f"Slice the votes first, matrix[voters, items], or rebuild the partition "
+                    f"on the {side} of the matrix."
+                )
+
+    @property
+    def shape(self) -> tuple[int, int]:
+        """The number of groups and the number of blocks."""
+        return (self.groups.n_clusters, self.blocks.n_clusters)
+
+    def counts(self) -> FloatArray:
+        """Count the shown cells of each co-cluster in each state.
+
+        Shape (Q, L, K + 1). Index 0: shown without a vote; index ``k``: vote at rank
+        ``k``. A cell that is not shown is counted nowhere.
+        """
+        return count_states(
+            self.votes._states(), self.groups.labels, self.blocks.labels, self.shape
+        )
+
+    def to_table(self) -> "CoclusterTable":
+        """Return the table of co-clusters as it is counted, without a model.
+
+        ``vote_rate`` is the number of votes over the number of shown cells (0 when no
+        cell is shown); ``vote_shares`` is the count of each level over the number of
+        votes (a uniform distribution when there is no vote).
+        """
+        from civiqhub_selene.blocks.coclusters import CoclusterTable
+
+        counts = self.counts()
+        by_level = counts[..., 1:]
+        n_votes = by_level.sum(axis=-1)
+        n_shown = counts.sum(axis=-1)
+        vote_rate = np.divide(n_votes, n_shown, out=np.zeros_like(n_votes), where=n_shown > 0)
+        uniform = np.full_like(by_level, 1.0 / self.votes.n_levels)
+        vote_shares = np.divide(
+            by_level, n_votes[..., np.newaxis], out=uniform, where=n_votes[..., np.newaxis] > 0
+        )
+        return CoclusterTable(self.votes.scale, vote_rate, vote_shares, n_votes)
+
+    def vote_counts(self, group: int, block: int) -> VoteCounts:
+        """Return the five vote counts of a co-cluster, ready for the ordinal family.
+
+        The counts are named ``"group {group} x block {block}"``. They follow the rank
+        of the scores on the scale.
+
+        Raises:
+            InvalidInputError: If the scale does not have five scores, or if the group
+                or the block does not exist.
+        """
+        if self.votes.n_levels != len(SCORES):
+            raise InvalidInputError(
+                f"vote counts are defined on a scale of five scores, "
+                f"got {self.votes.n_levels} scores: {self.votes.scale.scores!r}"
+            )
+        self._check(group, block, InvalidInputError)
+        counts = self.counts()[group, block, 1:]
+        first, second, third, fourth, fifth = (round(float(count)) for count in counts)
+        return VoteCounts(
+            (first, second, third, fourth, fifth), name=f"group {group} x block {block}"
+        )
+
+    def __getitem__(self, key: tuple[int, int]) -> VoteMatrix:
+        """Return the sub-matrix of the co-cluster of a group and a block.
+
+        Raises:
+            IndexError: If the group or the block does not exist.
+        """
+        try:
+            group, block = key
+        except (TypeError, ValueError):
+            raise IndexError(
+                f"a co-cluster is read as grouped[group, block], got {key!r}"
+            ) from None
+        self._check(group, block, IndexError)
+        return self.votes[self.groups[group], self.blocks[block]]
+
+    @property
+    def lineage(self) -> tuple[str, ...]:
+        """Fingerprints of the computations the two partitions come from, without repeat.
+
+        ``Estimator`` copies it into the provenance: a result computed on groups cites
+        the computation that produced them.
+        """
+        computations = (self.groups.computation, self.blocks.computation)
+        return tuple(dict.fromkeys(c for c in computations if c is not None))
+
+    def fingerprint(self) -> str:
+        """Return a stable fingerprint of the votes and the two partitions."""
+        parts = (self.votes.fingerprint(), self.groups.fingerprint(), self.blocks.fingerprint())
+        return hashlib.sha256(repr(parts).encode()).hexdigest()[:16]
+
+    def _check(self, group: object, block: object, error: type[Exception]) -> None:
+        n_groups, n_blocks = self.shape
+        if not (_is_integer(group) and _is_integer(block)) or not (
+            0 <= group < n_groups and 0 <= block < n_blocks  # type: ignore[operator]
+        ):
+            raise error(
+                f"there are {n_groups} groups and {n_blocks} blocks, "
+                f"got group {group!r} and block {block!r}"
+            )
+
+    def _describe(self) -> list[str]:
+        n_voters, n_items = self.votes.shape
+        n_groups, n_blocks = self.shape
+        return [
+            f"GroupedVotes({n_voters} voter{_plural(n_voters)} in {n_groups} "
+            f"group{_plural(n_groups)} x {n_items} item{_plural(n_items)} in {n_blocks} "
+            f"block{_plural(n_blocks)}, {self.votes.n_votes} vote{_plural(self.votes.n_votes)})"
         ]
 
 

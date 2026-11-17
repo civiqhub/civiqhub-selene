@@ -19,7 +19,18 @@ try:
 except ImportError as error:
     raise MissingExtraError("civiqhub_selene.blocks needs NumPy, which is not installed") from error
 
-from civiqhub_selene.blocks.data import OrdinalScale, Vote, VoteMatrix
+from civiqhub_selene.blocks.coclusters import Cocluster, CoclusterTable
+from civiqhub_selene.blocks.data import GroupedVotes, OrdinalScale, Vote, VoteMatrix
 from civiqhub_selene.blocks.partition import ItemBlock, Partition, VoterGroup
 
-__all__ = ["ItemBlock", "OrdinalScale", "Partition", "Vote", "VoteMatrix", "VoterGroup"]
+__all__ = [
+    "Cocluster",
+    "CoclusterTable",
+    "GroupedVotes",
+    "ItemBlock",
+    "OrdinalScale",
+    "Partition",
+    "Vote",
+    "VoteMatrix",
+    "VoterGroup",
+]
