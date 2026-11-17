@@ -17,6 +17,7 @@ Changes to a method, its parameters or its reference vectors are listed explicit
 - Response models of the co-clusters: the `ResponseModel` protocol, `Categorical` (a free distribution over the scores) and `OrdinalProbit` (a latent normal opinion cut by fixed thresholds; Corneli, Bouveyron, Latouche 2020), with reference vectors under `tests/vectors/blocks_numerics.json`.
 - Architecture of the block models: `IterativeEstimator` (several starts, one seed per start, convergence, best start), `CoclusteringEstimator`, `BlockModel`, the plain-word lookup `estimator_for`, and the values `Coclustering`, `SingleCoclustering`, `MixedCoclustering` and `Selection`. No block model is delivered yet: the single-membership and mixed-membership models come next.
 - Property-based tests with Hypothesis, a test-only dependency.
+- `docs/architecture.md`: how the engine is built and how to add a method.
 
 ## [0.0.1] - 2026-10-25
 

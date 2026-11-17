@@ -5,7 +5,7 @@
 
 SELENE is the open-source scientific engine of [CiviqHub](https://civiqhub.com) for analysing collective deliberation, usable as a Python library or behind a containerised service.
 
-**Status: early scaffold, not functional yet.** Version 0.0.1 contains the repository structure, governance documents and tooling; the package exposes nothing but `__version__`.
+**Status: foundations, no method delivered yet.** The published version 0.0.1 contains the repository structure, governance documents and tooling, and exposes nothing but `__version__`. The development branch adds the contract every method shares (errors, results with their provenance, estimators, registry, contract kit), the vote counts of the ordinal family, and the data and the architecture of co-clustering (vote matrix, partitions, response models, base classes of the block models). The methods themselves (dissensus index, block models, choice of shape) come next: see [`CHANGELOG.md`](CHANGELOG.md) and [`docs/architecture.md`](docs/architecture.md).
 
 ## Install
 
@@ -32,6 +32,7 @@ import civiqhub_selene
 | [`src/civiqhub_selene/`](src/civiqhub_selene) | The engine, published on PyPI. Deterministic computations on explicit inputs, with no network access and no dependency on CiviqHub services. |
 | [`services/api/`](services/api) | The HTTP wrapper of the engine and its container image. It installs the engine; it never reimplements it. |
 | [`tests/`](tests) | Unit, property-based and contract tests, and reference vectors. |
+| [`docs/`](docs) | How the engine is built ([`architecture.md`](docs/architecture.md)); the documentation of each method is written with it. |
 
 ## Relationship with `civiqhub`
 
