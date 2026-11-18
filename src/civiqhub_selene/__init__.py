@@ -12,6 +12,7 @@ implementation, never as placeholders.
 Importing ``civiqhub_selene`` loads neither NumPy nor the ``civiqhub`` SDK.
 """
 
+#: Version of the engine, in PEP 440 notation. Every result records it in its provenance.
 __version__ = "0.1.0.dev0"
 
 from civiqhub_selene.errors import (
