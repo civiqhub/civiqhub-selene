@@ -111,6 +111,8 @@ What is written once:
 
 What a model writes: its identity, and three hooks.
 
+<!-- not run: a skeleton, the state and the body of the hooks are yours to write -->
+
 ```python
 @dataclass(frozen=True, kw_only=True)
 class MyBlockModel(BlockModel[MyState, SingleCoclustering]):
@@ -156,6 +158,7 @@ A step uses the response model through four calls:
    ```
 
 3. Add a test class that inherits `EstimatorContract`, unit tests on known cases, property-based tests for the invariants, and reference vectors under `tests/vectors` with their tolerance.
+4. Create the page of its module in the reference. `docs/README.md`, in the repository, says how; a test fails as long as a public module has no page.
 
 ## Tests
 
@@ -165,6 +168,8 @@ A step uses the response model through four calls:
 | `tests/property` | Invariants on generated inputs, with Hypothesis; the profile in `conftest.py` has no deadline and is derandomised |
 | `tests/vectors` | Expected values stored as data, with their tolerance and their source |
 | `tests/contract` | Reserved for the contract between the engine and the service |
+
+Two files of `tests/unit` check the documentation: `test_docs_reference.py` (every public module has a page in the reference) and `test_docs_examples.py` (every Python block of the pages runs and prints the output shown).
 
 A test file of the `blocks` extra is marked and skips itself when NumPy is missing:
 

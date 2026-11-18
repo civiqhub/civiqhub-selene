@@ -9,4 +9,5 @@ build/
 .ruff_cache/
 .coverage
 htmlcov/
+docs/_build/
 .hypothesis/

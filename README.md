@@ -32,7 +32,7 @@ import civiqhub_selene
 | [`src/civiqhub_selene/`](src/civiqhub_selene) | The engine, published on PyPI. Deterministic computations on explicit inputs, with no network access and no dependency on CiviqHub services. |
 | [`services/api/`](services/api) | The HTTP wrapper of the engine and its container image. It installs the engine; it never reimplements it. |
 | [`tests/`](tests) | Unit, property-based and contract tests, and reference vectors. |
-| [`docs/`](docs) | How the engine is built ([`architecture.md`](docs/architecture.md)); the documentation of each method is written with it. |
+| [`docs/`](docs) | The pages of the documentation site: getting started, a map of the library, how the engine is built ([`architecture.md`](docs/architecture.md)) and a reference generated from the docstrings. [`docs/README.md`](docs/README.md) says how to build it. The documentation of each method is written with it. |
 
 ## Relationship with `civiqhub`
 
