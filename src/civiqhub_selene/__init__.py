@@ -12,7 +12,7 @@ implementation, never as placeholders.
 Importing ``civiqhub_selene`` loads neither NumPy nor the ``civiqhub`` SDK.
 """
 
-__version__ = "0.0.1"
+__version__ = "0.1.0.dev0"
 
 from civiqhub_selene.errors import (
     ContractError,

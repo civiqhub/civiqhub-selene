@@ -22,12 +22,14 @@ except ImportError as error:
 from civiqhub_selene.blocks.coclusters import Cocluster, CoclusterTable
 from civiqhub_selene.blocks.data import GroupedVotes, OrdinalScale, Vote, VoteMatrix
 from civiqhub_selene.blocks.partition import ItemBlock, Partition, VoterGroup
+from civiqhub_selene.blocks.single import LatentBlockModel
 
 __all__ = [
     "Cocluster",
     "CoclusterTable",
     "GroupedVotes",
     "ItemBlock",
+    "LatentBlockModel",
     "OrdinalScale",
     "Partition",
     "Vote",

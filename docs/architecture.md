@@ -29,9 +29,10 @@ This page describes how the engine is built: the contract every method shares, t
 | `civiqhub_selene.blocks._numerics` | `count_states`, `logsumexp`, the normal law, `iterate`, `History`, `fit_latent_normal` | NumPy |
 | `civiqhub_selene.blocks.iterative` | `IterativeEstimator`, `HasObjective` | NumPy |
 | `civiqhub_selene.blocks.base` | `CoclusteringEstimator`, `BlockModel`, `availability`, `estimator_for`, `memberships` | NumPy |
+| `civiqhub_selene.blocks.single` | `LatentBlockModel`, the single-membership block model | NumPy |
 | `civiqhub_selene.blocks.results` | `Coclustering`, `SingleCoclustering`, `MixedCoclustering`, `Selection`, `HasIntegratedLikelihood`, `PredictsVotes` | NumPy |
 
-Not written yet: the dissensus index and the collective regime (`ordinal`), the two block models (`LatentBlockModel`, `MixedMembershipBlockModel`), the choice of shape (`select_shape`), the consensus between groups and the `cocluster` function.
+Not written yet: the dissensus index and the collective regime (`ordinal`), the mixed-membership block model (`MixedMembershipBlockModel`), the choice of shape (`select_shape`), the consensus between groups and the `cocluster` function.
 
 ## The contract of a method
 
@@ -98,7 +99,7 @@ Estimator                      estimate()     written once
 |- IterativeEstimator          _compute()     written once
 '- CoclusteringEstimator       with_shape(), availability
 BlockModel(IterativeEstimator, CoclusteringEstimator)
-|- LatentBlockModel            "single"       to come
+|- LatentBlockModel            "single"
 '- MixedMembershipBlockModel   "mixed"        to come
 ```
 
@@ -131,7 +132,7 @@ class MyBlockModel(BlockModel[MyState, SingleCoclustering]):
         """Return the public value, from the best final state."""
 ```
 
-A state is any frozen object with an `objective`. A model never writes a loop and never draws a seed. `tests/unit/test_blocks_pipeline.py` holds a complete, short model written with the public pieces only; it is a test of the architecture, not a delivered method.
+A state is any frozen object with an `objective`. A model never writes a loop and never draws a seed. `civiqhub_selene/blocks/single.py` is the model to read first: `LatentBlockModel` is these three hooks and nothing else. `tests/unit/test_blocks_pipeline.py` holds a shorter model written with the public pieces only; it is a test of the architecture, not a delivered method.
 
 A step uses the response model through four calls:
 
@@ -147,7 +148,7 @@ A step uses the response model through four calls:
 ## Adding a method
 
 1. Write the estimator and its value in their module, with the mathematical definition and the reference in the docstring.
-2. Declare it in `pyproject.toml`. For example, the line the single-membership model will add:
+2. Declare it in `pyproject.toml`, then reinstall the package: an editable install reads its entry points when it is installed. For example, the line of the single-membership model:
 
    ```toml
    [project.entry-points."civiqhub_selene.estimators"]

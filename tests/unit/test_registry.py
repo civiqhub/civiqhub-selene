@@ -261,3 +261,11 @@ def test_module_exports() -> None:
         "Registry",
         "default_registry",
     }
+
+
+def test_the_installed_registry_declares_the_single_membership_model() -> None:
+    # Reading the entry points of the package itself imports nothing: no NumPy needed.
+    spec = Registry.from_entry_points()["coclustering.single"]
+    assert spec.target == "civiqhub_selene.blocks.single:LatentBlockModel"
+    assert spec.family == "coclustering"
+    assert spec.choice == "single"

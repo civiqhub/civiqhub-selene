@@ -8,6 +8,10 @@ Changes to a method, its parameters or its reference vectors are listed explicit
 
 ## [Unreleased]
 
+### Changed
+
+- The development branch carries the version `0.1.0.dev0`, so that the provenance of a result computed from it (`engine_version`) cannot be mistaken for the published 0.0.1. The service scaffold under `services/api` stays at 0.0.1 until the next release.
+
 ### Added
 
 - Core contract shared by every method, on the standard library alone: the `SeleneError` hierarchy (`errors`), the provenance and result types `Method`, `Randomness`, `Provenance`, `Result`, `Unavailable`, `StandardError` and `Interval` (`types`), the `Estimator` base class whose `estimate` is written once (`estimator`), the `Registry` of estimators read from the `civiqhub_selene.estimators` entry points (`registry`), and the contract kit `EstimatorContract` (`testing`).
@@ -15,7 +19,8 @@ Changes to a method, its parameters or its reference vectors are listed explicit
 - Optional extra `blocks` (`pip install "civiqhub-selene[blocks]"`), which depends on NumPy 2.0 or later (BSD-3-Clause) and opens the `civiqhub_selene.blocks` subpackage for co-clustering. Without the extra, importing `civiqhub_selene.blocks` raises `MissingExtraError`; the core and `ordinal` stay on the standard library, which the new `test-core` CI job checks.
 - Data of co-clustering in `civiqhub_selene.blocks`: `OrdinalScale`, `VoteMatrix` (a vote matrix with three states per cell: voted, shown without a vote, not shown), `Partition` with `VoterGroup` and `ItemBlock`, `GroupedVotes`, `Cocluster` and `CoclusterTable`, and the synthetic generator `make_votes` with its planted truth.
 - Response models of the co-clusters: the `ResponseModel` protocol, `Categorical` (a free distribution over the scores) and `OrdinalProbit` (a latent normal opinion cut by fixed thresholds; Corneli, Bouveyron, Latouche 2020), with reference vectors under `tests/vectors/blocks_numerics.json`.
-- Architecture of the block models: `IterativeEstimator` (several starts, one seed per start, convergence, best start), `CoclusteringEstimator`, `BlockModel`, the plain-word lookup `estimator_for`, and the values `Coclustering`, `SingleCoclustering`, `MixedCoclustering` and `Selection`. No block model is delivered yet: the single-membership and mixed-membership models come next.
+- Architecture of the block models: `IterativeEstimator` (several starts, one seed per start, convergence, best start), `CoclusteringEstimator`, `BlockModel`, the plain-word lookup `estimator_for`, and the values `Coclustering`, `SingleCoclustering`, `MixedCoclustering` and `Selection`. The mixed-membership model, the choice of shape and the `cocluster` function come next.
+- `blocks.LatentBlockModel`, the first block model: co-clustering where each voter belongs to one group and each item to one block, estimated by classification expectation-maximisation (Govaert and Nadif 2003), with the integrated completed likelihood of its value (Biernacki, Celeux and Govaert 2000). It is declared under the entry point `coclustering.single`, and a reference run on stored votes lives in `tests/vectors/latent_block_model.json`.
 - Property-based tests with Hypothesis, a test-only dependency.
 - `docs/architecture.md`: how the engine is built and how to add a method.
 
