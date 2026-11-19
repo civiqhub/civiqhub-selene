@@ -23,7 +23,8 @@ Changes to a method, its parameters or its reference vectors are listed explicit
 - `blocks.LatentBlockModel`, the first block model: co-clustering where each voter belongs to one group and each item to one block, estimated by classification expectation-maximisation (Govaert and Nadif 2003), with the integrated completed likelihood of its value (Biernacki, Celeux and Govaert 2000). It is declared under the entry point `coclustering.single`, and a reference run on stored votes lives in `tests/vectors/latent_block_model.json`.
 - Property-based tests with Hypothesis, a test-only dependency.
 - `docs/architecture.md`: how the engine is built and how to add a method.
-- Sources of a documentation site under `docs/`, built with Sphinx: a getting-started page, a map of the library, and a reference generated from the docstrings, one page per public module. The `documentation` CI job builds it with warnings as errors; the tests check that every public module has its page and that every Python block of the pages runs and prints the output shown. The site is not published yet.
+- Sources of a documentation site under `docs/`, built with Sphinx: a getting-started page, a map of the library, and a reference generated from the docstrings, one page per public module. The `documentation` CI job builds it with warnings as errors; the tests check that every public module has its page and that every Python block of the pages runs and prints the output shown.
+- Publication of the documentation site on GitHub Pages, at <https://civiqhub.github.io/civiqhub-selene/>, by the `docs` workflow: one folder per version (the release that `main` holds, the earlier release tags, and the development branch), and a version selector on every page.
 
 ## [0.0.1] - 2026-10-25
 

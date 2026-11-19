@@ -10,4 +10,5 @@ build/
 .coverage
 htmlcov/
 docs/_build/
+_site/
 .hypothesis/
