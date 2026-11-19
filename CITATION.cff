@@ -13,7 +13,7 @@ authors:
     affiliation: CiviqHub SAS
   - name: CiviqHub SAS
     website: "https://civiqhub.com"
-version: 0.1.0
+version: 0.2.0.dev0
 license: Apache-2.0
 repository-code: "https://github.com/civiqhub/civiqhub-selene"
 url: "https://civiqhub.com"
