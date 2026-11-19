@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/civiqhub/civiqhub-selene/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/civiqhub/civiqhub-selene/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/civiqhub-selene.svg)](https://pypi.org/project/civiqhub-selene/)
+[![Docs](https://github.com/civiqhub/civiqhub-selene/actions/workflows/docs.yml/badge.svg)](https://civiqhub.github.io/civiqhub-selene/)
 
 SELENE is the open-source scientific engine of [CiviqHub](https://civiqhub.com) for analysing collective deliberation, usable as a Python library or behind a containerised service.
 
@@ -32,7 +33,7 @@ import civiqhub_selene
 | [`src/civiqhub_selene/`](src/civiqhub_selene) | The engine, published on PyPI. Deterministic computations on explicit inputs, with no network access and no dependency on CiviqHub services. |
 | [`services/api/`](services/api) | The HTTP wrapper of the engine and its container image. It installs the engine; it never reimplements it. |
 | [`tests/`](tests) | Unit, property-based and contract tests, and reference vectors. |
-| [`docs/`](docs) | The pages of the documentation site: getting started, a map of the library, how the engine is built ([`architecture.md`](docs/architecture.md)) and a reference generated from the docstrings. [`docs/README.md`](docs/README.md) says how to build it. The documentation of each method is written with it. |
+| [`docs/`](docs) | The pages of the documentation site: getting started, a map of the library, how the engine is built ([`architecture.md`](docs/architecture.md)) and a reference generated from the docstrings. They are published at <https://civiqhub.github.io/civiqhub-selene/>, with one version per release and one for the development branch; [`docs/README.md`](docs/README.md) says how to build them. The documentation of each method is written with it. |
 
 ## Relationship with `civiqhub`
 

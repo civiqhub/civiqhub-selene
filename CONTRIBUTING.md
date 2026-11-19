@@ -57,7 +57,7 @@ Changing the output of an existing method, its defaults or a reference vector is
 
 ## Documentation
 
-The documentation site is built from the Markdown pages under [`docs/`](docs) and from the docstrings. [`docs/README.md`](docs/README.md) says how to build it and how to write a page. Three rules are checked by the CI:
+The documentation site is built from the Markdown pages under [`docs/`](docs) and from the docstrings. [`docs/README.md`](docs/README.md) says how to build it, how to write a page and how the site is published. Three rules are checked by the CI:
 
 - a public module declares its `__all__` and has a page in the reference;
 - every Python block of `README.md` and of the pages runs, and prints the output the page shows;
