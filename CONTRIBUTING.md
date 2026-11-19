@@ -35,10 +35,11 @@ You may add your own copyright line above the SPDX identifier for a substantial 
 
 ## Dependency policy
 
-- **Core:** the engine relies on the standard library (dataclasses, enums, protocols). NumPy and SciPy are added when a method actually needs them, not in advance.
+- **Core:** the engine relies on the standard library (dataclasses, enums, protocols). NumPy and SciPy are added when a method actually needs them, not in advance. Co-clustering needs NumPy: it lives in `civiqhub_selene.blocks`, behind the `blocks` extra, and the package root and `ordinal` never import it.
 - **Optional:** heavy dependencies (embedding models, graph libraries, data adapters) live in the extras declared in `pyproject.toml` and are never imported by the core.
 - **Boundaries:** the engine depends on neither the `civiqhub` SDK, nor the CiviqHub backend, nor any network service. The service wrapper under `services/api` keeps its own dependencies; they never enter the scientific package.
 - **Licenses:** every dependency, optional ones included, uses a permissive license compatible with Apache-2.0 (BSD, MIT, Apache-2.0, PSF). GPL and AGPL dependencies are excluded by project policy. Model weights and datasets keep their own licenses and are checked separately. Discuss any new dependency in an issue before adding it.
+- **Development tools:** linters, type checkers, test libraries and documentation tools live in the dependency groups of `pyproject.toml`, never in the dependencies or the extras: they are not installed with the package and are not redistributed. They may use another OSI-approved license when no permissive equivalent exists; Hypothesis (MPL-2.0), used for property-based tests, is the one such tool. GPL and AGPL tools stay excluded.
 
 ## Scientific contributions
 
@@ -53,6 +54,14 @@ Each method ships with:
 Methods are deterministic: any randomness takes an explicit seed, and any model is selected explicitly by the caller and recorded in the result. Results describe a group and decide nothing.
 
 Changing the output of an existing method, its defaults or a reference vector is a scientific change: say so in the pull request, justify it, and list it in [`CHANGELOG.md`](CHANGELOG.md).
+
+## Documentation
+
+The documentation site is built from the Markdown pages under [`docs/`](docs) and from the docstrings. [`docs/README.md`](docs/README.md) says how to build it, how to write a page and how the site is published. Three rules are checked by the CI:
+
+- a public module declares its `__all__` and has a page in the reference;
+- every Python block of `README.md` and of the pages runs, and prints the output the page shows;
+- the site builds without a warning.
 
 ## Data
 
@@ -69,10 +78,17 @@ git clone https://github.com/civiqhub/civiqhub-selene
 cd civiqhub-selene
 python -m venv .venv && source .venv/bin/activate
 python -m pip install --upgrade pip
-pip install -e . --group dev
+pip install -e ".[blocks]" --group dev
 ruff check && ruff format --check
 mypy
 pytest
+```
+
+To build the documentation site, with Python 3.13 or later:
+
+```bash
+pip install -e ".[blocks]" --group docs
+python -m sphinx -W -b html docs docs/_build/html
 ```
 
 1. Open an issue describing the change, unless it is a small fix.
