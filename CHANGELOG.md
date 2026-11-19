@@ -8,9 +8,14 @@ Changes to a method, its parameters or its reference vectors are listed explicit
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-19
+
+First version that computes: the contract every method shares, the vote counts of the ordinal family, and co-clustering with the single-membership block model.
+
 ### Changed
 
-- The development branch carries the version `0.1.0.dev0`, so that the provenance of a result computed from it (`engine_version`) cannot be mistaken for the published 0.0.1. The service scaffold under `services/api` stays at 0.0.1 until the next release.
+- The service scaffold under `services/api` follows the engine: its version is 0.1.0 and it pins `civiqhub-selene==0.1.0`. The version of its HTTP contract, in `openapi.yaml`, is separate and stays at 0.0.1.
+- The description of the package no longer says "not functional yet".
 
 ### Added
 
@@ -36,5 +41,6 @@ Changes to a method, its parameters or its reference vectors are listed explicit
 - Apache-2.0 license, NOTICE, governance, contribution and security policies, citation metadata.
 - CI workflow (lint, type checking, tests, build, clean install, DCO) and release workflow publishing to PyPI through Trusted Publishing.
 
-[Unreleased]: https://github.com/civiqhub/civiqhub-selene/compare/v0.0.1...HEAD
+[Unreleased]: https://github.com/civiqhub/civiqhub-selene/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/civiqhub/civiqhub-selene/compare/v0.0.1...v0.1.0
 [0.0.1]: https://github.com/civiqhub/civiqhub-selene/releases/tag/v0.0.1
