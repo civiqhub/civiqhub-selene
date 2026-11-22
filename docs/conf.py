@@ -7,6 +7,7 @@ How the site is organised and how to build it: see ``docs/README.md``.
 """
 
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -148,7 +149,29 @@ html_theme_options = {
         "color-foreground-secondary": "#e5e5e5",
         "color-foreground-muted": "#868686",
         "color-foreground-border": "#868686",
+        "color-code-background": "#000000",
+        "color-sidebar-background": "#000000",
+        "color-sidebar-background-border": "#404040",
+        "color-sidebar-brand-text": "#FAFAFA",
+        "color-sidebar-caption-text": "#FAFAFA",
+        "color-sidebar-link-text": "#FAFAFA",
+        "color-sidebar-link-text--top-level": "#FAFAFA",
         "color-sidebar-item-background--current": "#404040",
+        "color-sidebar-item-background--hover": "#404040",
+        "color-sidebar-search-background": "#000000",
+        "color-sidebar-search-border": "#404040",
+        "color-sidebar-search-text": "#FAFAFA",
+        "color-sidebar-search-foreground": "#FAFAFA",
+        "color-admonition-title": "#868686",
+        "color-admonition-title-background": "rgba(134,134,134,0.2)",
+        "color-topic-title": "#868686",
+        "color-topic-title-background": "rgba(134,134,134,0.2)",
+        "font-stack": (
+            '"Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif'
+        ),
+        "font-stack--headings": (
+            '"Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif'
+        ),
         "color-card-background": "#000000",
         "color-card-border": "#404040",
         "color-card-marginals-background": "#404040",
@@ -221,7 +244,7 @@ ogp_social_cards = {"enable": False}
 
 
 def setup(app):
-    """Bind Open Graph and canonical URLs to the public origin."""
+    """Bind Open Graph URLs and keep review screenshots out of the published site."""
 
     def _bind_opengraph(app, config):
         base = config.html_baseurl or config.ogp_site_url or _PUBLIC_DOCS_ORIGIN
@@ -230,4 +253,12 @@ def setup(app):
         config.html_baseurl = base
         config.ogp_site_url = base
 
+    def _drop_review_screenshots(app, exception):
+        if exception is not None:
+            return
+        shots = Path(app.outdir) / "_static" / "screenshots"
+        if shots.is_dir():
+            shutil.rmtree(shots)
+
     app.connect("config-inited", _bind_opengraph)
+    app.connect("build-finished", _drop_review_screenshots)

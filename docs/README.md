@@ -93,13 +93,14 @@ cp ofl/bricolagegrotesque/OFL.txt OFL.txt
 | `_static/home.svg` | Glyphe de maison du H1 d'accueil |
 | `_static/github.svg` | Icône GitHub du pied de page |
 | `_static/fonts/` | Les trois `woff2` et `OFL.txt` |
+| `_static/screenshots/` | Captures de relecture du thème. Le build les retire de `_static/` du site publié |
 | `_static/version-switcher.js`, `_static/version-switcher.css` | Sélecteur de version de la publication, natif à ce dépôt, au style du thème |
 | `_templates/page.html` | Charge `theme-migrate.js` dans le `<head>` ; fil d'Ariane ; enveloppe d'accueil |
 | `_templates/sidebar/brand.html` | Marque : icône puis « CiviqHub » en Bold |
 | `_templates/sidebar/search.html` | Pilule : une loupe, « Rechercher... », badge Ctrl K |
 | `_templates/sidebar/version-switcher.html` | Emplacement du sélecteur de version, propre à ce dépôt |
 
-Les fichiers du thème repris de `civiqhub-py` portent l'en-tête Apache-2.0 de ce dépôt. `NOTICE` cite leur origine, Bricolage Grotesque et le glyphe.
+Les fichiers du thème repris de `civiqhub-py` portent l'en-tête Apache-2.0 de ce dépôt. `NOTICE` cite leur origine, Bricolage Grotesque, le glyphe, et le pied de page adapté de Furo (MIT).
 
 ### Tokens
 
@@ -114,7 +115,7 @@ Les couleurs et arrondis clairs viennent de `civiqhub-web` au SHA `22756d33636bb
 | `--civiqhub-muted` | `#f1f5f9` | `#404040` | Entrée active, survol, kbd, bordures UI |
 | `--civiqhub-border` | `#e2e8f0` | `#404040` | Bordures UI |
 | `--civiqhub-foreground` | `#020617` | `#FAFAFA` | Texte principal, liens |
-| `--civiqhub-muted-foreground` | `#64748b` | `#e5e5e5` | Texte secondaire |
+| `--civiqhub-muted-foreground` | `#64748b` | `#e5e5e5` | Texte secondaire (contenu). En sombre, les menus de la barre sont `#FAFAFA` |
 | `color-brand-primary` / `color-brand-content` | `#2C448B` | `#FAFAFA` | Liens et accents. En sombre, soulignement `#868686` puis `#FAFAFA` au survol |
 | `--civiqhub-success` | `#047857` | `#73b876` | Avertissements tip / hint |
 | `--civiqhub-destructive` | `#dc2626` | `#ff2f1c` | Avertissements danger / error |
