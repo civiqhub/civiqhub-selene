@@ -25,7 +25,7 @@ This builds the documentation of the code you have, as one site without versions
 | `_ext/selene_docs.py` | A local Sphinx extension; its docstring says what it does |
 | `_templates/sidebar/version-switcher.html`, `_static/version-switcher.js`, `_static/version-switcher.css` | The version selector of the sidebar |
 | `_templates/sidebar/brand.html`, `_templates/sidebar/search.html`, `_templates/page.html` | The mark of the site, the search field, and the theme-migration script |
-| `_static/civiqhub.css`, `_static/theme-migrate.js`, `_static/search-shortcut.js` | The CiviqHub theme (light and dark), the one-time theme migration, and the Ctrl K shortcut |
+| `_static/civiqhub.css`, `_static/theme-migrate.js`, `_static/sidebar-wrap.js`, `_static/search-shortcut.js` | The CiviqHub theme (light and dark), the one-time theme migration, wrapping of sidebar module names, and the Ctrl K shortcut |
 | `_static/fonts/` | Bricolage Grotesque (OFL 1.1) and `OFL.txt` |
 | `_static/logo.svg`, `_static/favicon.ico` | The CiviqHub glyph and the favicon |
 | `index.md` | The home page and the table of contents of the site |
@@ -84,7 +84,9 @@ cp ofl/bricolagegrotesque/OFL.txt OFL.txt
 | Fichier | Rôle |
 | --- | --- |
 | `_static/civiqhub.css` | Tokens clair et sombre, `@font-face`, barre latérale, recherche, cartes, colonne de lecture, mermaid |
-| `_static/theme-migrate.js` | Une fois, retire `localStorage.theme = "light"` laissé par l'ancien verrou ; enveloppe les noms de modules aux points |
+| `_static/theme-migrate.js` | Une fois, retire `localStorage.theme = "light"` laissé par l'ancien verrou |
+| `_static/sidebar-wrap.js` | Enveloppe les noms de modules aux points dans la barre latérale |
+| `_ext/civiqhub_carbon.py` | Style Pygments sombre, palette carbone seulement |
 | `_static/search-shortcut.js` | Ctrl K / Cmd K focusent le champ de recherche |
 | `_static/logo.svg` | Glyphe CiviqHub (carré noir à coins arrondis en CSS) |
 | `_static/favicon.ico` | Favicon ICO du site |
@@ -101,27 +103,29 @@ Les fichiers du thème repris de `civiqhub-py` portent l'en-tête Apache-2.0 de 
 
 ### Tokens
 
-Les couleurs et arrondis clairs viennent de `civiqhub-web` au SHA `22756d33636bb8b341e7c41ec8846c421867dc10`, fichier `packages/civiqhub-ui/src/tokens/generated.css`. Ce sont des valeurs de bootstrap : aucun contrat du design system n'est `ready`. Le sombre n'a pas de source officielle (contrat `foundation.color.primary` v0.1.5, statut review, teintes App seulement).
+Les couleurs et arrondis clairs viennent de `civiqhub-web` au SHA `22756d33636bb8b341e7c41ec8846c421867dc10`, fichier `packages/civiqhub-ui/src/tokens/generated.css`. Ce sont des valeurs de bootstrap : aucun contrat du design system n'est `ready`. Les valeurs sombres sont les neutres carbone du design system (Décision Yanis du 22/11/2026, 14:44 heure de Paris) : aucune teinte bleue.
 
 | Variable CSS | Clair | Sombre | Rôle |
 | --- | --- | --- | --- |
-| `--civiqhub-primary` | `#2C448B` | `#2C448B` | Remplissage de marque (texte `#ffffff` dessus) |
-| `--civiqhub-primary-foreground` | `#ffffff` | `#ffffff` | Texte sur la marque |
-| `--civiqhub-background` | `#ffffff` | `#0B1123` | Fond de page |
-| `--civiqhub-shell-surface` | `#FAFAFA` | `#0D142A` | Barre latérale, blocs de code |
-| `--civiqhub-muted` | `#f1f5f9` | `#141F3F` | Entrée active, survol, kbd |
-| `--civiqhub-border` | `#e2e8f0` | `#1F3061` | Bordures |
-| `--civiqhub-foreground` | `#020617` | `#EEF0F6` | Texte principal |
-| `--civiqhub-muted-foreground` | `#64748b` | `#ABB4D1` | Texte secondaire |
-| `color-brand-primary` / `color-brand-content` | `#2C448B` | `#7886ED` | Liens, accent texte, focus |
-| survol des liens | `#2C448B` | `#D2D7F9` | Teinte App `primary10` en sombre |
-| `--civiqhub-success` | `#047857` | `#047857` | Avertissements tip / hint |
-| `--civiqhub-destructive` | `#dc2626` | `#dc2626` | Avertissements danger / error |
+| `--civiqhub-primary` | `#2C448B` | `#FAFAFA` | Remplissage de marque en clair ; texte de marque en sombre |
+| `--civiqhub-primary-foreground` | `#ffffff` | `#171717` | Texte sur la marque |
+| `--civiqhub-background` | `#ffffff` | `#171717` | Fond de page (web `neutral-900` en sombre) |
+| `--civiqhub-shell-surface` | `#FAFAFA` | `#000000` | Barre latérale, cartes, encarts, admonitions, annonce |
+| `--civiqhub-muted` | `#f1f5f9` | `#404040` | Entrée active, survol, kbd, bordures UI |
+| `--civiqhub-border` | `#e2e8f0` | `#404040` | Bordures UI |
+| `--civiqhub-foreground` | `#020617` | `#FAFAFA` | Texte principal, liens |
+| `--civiqhub-muted-foreground` | `#64748b` | `#e5e5e5` | Texte secondaire |
+| `color-brand-primary` / `color-brand-content` | `#2C448B` | `#FAFAFA` | Liens et accents. En sombre, soulignement `#868686` puis `#FAFAFA` au survol |
+| `--civiqhub-success` | `#047857` | `#73b876` | Avertissements tip / hint |
+| `--civiqhub-destructive` | `#dc2626` | `#ff2f1c` | Avertissements danger / error |
+| warning / caution | Furo | `#F2A202` | Titres d'admonition warning et caution |
+| note / seealso | Furo | `#868686` | Titres d'admonition note ; jamais comme texte sur `#404040` |
 | `--civiqhub-radius-sm` / `md` / `lg` / `xl` | 4 / 8 / 12 / 16 px | identiques | Arrondis |
-| `--civiqhub-card-banner-from` / `to` | `color-mix` de primary 28 % puis 10 % avec le fond | `#1D2D5C` / `#131E3D` | Bandeaux des cartes |
-| `--civiqhub-announcement` | primary 10 % dans le fond | `#172347` | Bandeau de la branche de développement |
+| `--civiqhub-card-banner-from` / `to` | `color-mix` de primary 28 % puis 10 % avec le fond | `#171717` / `#000000` | Bandeaux des cartes |
+| `--civiqhub-announcement` | primary 10 % dans le fond | `#000000` | Bandeau de la branche de développement |
+| blocs de code | `#f1f5f9` | `#000000` | Fond des blocs. Jetons : texte `#FAFAFA`, commentaires `#868686`, chaînes `#73b876`, nombres `#F2A202`, erreurs `#ff2f1c`, noms `#e5e5e5` |
 
-Les valeurs sombres sont une **Hypothèse** : mélange de `#2C448B` avec le noir ou le blanc, et les teintes App `primary10` (`#D2D7F9`) et `primary40` (`#7886ED`). Il n'existe pas de palette sombre dans le design system (arbitrage « dark theme out of scope », `docs/ds/tokens.md` de civiqhub-web). Info, avertissement, police mono et favicon SVG gardent Furo, en attendant [#649](https://github.com/civiqhub/civiqhub-web/issues/649), [#650](https://github.com/civiqhub/civiqhub-web/issues/650) et [#543](https://github.com/civiqhub/civiqhub-web/issues/543). Liens clairs en `primary` `#2C448B` : provisoire jusqu'à l'arbitrage du ds:gap [#648](https://github.com/civiqhub/civiqhub-web/issues/648).
+Le mode clair ne change pas. Le sombre n'utilise que les couleurs du tableau, plus des transparences de ces valeurs ou de `#000000`. `#868686` n'est jamais posé comme texte sur `#404040` (contraste 2,85:1). Police mono et favicon SVG gardent Furo, en attendant [#650](https://github.com/civiqhub/civiqhub-web/issues/650) et [#543](https://github.com/civiqhub/civiqhub-web/issues/543). Liens clairs en `primary` `#2C448B` : provisoire jusqu'à l'arbitrage du ds:gap [#648](https://github.com/civiqhub/civiqhub-web/issues/648).
 
 `logo.svg` est `public/images/logo.svg` de `civiqhub-web` au même SHA. `favicon.ico` est dérivé de l'icône d'application CiviqHub.
 
@@ -139,7 +143,7 @@ Furo 2025.12.19 lit `localStorage.getItem("theme")` dans `base.html` et pose `bo
 
 `theme-migrate.js` s'exécute dans le `<head>` (`_templates/page.html`) **et** via `html_js_files`. Si la clé `theme` vaut `"light"` et que `civiqhub-theme-migrated` est absente, il supprime `theme` puis pose la marque. Les visiteurs passés depuis la fusion de la PR n°10 avaient `theme = "light"` écrit par `force-light.js`, pas par un choix. Après cette migration, Furo retombe sur `auto`. Un visiteur qui choisit ensuite le mode clair garde `theme = "light"` : la marque empêche de l'effacer à nouveau.
 
-`civiqhub.css` redéfinit les variables `--civiqhub-*` sous `body[data-theme="dark"]` et, pour `auto`, sous `@media (prefers-color-scheme: dark)` pour `body:not([data-theme="light"])` — les mêmes sélecteurs que Furo. `html { color-scheme }` suit le mode. `docs/conf.py` définit `dark_css_variables` (mêmes clés que `light_css_variables`) et `pygments_dark_style = "github-dark"`.
+`civiqhub.css` redéfinit les variables `--civiqhub-*` sous `body[data-theme="dark"]` et, pour `auto`, sous `@media (prefers-color-scheme: dark)` pour `body:not([data-theme="light"])`, comme Furo. `html { color-scheme }` suit le mode. `docs/conf.py` définit `dark_css_variables` (neutres carbone) et `pygments_dark_style = "civiqhub_carbon.CiviqHubCarbonDark"`.
 
 Les diagrammes mermaid sont colorés avec les tokens du thème. `sphinxcontrib-mermaid` 2.1.1 observe `body[data-theme]` et relance le rendu sans rechargement.
 

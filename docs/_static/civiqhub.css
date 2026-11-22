@@ -2,8 +2,8 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 
 /* Tokens of the CiviqHub theme (bootstrap values from DesignGrok).
-   Dark values are a Hypothesis derived from #2C448B and App tints
-   primary10 / primary40; there is no official dark palette. */
+   Dark values are the carbon neutrals of the design system (Decision Yanis,
+   22/11/2026): no blue hue anywhere in dark mode. */
 
 :root {
   --civiqhub-primary: #2C448B;
@@ -46,61 +46,78 @@
   --civiqhub-mark-glyph-filter: brightness(0) invert(1);
   --civiqhub-card-glyph-filter: none;
   --civiqhub-sidebar-width: 18em;
+  --civiqhub-card-surface: var(--civiqhub-background);
+  --font-stack: "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-stack--headings: "Bricolage Grotesque", ui-sans-serif, system-ui,
+    -apple-system, "Segoe UI", sans-serif;
 }
 
 body[data-theme="dark"] {
-  --civiqhub-primary: #2C448B;
-  --civiqhub-primary-foreground: #ffffff;
-  --civiqhub-background: #0B1123;
-  --civiqhub-shell-surface: #0D142A;
-  --civiqhub-muted: #141F3F;
-  --civiqhub-border: #1F3061;
-  --civiqhub-foreground: #EEF0F6;
-  --civiqhub-muted-foreground: #ABB4D1;
-  --civiqhub-success: #047857;
-  --civiqhub-destructive: #dc2626;
-  --civiqhub-card-banner-from: #1D2D5C;
-  --civiqhub-card-banner-to: #131E3D;
-  --civiqhub-announcement: #172347;
-  --civiqhub-focus: #7886ED;
-  --civiqhub-focus-ring: color-mix(in srgb, #7886ED 40%, transparent);
-  --civiqhub-link-hover: #D2D7F9;
+  --civiqhub-primary: #FAFAFA;
+  --civiqhub-primary-foreground: #171717;
+  --civiqhub-background: #171717;
+  --civiqhub-shell-surface: #000000;
+  --civiqhub-muted: #404040;
+  --civiqhub-border: #404040;
+  --civiqhub-foreground: #FAFAFA;
+  --civiqhub-muted-foreground: #e5e5e5;
+  --civiqhub-success: #73b876;
+  --civiqhub-destructive: #ff2f1c;
+  --civiqhub-card-banner-from: #171717;
+  --civiqhub-card-banner-to: #000000;
+  --civiqhub-announcement: #000000;
+  --civiqhub-focus: #FAFAFA;
+  --civiqhub-focus-ring: color-mix(in srgb, #FAFAFA 20%, transparent);
+  --civiqhub-link-hover: #FAFAFA;
   --civiqhub-shadow-card: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 35%);
   --civiqhub-shadow-card-hover: 0 1px 2px rgb(0 0 0 / 50%), 0 12px 28px rgb(0 0 0 / 55%);
   --civiqhub-mark-glyph-filter: none;
   --civiqhub-card-glyph-filter: brightness(0) invert(1);
-  --color-link--hover: #D2D7F9;
-  --color-link--visited: #7886ED;
-  --color-link--visited--hover: #D2D7F9;
-  --color-highlighted-background: #141F3F;
+  --civiqhub-card-surface: #000000;
+  --color-code-background: #000000;
+  --color-problematic: #ff2f1c;
+  --color-api-added: #73b876;
+  --color-api-added-border: #73b876;
+  --color-api-removed: #ff2f1c;
+  --color-api-removed-border: #ff2f1c;
+  --color-api-deprecated: #F2A202;
+  --color-api-deprecated-border: #F2A202;
+  --color-highlight-on-target: #404040;
 }
 
 @media (prefers-color-scheme: dark) {
   body:not([data-theme="light"]) {
-    --civiqhub-primary: #2C448B;
-    --civiqhub-primary-foreground: #ffffff;
-    --civiqhub-background: #0B1123;
-    --civiqhub-shell-surface: #0D142A;
-    --civiqhub-muted: #141F3F;
-    --civiqhub-border: #1F3061;
-    --civiqhub-foreground: #EEF0F6;
-    --civiqhub-muted-foreground: #ABB4D1;
-    --civiqhub-success: #047857;
-    --civiqhub-destructive: #dc2626;
-    --civiqhub-card-banner-from: #1D2D5C;
-    --civiqhub-card-banner-to: #131E3D;
-    --civiqhub-announcement: #172347;
-    --civiqhub-focus: #7886ED;
-    --civiqhub-focus-ring: color-mix(in srgb, #7886ED 40%, transparent);
-    --civiqhub-link-hover: #D2D7F9;
+    --civiqhub-primary: #FAFAFA;
+    --civiqhub-primary-foreground: #171717;
+    --civiqhub-background: #171717;
+    --civiqhub-shell-surface: #000000;
+    --civiqhub-muted: #404040;
+    --civiqhub-border: #404040;
+    --civiqhub-foreground: #FAFAFA;
+    --civiqhub-muted-foreground: #e5e5e5;
+    --civiqhub-success: #73b876;
+    --civiqhub-destructive: #ff2f1c;
+    --civiqhub-card-banner-from: #171717;
+    --civiqhub-card-banner-to: #000000;
+    --civiqhub-announcement: #000000;
+    --civiqhub-focus: #FAFAFA;
+    --civiqhub-focus-ring: color-mix(in srgb, #FAFAFA 20%, transparent);
+    --civiqhub-link-hover: #FAFAFA;
     --civiqhub-shadow-card: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 35%);
     --civiqhub-shadow-card-hover: 0 1px 2px rgb(0 0 0 / 50%), 0 12px 28px rgb(0 0 0 / 55%);
     --civiqhub-mark-glyph-filter: none;
     --civiqhub-card-glyph-filter: brightness(0) invert(1);
-    --color-link--hover: #D2D7F9;
-    --color-link--visited: #7886ED;
-    --color-link--visited--hover: #D2D7F9;
-    --color-highlighted-background: #141F3F;
+    --civiqhub-card-surface: #000000;
+    --color-code-background: #000000;
+    --color-problematic: #ff2f1c;
+    --color-api-added: #73b876;
+    --color-api-added-border: #73b876;
+    --color-api-removed: #ff2f1c;
+    --color-api-removed-border: #ff2f1c;
+    --color-api-deprecated: #F2A202;
+    --color-api-deprecated-border: #F2A202;
+    --color-highlight-on-target: #404040;
   }
 }
 
@@ -406,6 +423,36 @@ article[role="main"] a.external:hover {
   color: var(--civiqhub-link-hover);
 }
 
+body[data-theme="dark"] article[role="main"] a.reference,
+body[data-theme="dark"] article[role="main"] a.external {
+  color: var(--civiqhub-foreground);
+  text-decoration: underline;
+  text-decoration-color: #868686;
+  text-underline-offset: 0.18em;
+}
+
+body[data-theme="dark"] article[role="main"] a.reference:hover,
+body[data-theme="dark"] article[role="main"] a.external:hover {
+  color: var(--civiqhub-foreground);
+  text-decoration-color: #FAFAFA;
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) article[role="main"] a.reference,
+  body:not([data-theme="light"]) article[role="main"] a.external {
+    color: var(--civiqhub-foreground);
+    text-decoration: underline;
+    text-decoration-color: #868686;
+    text-underline-offset: 0.18em;
+  }
+
+  body:not([data-theme="light"]) article[role="main"] a.reference:hover,
+  body:not([data-theme="light"]) article[role="main"] a.external:hover {
+    color: var(--civiqhub-foreground);
+    text-decoration-color: #FAFAFA;
+  }
+}
+
 article[role="main"] > section > p:first-of-type,
 .civiqhub-home > section > p:first-of-type {
   font-size: 1.125rem;
@@ -475,7 +522,7 @@ article[role="main"] > section > p:first-of-type,
   overflow: hidden;
   border: 1px solid var(--civiqhub-border);
   border-radius: var(--civiqhub-radius-xl);
-  background: var(--civiqhub-background);
+  background: var(--civiqhub-card-surface);
   box-shadow: var(--civiqhub-shadow-card);
   text-decoration: none;
   color: inherit;
@@ -559,12 +606,12 @@ pre {
 }
 
 body[data-theme="dark"] .highlight {
-  background-color: var(--civiqhub-shell-surface);
+  background-color: #000000;
 }
 
 @media (prefers-color-scheme: dark) {
   body:not([data-theme="light"]) .highlight {
-    background-color: var(--civiqhub-shell-surface);
+    background-color: #000000;
   }
 }
 
@@ -580,6 +627,44 @@ body[data-theme="dark"] .highlight {
 .admonition.danger,
 .admonition.error {
   border-color: var(--civiqhub-destructive);
+}
+
+body[data-theme="dark"] .admonition.note,
+body[data-theme="dark"] .admonition.seealso {
+  border-color: #868686;
+}
+
+body[data-theme="dark"] .admonition.important {
+  border-color: #e5e5e5;
+}
+
+body[data-theme="dark"] .admonition.warning,
+body[data-theme="dark"] .admonition.caution {
+  border-color: #F2A202;
+}
+
+body[data-theme="dark"] .admonition.attention {
+  border-color: #ff2f1c;
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) .admonition.note,
+  body:not([data-theme="light"]) .admonition.seealso {
+    border-color: #868686;
+  }
+
+  body:not([data-theme="light"]) .admonition.important {
+    border-color: #e5e5e5;
+  }
+
+  body:not([data-theme="light"]) .admonition.warning,
+  body:not([data-theme="light"]) .admonition.caution {
+    border-color: #F2A202;
+  }
+
+  body:not([data-theme="light"]) .admonition.attention {
+    border-color: #ff2f1c;
+  }
 }
 
 .related-pages a {
@@ -710,4 +795,103 @@ footer .muted-link,
 .mermaid .arrowMarkerPath {
   fill: var(--civiqhub-muted-foreground) !important;
   stroke: var(--civiqhub-muted-foreground) !important;
+}
+
+body[data-theme="dark"] .mermaid .node rect,
+body[data-theme="dark"] .mermaid .node polygon,
+body[data-theme="dark"] .mermaid .node circle,
+body[data-theme="dark"] .mermaid .node ellipse,
+body[data-theme="dark"] .mermaid .node path {
+  fill: #000000 !important;
+  stroke: #868686 !important;
+}
+
+body[data-theme="dark"] .mermaid .cluster rect {
+  fill: #171717 !important;
+  stroke: #868686 !important;
+}
+
+body[data-theme="dark"] .mermaid .nodeLabel,
+body[data-theme="dark"] .mermaid .edgeLabel,
+body[data-theme="dark"] .mermaid .label,
+body[data-theme="dark"] .mermaid .cluster-label,
+body[data-theme="dark"] .mermaid .nodeLabel b,
+body[data-theme="dark"] .mermaid span,
+body[data-theme="dark"] .mermaid .edgeLabel span,
+body[data-theme="dark"] .mermaid .edgeLabel p,
+body[data-theme="dark"] .mermaid .edgeLabel foreignObject div {
+  color: #FAFAFA !important;
+}
+
+body[data-theme="dark"] .mermaid .edgeLabel rect,
+body[data-theme="dark"] .mermaid .labelBkg {
+  fill: #171717 !important;
+}
+
+body[data-theme="dark"] .mermaid .edgeLabel,
+body[data-theme="dark"] .mermaid .edgeLabel span,
+body[data-theme="dark"] .mermaid .edgeLabel p,
+body[data-theme="dark"] .mermaid .edgeLabel foreignObject div {
+  background-color: #171717 !important;
+}
+
+body[data-theme="dark"] .mermaid .flowchart-link,
+body[data-theme="dark"] .mermaid .edgePath .path,
+body[data-theme="dark"] .mermaid .edge-pattern-solid,
+body[data-theme="dark"] .mermaid line,
+body[data-theme="dark"] .mermaid marker path,
+body[data-theme="dark"] .mermaid .arrowheadPath,
+body[data-theme="dark"] .mermaid .arrowMarkerPath {
+  stroke: #868686 !important;
+}
+
+body[data-theme="dark"] .mermaid marker path,
+body[data-theme="dark"] .mermaid .arrowheadPath,
+body[data-theme="dark"] .mermaid .arrowMarkerPath {
+  fill: #868686 !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) .mermaid .node rect,
+  body:not([data-theme="light"]) .mermaid .node polygon,
+  body:not([data-theme="light"]) .mermaid .node circle,
+  body:not([data-theme="light"]) .mermaid .node ellipse,
+  body:not([data-theme="light"]) .mermaid .node path {
+    fill: #000000 !important;
+    stroke: #868686 !important;
+  }
+
+  body:not([data-theme="light"]) .mermaid .cluster rect {
+    fill: #171717 !important;
+    stroke: #868686 !important;
+  }
+
+  body:not([data-theme="light"]) .mermaid .nodeLabel,
+  body:not([data-theme="light"]) .mermaid .edgeLabel,
+  body:not([data-theme="light"]) .mermaid .label,
+  body:not([data-theme="light"]) .mermaid .cluster-label,
+  body:not([data-theme="light"]) .mermaid .nodeLabel b,
+  body:not([data-theme="light"]) .mermaid span,
+  body:not([data-theme="light"]) .mermaid .edgeLabel span,
+  body:not([data-theme="light"]) .mermaid .edgeLabel p,
+  body:not([data-theme="light"]) .mermaid .edgeLabel foreignObject div {
+    color: #FAFAFA !important;
+    background-color: #171717 !important;
+  }
+
+  body:not([data-theme="light"]) .mermaid .edgeLabel rect,
+  body:not([data-theme="light"]) .mermaid .labelBkg {
+    fill: #171717 !important;
+  }
+
+  body:not([data-theme="light"]) .mermaid .flowchart-link,
+  body:not([data-theme="light"]) .mermaid .edgePath .path,
+  body:not([data-theme="light"]) .mermaid .edge-pattern-solid,
+  body:not([data-theme="light"]) .mermaid line,
+  body:not([data-theme="light"]) .mermaid marker path,
+  body:not([data-theme="light"]) .mermaid .arrowheadPath,
+  body:not([data-theme="light"]) .mermaid .arrowMarkerPath {
+    stroke: #868686 !important;
+    fill: #868686 !important;
+  }
 }
