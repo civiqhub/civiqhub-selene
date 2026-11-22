@@ -162,14 +162,23 @@ body {
 
 /* --- Sidebar ------------------------------------------------------------- */
 
-.sidebar-drawer,
 .sidebar-container {
   width: var(--civiqhub-sidebar-width);
 }
 
 .sidebar-drawer {
+  min-width: var(--civiqhub-sidebar-width);
   background: var(--civiqhub-shell-surface);
   border-right: 1px solid var(--civiqhub-border);
+}
+
+/* Furo hides the drawer with left: -15em and width: 15em. Keep it off-canvas
+   after the column is widened, otherwise 3 em leak onto the page. */
+@media (max-width: 63em) {
+  .sidebar-drawer {
+    width: var(--civiqhub-sidebar-width);
+    left: calc(-1 * var(--civiqhub-sidebar-width));
+  }
 }
 
 .sidebar-sticky {
@@ -677,13 +686,16 @@ footer .muted-link,
 }
 
 .mermaid .edgeLabel rect,
-.mermaid .labelBkg,
-.mermaid foreignObject div {
-  background-color: transparent;
+.mermaid .labelBkg {
+  fill: var(--civiqhub-muted) !important;
 }
 
-.mermaid .edgeLabel span {
-  background-color: var(--civiqhub-background) !important;
+.mermaid .edgeLabel,
+.mermaid .edgeLabel span,
+.mermaid .edgeLabel p,
+.mermaid .edgeLabel foreignObject div {
+  color: var(--civiqhub-foreground) !important;
+  background-color: var(--civiqhub-muted) !important;
 }
 
 .mermaid .flowchart-link,
