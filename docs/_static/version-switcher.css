@@ -3,25 +3,28 @@
 
 /* The version selector of the sidebar, in the colours of the theme. */
 .version-switcher {
-  padding: 0 var(--sidebar-item-spacing-horizontal) var(--sidebar-item-spacing-vertical);
+  padding: 0 1.15rem 1rem;
 }
 
 .version-switcher label {
   display: block;
-  margin-bottom: 0.25rem;
-  color: var(--color-sidebar-caption-text);
-  font-size: var(--sidebar-caption-font-size);
-  font-weight: 700;
+  margin-bottom: 0.35rem;
+  color: var(--civiqhub-foreground, #020617);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .version-switcher select {
   width: 100%;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--color-sidebar-search-border);
-  border-radius: 0.25rem;
-  background: var(--color-sidebar-search-background);
-  color: var(--color-sidebar-search-text);
+  height: 2rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--civiqhub-border, #e2e8f0);
+  border-radius: var(--civiqhub-radius-md, 8px);
+  background: var(--civiqhub-background, #ffffff);
+  color: var(--civiqhub-foreground, #020617);
   font: inherit;
-  font-size: var(--sidebar-item-font-size);
+  font-size: 0.875rem;
+  font-weight: 400;
 }
