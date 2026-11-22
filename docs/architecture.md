@@ -200,3 +200,19 @@ The `test-core` job of the CI installs the package without any extra, checks tha
 | membership | The degree to which a voter belongs to each group, or an item to each block; also the choice `"single"` or `"mixed"` |
 | fingerprint | A stable identifier of a content or of a computation: 16 hexadecimal characters of a SHA-256 |
 | computation | The fingerprint of one precise computation: method, settings, seed, input, lineage |
+
+```{note}
+A method that returns `None` fails the contract kit. The engine wraps every outcome in a `Result`.
+```
+
+```{warning}
+The `blocks` extra needs NumPy. Without it, importing that subpackage raises `MissingExtraError`.
+```
+
+```{danger}
+No module of this library imports the `civiqhub` SDK, a network client, or a storage layer.
+```
+
+```{tip}
+Inherit `EstimatorContract` and run its seven tests on every new estimator before proposing it.
+```

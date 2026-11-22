@@ -1,4 +1,4 @@
-# Getting started
+# Premiers pas
 
 This page installs the library and runs two computations on synthetic data. The tests of the repository run every Python block of this page and compare what it prints with the output shown.
 

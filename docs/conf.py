@@ -7,6 +7,7 @@ How the site is organised and how to build it: see ``docs/README.md``.
 """
 
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -80,13 +81,16 @@ html_favicon = "_static/favicon.ico"
 templates_path = ["_templates"]
 html_static_path = ["_static"]
 html_css_files = ["version-switcher.css", "civiqhub.css"]
-# force-light.js is also loaded in the head from _templates/page.html, so that
-# Furo reads localStorage before it sets body[data-theme].
+# theme-migrate.js is also loaded in the head from _templates/page.html, so that
+# Furo reads localStorage after the one-time migration of the former light lock.
 html_js_files = [
-    ("force-light.js", {"priority": 200}),
+    ("theme-migrate.js", {"priority": 200}),
     "search-shortcut.js",
+    "sidebar-wrap.js",
     "version-switcher.js",
 ]
+# Dark highlighting: carbon palette, no blue hue. Style lives in docs/_ext/.
+pygments_dark_style = "civiqhub_carbon.CiviqHubCarbonDark"
 # The sidebar of the theme, with the version selector under the name of the site.
 html_sidebars = {
     "**": [
@@ -134,6 +138,81 @@ html_theme_options = {
             '"Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif'
         ),
     },
+    "dark_css_variables": {
+        "color-background-primary": "#171717",
+        "color-background-secondary": "#000000",
+        "color-background-hover": "#404040",
+        "color-background-hover--transparent": "#40404000",
+        "color-background-border": "#404040",
+        "color-background-item": "#404040",
+        "color-foreground-primary": "#FAFAFA",
+        "color-foreground-secondary": "#e5e5e5",
+        "color-foreground-muted": "#868686",
+        "color-foreground-border": "#868686",
+        "color-code-background": "#000000",
+        "color-sidebar-background": "#000000",
+        "color-sidebar-background-border": "#404040",
+        "color-sidebar-brand-text": "#FAFAFA",
+        "color-sidebar-caption-text": "#FAFAFA",
+        "color-sidebar-link-text": "#FAFAFA",
+        "color-sidebar-link-text--top-level": "#FAFAFA",
+        "color-sidebar-item-background--current": "#404040",
+        "color-sidebar-item-background--hover": "#404040",
+        "color-sidebar-search-background": "#000000",
+        "color-sidebar-search-border": "#404040",
+        "color-sidebar-search-text": "#FAFAFA",
+        "color-sidebar-search-foreground": "#FAFAFA",
+        "color-admonition-title": "#868686",
+        "color-admonition-title-background": "rgba(134,134,134,0.2)",
+        "color-topic-title": "#868686",
+        "color-topic-title-background": "rgba(134,134,134,0.2)",
+        "font-stack": (
+            '"Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif'
+        ),
+        "font-stack--headings": (
+            '"Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif'
+        ),
+        "color-card-background": "#000000",
+        "color-card-border": "#404040",
+        "color-card-marginals-background": "#404040",
+        "color-admonition-background": "#000000",
+        "color-announcement-background": "#000000",
+        "color-announcement-text": "#FAFAFA",
+        "color-inline-code-background": "#404040",
+        "color-brand-primary": "#FAFAFA",
+        "color-brand-content": "#FAFAFA",
+        "color-brand-visited": "#FAFAFA",
+        "color-link": "#FAFAFA",
+        "color-link--hover": "#FAFAFA",
+        "color-link--visited": "#FAFAFA",
+        "color-link-underline": "#868686",
+        "color-link-underline--hover": "#FAFAFA",
+        "color-highlighted-background": "#404040",
+        "color-guilabel-background": "#404040",
+        "color-guilabel-border": "#868686",
+        "color-api-changed": "#e5e5e5",
+        "color-api-changed-border": "#868686",
+        "color-admonition-title--note": "#868686",
+        "color-admonition-title-background--note": "rgba(134,134,134,0.2)",
+        "color-admonition-title--seealso": "#868686",
+        "color-admonition-title-background--seealso": "rgba(134,134,134,0.2)",
+        "color-admonition-title--important": "#e5e5e5",
+        "color-admonition-title-background--important": "rgba(229,229,229,0.2)",
+        "color-admonition-title--warning": "#F2A202",
+        "color-admonition-title-background--warning": "rgba(242,162,2,0.2)",
+        "color-admonition-title--caution": "#F2A202",
+        "color-admonition-title-background--caution": "rgba(242,162,2,0.2)",
+        "color-admonition-title--danger": "#ff2f1c",
+        "color-admonition-title-background--danger": "rgba(255,47,28,0.2)",
+        "color-admonition-title--attention": "#ff2f1c",
+        "color-admonition-title-background--attention": "rgba(255,47,28,0.2)",
+        "color-admonition-title--error": "#ff2f1c",
+        "color-admonition-title-background--error": "rgba(255,47,28,0.2)",
+        "color-admonition-title--tip": "#73b876",
+        "color-admonition-title-background--tip": "rgba(115,184,118,0.2)",
+        "color-admonition-title--hint": "#73b876",
+        "color-admonition-title-background--hint": "rgba(115,184,118,0.2)",
+    },
     "footer_icons": [
         {
             "name": "GitHub",
@@ -165,7 +244,7 @@ ogp_social_cards = {"enable": False}
 
 
 def setup(app):
-    """Bind Open Graph and canonical URLs to the public origin."""
+    """Bind Open Graph URLs and keep review screenshots out of the published site."""
 
     def _bind_opengraph(app, config):
         base = config.html_baseurl or config.ogp_site_url or _PUBLIC_DOCS_ORIGIN
@@ -174,4 +253,12 @@ def setup(app):
         config.html_baseurl = base
         config.ogp_site_url = base
 
+    def _drop_review_screenshots(app, exception):
+        if exception is not None:
+            return
+        shots = Path(app.outdir) / "_static" / "screenshots"
+        if shots.is_dir():
+            shutil.rmtree(shots)
+
     app.connect("config-inited", _bind_opengraph)
+    app.connect("build-finished", _drop_review_screenshots)
