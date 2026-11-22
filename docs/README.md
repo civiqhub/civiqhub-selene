@@ -120,7 +120,12 @@ Les couleurs et arrondis viennent de `civiqhub-web` au SHA `22756d33636bb8b341e7
 
 `logo.svg` est `public/images/logo.svg` de `civiqhub-web` au même SHA. `favicon.ico` est dérivé de l'icône d'application CiviqHub.
 
-Écart volontaire par rapport à `civiqhub-py` : les bandeaux des cartes mélangent le primary à 28 % puis 10 % (py : 18 % puis 6 %), plus proches du lavis du GitBook.
+Écarts volontaires par rapport à `civiqhub-py` :
+
+- les bandeaux des cartes mélangent le primary à 28 % puis 10 % (py : 18 % puis 6 %), plus proches du lavis du GitBook ;
+- le bandeau d'annonce de la branche de développement est un lavis de primary à 10 %, texte foreground, et peut aller à la ligne (Furo le pose en barre noire, `nowrap`) ;
+- les noms de modules dans l'arbre de référence s'enveloppent (`.pre { overflow-wrap: anywhere }`) ;
+- les tableaux du guide défilent à l'horizontale sous 48 em, pour rester lisibles à 390 px.
 
 ### Thème clair forcé
 
@@ -128,7 +133,7 @@ Furo 2025.12.19 lit `localStorage.getItem("theme")` dans `base.html` et pose `bo
 
 ### Extensions et dépendances
 
-Groupe `docs` de `pyproject.toml` : `sphinx==9.2.0` (BSD-2-Clause), `myst-parser==5.2.0` (MIT), `furo==2025.12.19` (MIT), `sphinxcontrib-mermaid==2.1.1` (BSD-2-Clause), `sphinxext-opengraph==0.13.0` (BSD-3-Clause). `sphinxext-opengraph` pose `ogp_site_url` d'après `html_baseurl` ; les cartes sociales PNG sont désactivées (`ogp_social_cards.enable = False`) parce que le build n'a pas de réseau et ne doit pas tirer matplotlib. L'adresse Open Graph par défaut est `https://selene.civiqhub.com/`. Extension locale : `docs/_ext/selene_docs.py`, inchangée.
+Groupe `docs` de `pyproject.toml` : `sphinx==9.2.0` (BSD-2-Clause), `myst-parser==5.2.0` (MIT), `furo==2025.12.19` (MIT), `sphinxcontrib-mermaid==2.1.1` (BSD-2-Clause), `sphinxext-opengraph==0.13.0` (BSD-3-Clause). `sphinxext-opengraph` pose `ogp_site_url` d'après `html_baseurl` ; les cartes sociales PNG sont désactivées (`ogp_social_cards.enable = False`) parce que le build n'a pas de réseau et ne doit pas tirer matplotlib. L'origine publique est `https://selene.civiqhub.com/`. Si le script de publication passe encore `https://civiqhub.github.io/civiqhub-selene/`, `conf.py` la réécrit, chemin de version compris. Extension locale : `docs/_ext/selene_docs.py`, inchangée.
 
 ### Build local
 

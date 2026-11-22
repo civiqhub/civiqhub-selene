@@ -154,16 +154,24 @@ if is_development:
 
 # Open Graph. The publication script may override html_baseurl with -D.
 # Social cards stay off: the build has no network and must not pull matplotlib.
-ogp_site_url = "https://selene.civiqhub.com/"
+# The public origin is selene.civiqhub.com (from 21/11/2026). The docs workflow
+# still passes the former GitHub Pages address; rewrite it so og:url and
+# canonical tags stay on the public domain.
+_PUBLIC_DOCS_ORIGIN = "https://selene.civiqhub.com/"
+_LEGACY_PAGES_ORIGIN = "https://civiqhub.github.io/civiqhub-selene/"
+ogp_site_url = _PUBLIC_DOCS_ORIGIN
 ogp_site_name = "SELENE"
 ogp_social_cards = {"enable": False}
 
 
 def setup(app):
-    """Bind ogp_site_url to html_baseurl once Sphinx has applied -D overrides."""
+    """Bind Open Graph and canonical URLs to the public origin."""
 
     def _bind_opengraph(app, config):
-        if config.html_baseurl:
-            config.ogp_site_url = config.html_baseurl
+        base = config.html_baseurl or config.ogp_site_url or _PUBLIC_DOCS_ORIGIN
+        if base.startswith(_LEGACY_PAGES_ORIGIN):
+            base = _PUBLIC_DOCS_ORIGIN + base[len(_LEGACY_PAGES_ORIGIN) :]
+        config.html_baseurl = base
+        config.ogp_site_url = base
 
     app.connect("config-inited", _bind_opengraph)

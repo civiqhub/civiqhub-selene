@@ -488,3 +488,35 @@ pre {
     display: none;
   }
 }
+
+/* Development announcement: Furo defaults to a black bar and nowrap. */
+.announcement {
+  background: color-mix(
+    in srgb,
+    var(--civiqhub-primary) 10%,
+    var(--civiqhub-background)
+  );
+  color: var(--civiqhub-foreground);
+  border-bottom: 1px solid var(--civiqhub-border);
+}
+
+.announcement-content {
+  white-space: normal;
+}
+
+/* Reference tree: nested module names are long; keep them a step smaller. */
+.sidebar-tree .toctree-l2 .reference,
+.sidebar-tree .toctree-l3 .reference {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.sidebar-tree .pre {
+  overflow-wrap: break-word;
+}
+
+/* Guide tables: Furo wraps them; allow a horizontal scroll at 390 px. */
+.table-wrapper {
+  overflow-x: auto;
+  max-width: 100%;
+}
