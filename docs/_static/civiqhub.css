@@ -43,8 +43,6 @@
   --civiqhub-shadow-card-hover: 0 1px 2px
       color-mix(in srgb, var(--civiqhub-foreground) 5%, transparent),
     0 12px 28px color-mix(in srgb, var(--civiqhub-primary) 12%, transparent);
-  --civiqhub-mark-glyph-filter: brightness(0) invert(1);
-  --civiqhub-card-glyph-filter: none;
   --civiqhub-sidebar-width: 18em;
   --civiqhub-card-surface: var(--civiqhub-background);
   --font-stack: "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system,
@@ -72,8 +70,6 @@ body[data-theme="dark"] {
   --civiqhub-link-hover: #FAFAFA;
   --civiqhub-shadow-card: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 35%);
   --civiqhub-shadow-card-hover: 0 1px 2px rgb(0 0 0 / 50%), 0 12px 28px rgb(0 0 0 / 55%);
-  --civiqhub-mark-glyph-filter: none;
-  --civiqhub-card-glyph-filter: brightness(0) invert(1);
   --civiqhub-card-surface: #000000;
   --color-code-background: #000000;
   --color-problematic: #ff2f1c;
@@ -116,8 +112,6 @@ body[data-theme="dark"] {
     --civiqhub-link-hover: #FAFAFA;
     --civiqhub-shadow-card: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 35%);
     --civiqhub-shadow-card-hover: 0 1px 2px rgb(0 0 0 / 50%), 0 12px 28px rgb(0 0 0 / 55%);
-    --civiqhub-mark-glyph-filter: none;
-    --civiqhub-card-glyph-filter: brightness(0) invert(1);
     --civiqhub-card-surface: #000000;
     --color-code-background: #000000;
     --color-problematic: #ff2f1c;
@@ -226,32 +220,18 @@ body {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 0.65rem;
   padding: 1.15rem 1.15rem 0.85rem;
   text-align: left;
 }
 
-.sidebar-brand-text {
-  font-size: 1.25rem;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  color: var(--civiqhub-foreground);
-}
-
-.civiqhub-mark {
-  display: grid;
-  place-items: center;
-  width: 2rem;
-  height: 2rem;
-  flex-shrink: 0;
-  background: var(--civiqhub-foreground);
-  border-radius: var(--civiqhub-radius-lg);
-}
-
-.civiqhub-mark img {
-  width: 1.15rem;
-  height: auto;
-  filter: var(--civiqhub-mark-glyph-filter);
+/* The SVG viewBox has vertical padding, so 2 rem made the word about 10 px
+   tall. 3 rem (48 px, about 177 px wide) keeps it readable in the 18 em
+   column without setting both width and height. */
+.sidebar-brand .sidebar-logo {
+  height: 3rem;
+  width: auto;
+  max-width: 100%;
+  margin: 0;
 }
 
 .sidebar-search-container,
@@ -636,7 +616,6 @@ article[role="main"] > section > p:first-of-type,
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.55rem;
   min-height: 10.5rem;
   padding: 1.5rem 1rem;
   background:
@@ -645,16 +624,8 @@ article[role="main"] > section > p:first-of-type,
 }
 
 .civiqhub-card-banner img {
-  width: 3.1rem;
+  width: 9.5rem;
   height: auto;
-  filter: var(--civiqhub-card-glyph-filter);
-}
-
-.civiqhub-card-banner span {
-  font-size: 1.05rem;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  color: var(--civiqhub-foreground);
 }
 
 .civiqhub-card-body {

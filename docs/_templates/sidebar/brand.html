@@ -1,9 +1,7 @@
 {# Copyright 2026 CiviqHub SAS #}
 {# SPDX-License-Identifier: Apache-2.0 #}
-{#- Mark of the site: CiviqHub glyph in a rounded square, then the word. -#}
+{#- Full CiviqHub wordmark from the theme logos. The word is in the SVG. -#}
 <a class="sidebar-brand" href="{{ pathto(master_doc) }}">
-  <span class="civiqhub-mark" aria-hidden="true">
-    <img src="{{ pathto('_static/logo.svg', 1) }}" alt="">
-  </span>
-  <span class="sidebar-brand-text">CiviqHub</span>
+  <img class="sidebar-logo only-light" src="{{ pathto('_static/' + theme_light_logo, 1) }}" alt="CiviqHub">
+  <img class="sidebar-logo only-dark" src="{{ pathto('_static/' + theme_dark_logo, 1) }}" alt="CiviqHub">
 </a>

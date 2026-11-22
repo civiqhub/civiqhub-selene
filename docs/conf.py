@@ -77,7 +77,7 @@ is_development = os.environ.get("SELENE_DOCS_CHANNEL", "") == "dev" or "dev" in 
 
 html_theme = "furo"
 html_title = f"SELENE {release}"
-html_favicon = "_static/favicon.ico"
+html_favicon = "_static/civiqhub-symbol-light.svg"
 templates_path = ["_templates"]
 html_static_path = ["_static"]
 html_css_files = ["version-switcher.css", "civiqhub.css"]
@@ -108,7 +108,8 @@ html_theme_options = {
     "source_repository": "https://github.com/civiqhub/civiqhub-selene/",
     "source_branch": "develop" if is_development else "main",
     "source_directory": "docs/",
-    "light_logo": "logo.svg",
+    "light_logo": "civiqhub-logo-light.svg",
+    "dark_logo": "civiqhub-logo-dark.svg",
     "sidebar_hide_name": True,
     "light_css_variables": {
         "color-brand-primary": "#2C448B",
