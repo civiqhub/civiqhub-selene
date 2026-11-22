@@ -1,7 +1,9 @@
 /* Copyright 2026 CiviqHub SAS */
 /* SPDX-License-Identifier: Apache-2.0 */
 
-/* Tokens of the CiviqHub light theme (bootstrap values from DesignGrok). */
+/* Tokens of the CiviqHub theme (bootstrap values from DesignGrok).
+   Dark values are a Hypothesis derived from #2C448B and App tints
+   primary10 / primary40; there is no official dark palette. */
 
 :root {
   --civiqhub-primary: #2C448B;
@@ -28,6 +30,78 @@
     var(--civiqhub-primary) 10%,
     var(--civiqhub-background)
   );
+  --civiqhub-announcement: color-mix(
+    in srgb,
+    var(--civiqhub-primary) 10%,
+    var(--civiqhub-background)
+  );
+  --civiqhub-focus: var(--civiqhub-primary);
+  --civiqhub-focus-ring: color-mix(in srgb, var(--civiqhub-primary) 12%, transparent);
+  --civiqhub-link-hover: var(--civiqhub-primary);
+  --civiqhub-shadow-card: 0 1px 2px color-mix(in srgb, var(--civiqhub-foreground) 4%, transparent),
+    0 8px 24px color-mix(in srgb, var(--civiqhub-foreground) 4%, transparent);
+  --civiqhub-shadow-card-hover: 0 1px 2px
+      color-mix(in srgb, var(--civiqhub-foreground) 5%, transparent),
+    0 12px 28px color-mix(in srgb, var(--civiqhub-primary) 12%, transparent);
+  --civiqhub-mark-glyph-filter: brightness(0) invert(1);
+  --civiqhub-card-glyph-filter: none;
+  --civiqhub-sidebar-width: 18em;
+}
+
+body[data-theme="dark"] {
+  --civiqhub-primary: #2C448B;
+  --civiqhub-primary-foreground: #ffffff;
+  --civiqhub-background: #0B1123;
+  --civiqhub-shell-surface: #0D142A;
+  --civiqhub-muted: #141F3F;
+  --civiqhub-border: #1F3061;
+  --civiqhub-foreground: #EEF0F6;
+  --civiqhub-muted-foreground: #ABB4D1;
+  --civiqhub-success: #047857;
+  --civiqhub-destructive: #dc2626;
+  --civiqhub-card-banner-from: #1D2D5C;
+  --civiqhub-card-banner-to: #131E3D;
+  --civiqhub-announcement: #172347;
+  --civiqhub-focus: #7886ED;
+  --civiqhub-focus-ring: color-mix(in srgb, #7886ED 40%, transparent);
+  --civiqhub-link-hover: #D2D7F9;
+  --civiqhub-shadow-card: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 35%);
+  --civiqhub-shadow-card-hover: 0 1px 2px rgb(0 0 0 / 50%), 0 12px 28px rgb(0 0 0 / 55%);
+  --civiqhub-mark-glyph-filter: none;
+  --civiqhub-card-glyph-filter: brightness(0) invert(1);
+  --color-link--hover: #D2D7F9;
+  --color-link--visited: #7886ED;
+  --color-link--visited--hover: #D2D7F9;
+  --color-highlighted-background: #141F3F;
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) {
+    --civiqhub-primary: #2C448B;
+    --civiqhub-primary-foreground: #ffffff;
+    --civiqhub-background: #0B1123;
+    --civiqhub-shell-surface: #0D142A;
+    --civiqhub-muted: #141F3F;
+    --civiqhub-border: #1F3061;
+    --civiqhub-foreground: #EEF0F6;
+    --civiqhub-muted-foreground: #ABB4D1;
+    --civiqhub-success: #047857;
+    --civiqhub-destructive: #dc2626;
+    --civiqhub-card-banner-from: #1D2D5C;
+    --civiqhub-card-banner-to: #131E3D;
+    --civiqhub-announcement: #172347;
+    --civiqhub-focus: #7886ED;
+    --civiqhub-focus-ring: color-mix(in srgb, #7886ED 40%, transparent);
+    --civiqhub-link-hover: #D2D7F9;
+    --civiqhub-shadow-card: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 35%);
+    --civiqhub-shadow-card-hover: 0 1px 2px rgb(0 0 0 / 50%), 0 12px 28px rgb(0 0 0 / 55%);
+    --civiqhub-mark-glyph-filter: none;
+    --civiqhub-card-glyph-filter: brightness(0) invert(1);
+    --color-link--hover: #D2D7F9;
+    --color-link--visited: #7886ED;
+    --color-link--visited--hover: #D2D7F9;
+    --color-highlighted-background: #141F3F;
+  }
 }
 
 @font-face {
@@ -55,7 +129,21 @@
 }
 
 html {
+  color-scheme: light dark;
+}
+
+body[data-theme="light"] {
   color-scheme: light;
+}
+
+body[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) {
+    color-scheme: dark;
+  }
 }
 
 body {
@@ -64,11 +152,20 @@ body {
   color: var(--civiqhub-foreground);
 }
 
-.theme-toggle-container {
-  display: none;
+.theme-toggle {
+  color: var(--civiqhub-muted-foreground);
+}
+
+.theme-toggle:hover {
+  color: var(--civiqhub-foreground);
 }
 
 /* --- Sidebar ------------------------------------------------------------- */
+
+.sidebar-drawer,
+.sidebar-container {
+  width: var(--civiqhub-sidebar-width);
+}
 
 .sidebar-drawer {
   background: var(--civiqhub-shell-surface);
@@ -108,7 +205,7 @@ body {
 .civiqhub-mark img {
   width: 1.15rem;
   height: auto;
-  filter: brightness(0) invert(1);
+  filter: var(--civiqhub-mark-glyph-filter);
 }
 
 .sidebar-search-container,
@@ -173,8 +270,8 @@ body {
 }
 
 .civiqhub-search:focus-within {
-  border-color: var(--civiqhub-primary);
-  box-shadow: 0 0 0 3px rgba(44, 68, 139, 0.12);
+  border-color: var(--civiqhub-focus);
+  box-shadow: 0 0 0 3px var(--civiqhub-focus-ring);
 }
 
 .civiqhub-search-keys {
@@ -191,7 +288,7 @@ body {
   border: 1px solid var(--civiqhub-border);
   border-radius: var(--civiqhub-radius-sm);
   background: var(--civiqhub-muted);
-  color: var(--civiqhub-muted-foreground);
+  color: var(--civiqhub-foreground);
   font-family: inherit;
   font-size: 0.65rem;
   font-weight: 600;
@@ -215,14 +312,19 @@ body {
 
 .version-switcher select {
   width: 100%;
-  height: 2rem;
-  padding: 0 0.6rem;
+  min-height: 2rem;
+  height: auto;
+  padding: 0.3rem 0.45rem;
   border: 1px solid var(--civiqhub-border);
   border-radius: var(--civiqhub-radius-md);
   background: var(--civiqhub-background);
   color: var(--civiqhub-foreground);
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 400;
+  line-height: 1.3;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .sidebar-tree {
@@ -240,6 +342,9 @@ body {
   color: var(--civiqhub-muted-foreground);
   border-radius: var(--civiqhub-radius-md);
   padding: 0.38rem 0.7rem;
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: none;
 }
 
 .sidebar-tree .reference:hover {
@@ -285,6 +390,11 @@ article[role="main"] h4 {
   font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--civiqhub-foreground);
+}
+
+article[role="main"] a.reference:hover,
+article[role="main"] a.external:hover {
+  color: var(--civiqhub-link-hover);
 }
 
 article[role="main"] > section > p:first-of-type,
@@ -357,13 +467,13 @@ article[role="main"] > section > p:first-of-type,
   border: 1px solid var(--civiqhub-border);
   border-radius: var(--civiqhub-radius-xl);
   background: var(--civiqhub-background);
-  box-shadow: 0 1px 2px rgba(2, 6, 23, 0.04), 0 8px 24px rgba(2, 6, 23, 0.04);
+  box-shadow: var(--civiqhub-shadow-card);
   text-decoration: none;
   color: inherit;
 }
 
 .civiqhub-card:hover {
-  box-shadow: 0 1px 2px rgba(2, 6, 23, 0.05), 0 12px 28px rgba(44, 68, 139, 0.12);
+  box-shadow: var(--civiqhub-shadow-card-hover);
 }
 
 .civiqhub-card-banner {
@@ -375,21 +485,14 @@ article[role="main"] > section > p:first-of-type,
   min-height: 10.5rem;
   padding: 1.5rem 1rem;
   background:
-    radial-gradient(
-      130% 90% at 18% 0%,
-      var(--civiqhub-card-banner-from),
-      transparent 58%
-    ),
-    linear-gradient(
-      165deg,
-      var(--civiqhub-card-banner-from),
-      var(--civiqhub-card-banner-to)
-    );
+    radial-gradient(130% 90% at 18% 0%, var(--civiqhub-card-banner-from), transparent 58%),
+    linear-gradient(165deg, var(--civiqhub-card-banner-from), var(--civiqhub-card-banner-to));
 }
 
 .civiqhub-card-banner img {
   width: 3.1rem;
   height: auto;
+  filter: var(--civiqhub-card-glyph-filter);
 }
 
 .civiqhub-card-banner span {
@@ -443,6 +546,17 @@ pre {
 
 .highlight {
   border: 1px solid var(--civiqhub-border);
+  background-color: var(--color-code-background);
+}
+
+body[data-theme="dark"] .highlight {
+  background-color: var(--civiqhub-shell-surface);
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) .highlight {
+    background-color: var(--civiqhub-shell-surface);
+  }
 }
 
 .admonition {
@@ -470,6 +584,13 @@ pre {
 
 .mobile-header .brand {
   font-weight: 700;
+  color: var(--civiqhub-foreground);
+}
+
+.mobile-header .nav-overlay-icon,
+.mobile-header .toc-overlay-icon,
+.mobile-header .theme-toggle {
+  color: var(--civiqhub-foreground);
 }
 
 #search-results {
@@ -491,11 +612,7 @@ pre {
 
 /* Development announcement: Furo defaults to a black bar and nowrap. */
 .announcement {
-  background: color-mix(
-    in srgb,
-    var(--civiqhub-primary) 10%,
-    var(--civiqhub-background)
-  );
+  background: var(--civiqhub-announcement);
   color: var(--civiqhub-foreground);
   border-bottom: 1px solid var(--civiqhub-border);
 }
@@ -504,7 +621,7 @@ pre {
   white-space: normal;
 }
 
-/* Reference tree: nested module names are long; keep them a step smaller. */
+/* Reference tree: nested module names wrap at the dots, never mid-word. */
 .sidebar-tree .toctree-l2 .reference,
 .sidebar-tree .toctree-l3 .reference {
   font-size: 0.8125rem;
@@ -512,11 +629,73 @@ pre {
 }
 
 .sidebar-tree .pre {
+  white-space: normal;
   overflow-wrap: break-word;
+  word-break: normal;
 }
 
 /* Guide tables: Furo wraps them; allow a horizontal scroll at 390 px. */
 .table-wrapper {
   overflow-x: auto;
   max-width: 100%;
+}
+
+footer .muted-link,
+.bottom-of-page .left-details,
+.bottom-of-page .right-details {
+  color: var(--civiqhub-muted-foreground);
+}
+
+.bottom-of-page svg {
+  color: var(--civiqhub-foreground);
+  fill: currentColor;
+}
+
+/* Mermaid: palette tokens in both modes. sphinxcontrib-mermaid 2.1.1 already
+   re-renders on body[data-theme]; these rules keep nodes on-token after that. */
+.mermaid .node rect,
+.mermaid .node polygon,
+.mermaid .node circle,
+.mermaid .node ellipse,
+.mermaid .node path {
+  fill: var(--civiqhub-muted) !important;
+  stroke: var(--civiqhub-border) !important;
+}
+
+.mermaid .cluster rect {
+  fill: var(--civiqhub-shell-surface) !important;
+  stroke: var(--civiqhub-border) !important;
+}
+
+.mermaid .nodeLabel,
+.mermaid .edgeLabel,
+.mermaid .label,
+.mermaid .cluster-label,
+.mermaid .nodeLabel b,
+.mermaid span {
+  color: var(--civiqhub-foreground) !important;
+}
+
+.mermaid .edgeLabel rect,
+.mermaid .labelBkg,
+.mermaid foreignObject div {
+  background-color: transparent;
+}
+
+.mermaid .edgeLabel span {
+  background-color: var(--civiqhub-background) !important;
+}
+
+.mermaid .flowchart-link,
+.mermaid .edgePath .path,
+.mermaid .edge-pattern-solid,
+.mermaid line {
+  stroke: var(--civiqhub-muted-foreground) !important;
+}
+
+.mermaid marker path,
+.mermaid .arrowheadPath,
+.mermaid .arrowMarkerPath {
+  fill: var(--civiqhub-muted-foreground) !important;
+  stroke: var(--civiqhub-muted-foreground) !important;
 }

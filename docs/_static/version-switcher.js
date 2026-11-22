@@ -53,5 +53,11 @@
     }
     window.location.assign(target);
   });
+  const syncTitle = () => {
+    const chosen = select.options[select.selectedIndex];
+    select.title = chosen ? chosen.text : "";
+  };
+  syncTitle();
+  select.addEventListener("change", syncTitle, { once: false });
   box.hidden = false;
 })();

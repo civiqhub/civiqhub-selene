@@ -2,10 +2,10 @@
 {# SPDX-License-Identifier: Apache-2.0 #}
 {% extends "!page.html" %}
 
-{#- force-light.js must run in the head, before Furo reads localStorage. -#}
+{#- theme-migrate.js must run in the head, before Furo reads localStorage. -#}
 {% block extrahead %}
 {{ super() }}
-<script src="{{ pathto('_static/force-light.js', 1) }}"></script>
+<script src="{{ pathto('_static/theme-migrate.js', 1) }}"></script>
 {% endblock extrahead %}
 
 {% block content %}

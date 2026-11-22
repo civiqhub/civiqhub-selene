@@ -1,7 +1,9 @@
 /* Copyright 2026 CiviqHub SAS */
 /* SPDX-License-Identifier: Apache-2.0 */
 
-/* The version selector of the sidebar, in the colours of the theme. */
+/* The version selector of the sidebar, in the colours of the theme.
+   Fallbacks follow Furo variables so the control stays readable in both
+   modes if the CiviqHub tokens have not been applied yet. */
 .version-switcher {
   padding: 0 1.15rem 1rem;
 }
@@ -9,7 +11,7 @@
 .version-switcher label {
   display: block;
   margin-bottom: 0.35rem;
-  color: var(--civiqhub-foreground, #020617);
+  color: var(--civiqhub-foreground, var(--color-foreground-primary));
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -18,13 +20,18 @@
 
 .version-switcher select {
   width: 100%;
-  height: 2rem;
-  padding: 0 0.6rem;
-  border: 1px solid var(--civiqhub-border, #e2e8f0);
+  min-height: 2rem;
+  height: auto;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--civiqhub-border, var(--color-background-border));
   border-radius: var(--civiqhub-radius-md, 8px);
-  background: var(--civiqhub-background, #ffffff);
-  color: var(--civiqhub-foreground, #020617);
+  background: var(--civiqhub-background, var(--color-background-primary));
+  color: var(--civiqhub-foreground, var(--color-foreground-primary));
   font: inherit;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 400;
+  line-height: 1.3;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
 }

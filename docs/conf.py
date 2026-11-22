@@ -80,13 +80,15 @@ html_favicon = "_static/favicon.ico"
 templates_path = ["_templates"]
 html_static_path = ["_static"]
 html_css_files = ["version-switcher.css", "civiqhub.css"]
-# force-light.js is also loaded in the head from _templates/page.html, so that
-# Furo reads localStorage before it sets body[data-theme].
+# theme-migrate.js is also loaded in the head from _templates/page.html, so that
+# Furo reads localStorage after the one-time migration of the former light lock.
 html_js_files = [
-    ("force-light.js", {"priority": 200}),
+    ("theme-migrate.js", {"priority": 200}),
     "search-shortcut.js",
     "version-switcher.js",
 ]
+# Dark highlighting for Furo; github-dark is shipped by Pygments.
+pygments_dark_style = "github-dark"
 # The sidebar of the theme, with the version selector under the name of the site.
 html_sidebars = {
     "**": [
@@ -127,6 +129,34 @@ html_theme_options = {
         "color-sidebar-search-border": "#e2e8f0",
         "color-sidebar-search-text": "#020617",
         "color-sidebar-search-foreground": "#64748b",
+        "font-stack": (
+            '"Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif'
+        ),
+        "font-stack--headings": (
+            '"Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif'
+        ),
+    },
+    "dark_css_variables": {
+        "color-brand-primary": "#7886ED",
+        "color-brand-content": "#7886ED",
+        "color-background-primary": "#0B1123",
+        "color-background-secondary": "#0D142A",
+        "color-foreground-primary": "#EEF0F6",
+        "color-foreground-secondary": "#ABB4D1",
+        "color-background-border": "#1F3061",
+        "color-code-background": "#0D142A",
+        "color-sidebar-background": "#0D142A",
+        "color-sidebar-background-border": "#1F3061",
+        "color-sidebar-brand-text": "#EEF0F6",
+        "color-sidebar-caption-text": "#EEF0F6",
+        "color-sidebar-link-text": "#ABB4D1",
+        "color-sidebar-link-text--top-level": "#ABB4D1",
+        "color-sidebar-item-background--current": "#141F3F",
+        "color-sidebar-item-background--hover": "#141F3F",
+        "color-sidebar-search-background": "#0B1123",
+        "color-sidebar-search-border": "#1F3061",
+        "color-sidebar-search-text": "#EEF0F6",
+        "color-sidebar-search-foreground": "#ABB4D1",
         "font-stack": (
             '"Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif'
         ),
