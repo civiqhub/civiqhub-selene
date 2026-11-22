@@ -27,7 +27,8 @@ This builds the documentation of the code you have, as one site without versions
 | `_templates/sidebar/brand.html`, `_templates/sidebar/search.html`, `_templates/page.html` | The mark of the site, the search field, and the theme-migration script |
 | `_static/civiqhub.css`, `_static/theme-migrate.js`, `_static/sidebar-wrap.js`, `_static/search-shortcut.js` | The CiviqHub theme (light and dark), the one-time theme migration, wrapping of sidebar module names, and the Ctrl K shortcut |
 | `_static/fonts/` | Bricolage Grotesque (OFL 1.1) and `OFL.txt` |
-| `_static/logo.svg`, `_static/favicon.ico` | The CiviqHub glyph and the favicon |
+| `_static/civiqhub-logo-light.svg`, `_static/civiqhub-logo-dark.svg`, `_static/civiqhub-symbol-light.svg`, `_static/civiqhub-symbol-dark.svg` | The CiviqHub wordmark and symbol, light and dark |
+| `_static/logo.svg`, `_static/favicon.ico` | Former glyph and ICO, unused until NOTICE is updated |
 | `index.md` | The home page and the table of contents of the site |
 | `getting-started.md`, `library-map.md`, `architecture.md` | The guide: pages written by hand |
 | `reference/` | The reference: one page per public module, generated from the docstrings |
@@ -77,7 +78,7 @@ done
 cp ofl/bricolagegrotesque/OFL.txt OFL.txt
 ```
 
-`civiqhub.css` déclare trois `@font-face` (`font-display: swap`). Texte courant en 400, titres H2 à H4 et légendes de barre latérale en 600, H1 et le mot « CiviqHub » en 700. La police de code reste celle de Furo.
+`civiqhub.css` déclare trois `@font-face` (`font-display: swap`). Texte courant en 400, titres H2 à H4 et légendes de barre latérale en 600, H1 en 700. La police de code reste celle de Furo.
 
 ### Fichiers du thème
 
@@ -88,15 +89,19 @@ cp ofl/bricolagegrotesque/OFL.txt OFL.txt
 | `_static/sidebar-wrap.js` | Enveloppe les noms de modules aux points dans la barre latérale |
 | `_ext/civiqhub_carbon.py` | Style Pygments sombre, palette carbone seulement |
 | `_static/search-shortcut.js` | Ctrl K / Cmd K focusent le champ de recherche |
-| `_static/logo.svg` | Glyphe CiviqHub (carré noir à coins arrondis en CSS) |
-| `_static/favicon.ico` | Favicon ICO du site |
+| `_static/civiqhub-logo-light.svg` | Logo complet CiviqHub, mode clair (`#1f1f1e`) |
+| `_static/civiqhub-logo-dark.svg` | Logo complet CiviqHub, mode sombre (`#fff`) |
+| `_static/civiqhub-symbol-light.svg` | Symbole seul, favicon par défaut |
+| `_static/civiqhub-symbol-dark.svg` | Symbole seul, favicon si `prefers-color-scheme: dark` |
+| `_static/logo.svg` | Ancien glyphe, encore dans le dépôt, non utilisé |
+| `_static/favicon.ico` | Ancien favicon ICO, encore dans le dépôt, non utilisé |
 | `_static/home.svg` | Glyphe de maison du H1 d'accueil |
 | `_static/github.svg` | Icône GitHub du pied de page |
 | `_static/fonts/` | Les trois `woff2` et `OFL.txt` |
 | `_static/screenshots/` | Captures de relecture du thème. Le build les retire de `_static/` du site publié |
 | `_static/version-switcher.js`, `_static/version-switcher.css` | Sélecteur de version de la publication, natif à ce dépôt, au style du thème |
-| `_templates/page.html` | Charge `theme-migrate.js` dans le `<head>` ; fil d'Ariane ; enveloppe d'accueil |
-| `_templates/sidebar/brand.html` | Marque : icône puis « CiviqHub » en Bold |
+| `_templates/page.html` | Charge `theme-migrate.js` dans le `<head>` ; favicon sombre ; fil d'Ariane ; enveloppe d'accueil |
+| `_templates/sidebar/brand.html` | Marque : logo complet clair et sombre |
 | `_templates/sidebar/search.html` | Pilule : une loupe, « Rechercher... », badge Ctrl K |
 | `_templates/sidebar/version-switcher.html` | Emplacement du sélecteur de version, propre à ce dépôt |
 
@@ -126,9 +131,9 @@ Les couleurs et arrondis clairs viennent de `civiqhub-web` au SHA `22756d33636bb
 | `--civiqhub-announcement` | primary 10 % dans le fond | `#000000` | Bandeau de la branche de développement |
 | blocs de code | `#f1f5f9` | `#000000` | Fond des blocs. Jetons : texte `#FAFAFA`, commentaires `#868686`, chaînes `#73b876`, nombres `#F2A202`, erreurs `#ff2f1c`, noms `#e5e5e5` |
 
-Le mode clair ne change pas. Le sombre n'utilise que les couleurs du tableau, plus des transparences de ces valeurs ou de `#000000`. `#868686` n'est jamais posé comme texte sur `#404040` (contraste 2,85:1). Police mono et favicon SVG gardent Furo, en attendant [#650](https://github.com/civiqhub/civiqhub-web/issues/650) et [#543](https://github.com/civiqhub/civiqhub-web/issues/543). Liens clairs en `primary` `#2C448B` : provisoire jusqu'à l'arbitrage du ds:gap [#648](https://github.com/civiqhub/civiqhub-web/issues/648).
+Le mode clair ne change pas. Le sombre n'utilise que les couleurs du tableau, plus des transparences de ces valeurs ou de `#000000`. `#868686` n'est jamais posé comme texte sur `#404040` (contraste 2,85:1). Police mono garde Furo, en attendant [#650](https://github.com/civiqhub/civiqhub-web/issues/650). Le favicon est le symbole CiviqHub fourni par Yanis le 22/11/2026 (clair par défaut, sombre si `prefers-color-scheme: dark`). Liens clairs en `primary` `#2C448B` : provisoire jusqu'à l'arbitrage du ds:gap [#648](https://github.com/civiqhub/civiqhub-web/issues/648).
 
-`logo.svg` est `public/images/logo.svg` de `civiqhub-web` au même SHA. `favicon.ico` est dérivé de l'icône d'application CiviqHub.
+Les SVG `civiqhub-logo-*.svg` et `civiqhub-symbol-*.svg` sont des actifs de marque CiviqHub fournis par Yanis le 22/11/2026. `logo.svg` et `favicon.ico` restent dans le dépôt, non utilisés, jusqu'à la PR qui mettra `NOTICE` à jour.
 
 Écarts volontaires par rapport à `civiqhub-py` :
 

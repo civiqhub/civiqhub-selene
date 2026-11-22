@@ -18,8 +18,8 @@ A result describes a group and decides nothing. Every result carries its value o
 <div class="civiqhub-cards">
   <a class="civiqhub-card" href="getting-started.html">
     <div class="civiqhub-card-banner">
-      <img src="_static/logo.svg" alt="" width="50" height="53">
-      <span>CiviqHub</span>
+      <img class="only-light" src="_static/civiqhub-logo-light.svg" alt="" width="152" height="41">
+      <img class="only-dark" src="_static/civiqhub-logo-dark.svg" alt="" width="152" height="41">
     </div>
     <div class="civiqhub-card-body">
       <span class="civiqhub-card-title">Premiers pas</span>
@@ -28,8 +28,8 @@ A result describes a group and decides nothing. Every result carries its value o
   </a>
   <a class="civiqhub-card" href="library-map.html">
     <div class="civiqhub-card-banner">
-      <img src="_static/logo.svg" alt="" width="50" height="53">
-      <span>CiviqHub</span>
+      <img class="only-light" src="_static/civiqhub-logo-light.svg" alt="" width="152" height="41">
+      <img class="only-dark" src="_static/civiqhub-logo-dark.svg" alt="" width="152" height="41">
     </div>
     <div class="civiqhub-card-body">
       <span class="civiqhub-card-title">Plan de la bibliothèque</span>
@@ -38,8 +38,8 @@ A result describes a group and decides nothing. Every result carries its value o
   </a>
   <a class="civiqhub-card" href="architecture.html">
     <div class="civiqhub-card-banner">
-      <img src="_static/logo.svg" alt="" width="50" height="53">
-      <span>CiviqHub</span>
+      <img class="only-light" src="_static/civiqhub-logo-light.svg" alt="" width="152" height="41">
+      <img class="only-dark" src="_static/civiqhub-logo-dark.svg" alt="" width="152" height="41">
     </div>
     <div class="civiqhub-card-body">
       <span class="civiqhub-card-title">Architecture</span>
@@ -48,8 +48,8 @@ A result describes a group and decides nothing. Every result carries its value o
   </a>
   <a class="civiqhub-card" href="reference/index.html">
     <div class="civiqhub-card-banner">
-      <img src="_static/logo.svg" alt="" width="50" height="53">
-      <span>CiviqHub</span>
+      <img class="only-light" src="_static/civiqhub-logo-light.svg" alt="" width="152" height="41">
+      <img class="only-dark" src="_static/civiqhub-logo-dark.svg" alt="" width="152" height="41">
     </div>
     <div class="civiqhub-card-body">
       <span class="civiqhub-card-title">Référence de l'API</span>
