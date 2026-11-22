@@ -12,38 +12,76 @@ A result describes a group and decides nothing. Every result carries its value o
 | [`civiqhub_selene.ordinal`](reference/civiqhub_selene.ordinal.md) | The ordinal reading of the votes on one item | The standard library |
 | [`civiqhub_selene.blocks`](reference/civiqhub_selene.blocks.md) | Co-clustering: groups of voters and blocks of items that vote alike | NumPy, behind the `blocks` extra |
 
-## Where to go
+## Démarrer
 
-| You want to | Read |
-| --- | --- |
-| Install the library and run a first computation | [Getting started](getting-started.md) |
-| Know which module holds what | [Finding your way](library-map.md) |
-| Understand how the engine is built, or add a method | [Architecture](architecture.md) |
-| Look up a class, a function or an error | [Reference](reference/index.md) |
-| See what changed between versions | [Changelog](changelog.md) |
+```{raw} html
+<div class="civiqhub-cards">
+  <a class="civiqhub-card" href="getting-started.html">
+    <div class="civiqhub-card-banner">
+      <img src="_static/logo.svg" alt="" width="50" height="53">
+      <span>CiviqHub</span>
+    </div>
+    <div class="civiqhub-card-body">
+      <span class="civiqhub-card-title">Premiers pas</span>
+      <p>Installez la bibliothèque et lancez un premier calcul, sur des données synthétiques.</p>
+    </div>
+  </a>
+  <a class="civiqhub-card" href="library-map.html">
+    <div class="civiqhub-card-banner">
+      <img src="_static/logo.svg" alt="" width="50" height="53">
+      <span>CiviqHub</span>
+    </div>
+    <div class="civiqhub-card-body">
+      <span class="civiqhub-card-title">Plan de la bibliothèque</span>
+      <p>Trouvez le module qui tient ce dont vous avez besoin, et la page qui le documente.</p>
+    </div>
+  </a>
+  <a class="civiqhub-card" href="architecture.html">
+    <div class="civiqhub-card-banner">
+      <img src="_static/logo.svg" alt="" width="50" height="53">
+      <span>CiviqHub</span>
+    </div>
+    <div class="civiqhub-card-body">
+      <span class="civiqhub-card-title">Architecture</span>
+      <p>Comment le moteur est construit, et comment y ajouter une méthode.</p>
+    </div>
+  </a>
+  <a class="civiqhub-card" href="reference/index.html">
+    <div class="civiqhub-card-banner">
+      <img src="_static/logo.svg" alt="" width="50" height="53">
+      <span>CiviqHub</span>
+    </div>
+    <div class="civiqhub-card-body">
+      <span class="civiqhub-card-title">Référence de l'API</span>
+      <p>Chaque nom public, généré depuis les docstrings du code.</p>
+    </div>
+  </a>
+</div>
+```
 
 ```{toctree}
 :hidden:
 :caption: Guide
 
-getting-started
-library-map
-architecture
+Accueil <self>
+Premiers pas <getting-started>
+Plan de la bibliothèque <library-map>
+Architecture <architecture>
 ```
 
 ```{toctree}
 :hidden:
-:caption: Reference
+:caption: Référence
 
-reference/index
-changelog
+Référence de l'API <reference/index>
+Journal des versions <changelog>
 ```
 
 ```{toctree}
 :hidden:
-:caption: Project
+:caption: Projet
 
-Source code <https://github.com/civiqhub/civiqhub-selene>
-Contributing <https://github.com/civiqhub/civiqhub-selene/blob/develop/CONTRIBUTING.md>
-License <https://github.com/civiqhub/civiqhub-selene/blob/develop/LICENSE>
+Code source <https://github.com/civiqhub/civiqhub-selene>
+Contribuer <https://github.com/civiqhub/civiqhub-selene/blob/develop/CONTRIBUTING.md>
+Licence <https://github.com/civiqhub/civiqhub-selene/blob/develop/LICENSE>
 ```

@@ -3,3 +3,19 @@ Copyright 2026 CiviqHub SAS
 
 This product includes software developed by CiviqHub SAS (https://civiqhub.com)
 and by the contributors of civiqhub-selene.
+
+The documentation theme under docs/_static/ and docs/_templates/ (except the
+version selector, which is native to this repository) is adapted from
+civiqhub-py at commit 9365fe7c1ea1874ae995bf9cc7628cec0388d2d9
+(https://github.com/civiqhub/civiqhub-py). CiviqHub SAS is the sole
+rightsholder of those files and publishes them here under Apache-2.0.
+
+docs/_static/fonts/ contains Bricolage Grotesque (Regular, SemiBold, Bold),
+copyright The Bricolage Grotesque Project Authors, licensed under the SIL Open
+Font License 1.1. The license is in docs/_static/fonts/OFL.txt. The files were
+rebuilt from google/fonts at commit 06bfe0d62a98375cb09c942fa18e68bd32cff057.
+
+The CiviqHub glyph (docs/_static/logo.svg) comes from civiqhub-web,
+public/images/logo.svg, SHA 22756d33636bb8b341e7c41ec8846c421867dc10.
+The favicon (docs/_static/favicon.ico) is derived from the CiviqHub application
+icon.
