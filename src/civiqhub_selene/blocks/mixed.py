@@ -107,6 +107,7 @@ def _expect(
     item_memberships: FloatArray,
     logs: FloatArray,
     profiles: IntArray,
+    voter_weights: FloatArray | None = None,
 ) -> _Expectation:
     """The exact expectation step over the profiles.
 
@@ -116,6 +117,7 @@ def _expect(
     profile is proportional to ``prod_l voter_memberships[i, c_l] * prod_j den[i, j, c]``
     over the shown cells, and the cell takes the block ``l`` with the probability
     ``item_memberships[j, l] * F[c_l, l, s_ij] / den[i, j, c]`` under that profile.
+    Voter weights multiply contributions to the shared counts and likelihood.
     """
     n_voters, n_items, n_states = states.shape
     n_profiles, n_blocks = profiles.shape
@@ -142,8 +144,12 @@ def _expect(
         totals = logsumexp(scores, axis=1)
         posterior = np.exp(scores - totals[:, np.newaxis])
         profile_probabilities[rows] = posterior
-        log_likelihood += float(totals.sum())
         ratio = np.where(visible, posterior[:, np.newaxis, :] / safe, 0.0)
+        if voter_weights is None:
+            log_likelihood += float(totals.sum())
+        else:
+            log_likelihood += float(totals @ voter_weights[rows])
+            ratio *= voter_weights[rows, np.newaxis, np.newaxis]
         gathered += np.einsum("ijc,ijs->jsc", ratio, states[rows])
     counts: FloatArray = probabilities * np.einsum(
         "jsc,clq,jl->qls", gathered, follows, item_memberships
@@ -288,7 +294,13 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
         shape = (self.n_groups, self.n_blocks)
         group_index, block_index = self.initialization.arrangement(votes, shape, rng)
         initial = self.response_model.initial_parameters(shape, votes, rng)
-        counts = count_states(votes._states(), group_index, block_index, shape)
+        counts = count_states(
+            votes._states(),
+            group_index,
+            block_index,
+            shape,
+            voter_weights=votes._likelihood_weights,
+        )
         parameters = self.response_model.update(counts, initial)
         return self._state(
             votes,
@@ -311,6 +323,18 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
         self, votes: VoteMatrix, state: _MixedState, history: History, computation: str
     ) -> MixedCoclustering:
         expectation = state.expectation
+        profiles = _profiles(self.n_groups, self.n_blocks)
+        counts = expectation.counts
+        if votes.voter_weights is not None:
+            # The result still reports the number of observed votes, in survey rows.
+            counts = _expect(
+                votes._states(),
+                votes.shown,
+                state.voter_memberships,
+                state.item_memberships,
+                self.response_model.log_probabilities(state.parameters),
+                profiles,
+            ).counts
         return MixedCoclustering(
             computation=computation,
             voters=votes.voters,
@@ -320,13 +344,11 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
             block_index=state.item_memberships.argmax(axis=1),
             group_memberships=state.voter_memberships,
             block_memberships=state.item_memberships,
-            coclusters=self.response_model.to_table(
-                state.parameters, expectation.counts, votes.scale
-            ),
+            coclusters=self.response_model.to_table(state.parameters, counts, votes.scale),
             objective=state.objective,
             history=history,
             role_by_block=expectation.role_by_block,
-            profiles=_profiles(self.n_groups, self.n_blocks),
+            profiles=profiles,
             profile_probabilities=expectation.profile_probabilities,
             log_likelihood=expectation.log_likelihood,
         )
@@ -341,6 +363,7 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
         parameters: Any,
     ) -> _MixedState:
         """Run the expectation step at these memberships and parameters, and score them."""
+        weights = votes._likelihood_weights
         expectation = _expect(
             votes._states(),
             votes.shown,
@@ -348,13 +371,14 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
             item_memberships,
             self.response_model.log_probabilities(parameters),
             _profiles(self.n_groups, self.n_blocks),
+            weights,
         )
         alpha, beta = float(self.voter_concentration), float(self.item_concentration)
         objective = expectation.log_likelihood
         if alpha != 1.0:
-            objective += (alpha - 1.0) * float(
-                np.log(np.maximum(voter_memberships, _MIN_PROBABILITY)).sum()
-            )
+            log_prior = np.log(np.maximum(voter_memberships, _MIN_PROBABILITY))
+            prior_sum = log_prior.sum() if weights is None else log_prior.sum(axis=1) @ weights
+            objective += (alpha - 1.0) * float(prior_sum)
         if beta != 1.0:
             objective += (beta - 1.0) * float(
                 np.log(np.maximum(item_memberships, _MIN_PROBABILITY)).sum()

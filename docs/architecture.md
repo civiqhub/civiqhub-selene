@@ -21,7 +21,7 @@ This page describes how the engine is built: the contract every method shares, t
 | `civiqhub_selene.registry` | `Registry`, `EstimatorSpec`, `default_registry` | standard library |
 | `civiqhub_selene.testing` | `EstimatorContract`, `fingerprint_of` | standard library; pytest when a test runs |
 | `civiqhub_selene.ordinal.counts` | `VoteCounts`, `SCORES` | standard library |
-| `civiqhub_selene.blocks.data` | `OrdinalScale`, `Vote`, `VoteMatrix`, `GroupedVotes` | NumPy |
+| `civiqhub_selene.blocks.data` | `OrdinalScale`, `Vote`, `VoteMatrix`, `GroupedVotes`, `VoterCovariates` | NumPy |
 | `civiqhub_selene.blocks.partition` | `Partition`, `VoterGroup`, `ItemBlock` | NumPy |
 | `civiqhub_selene.blocks.coclusters` | `Cocluster`, `CoclusterTable` | NumPy |
 | `civiqhub_selene.blocks.synthetic` | `make_votes`, `PlantedTruth`, `single_memberships` | NumPy |
@@ -78,7 +78,9 @@ class TestMyMethod(EstimatorContract):
 
 A group gathers voters, a block gathers items, and a co-cluster is the pair of a group and a block.
 
-- `VoteMatrix` holds `levels` (0: no vote; `k`: vote at rank `k` of the scale) and `shown`. Models read it through `votes._states()` only: an indicator array of shape (M, P, K + 1), zero everywhere on a cell that is not shown.
+- `VoteMatrix` holds `levels` (0: no vote; `k`: vote at rank `k` of the scale) and `shown`. Models read it through `votes._states()` only: an indicator array of shape (M, P, K + 1), zero everywhere on a cell that is not shown. Optional survey weights enter the
+  model likelihood through normalized voter weights, while the state array
+  continues to describe the observed cells.
 - `Partition` arranges identifiers in clusters. It can come from a model or from anywhere else, and carries the fingerprint of the computation it comes from.
 - `GroupedVotes` reads a matrix through a partition of voters and a partition of items. `counts()` gives the sufficient statistic of every block model: the number of shown cells of each co-cluster in each state, shape (Q, L, K + 1).
 - `CoclusterTable` summarises each co-cluster by a vote rate and a distribution of the answers.

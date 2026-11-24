@@ -97,7 +97,13 @@ def _vote_rate(counts: FloatArray, previous: FloatArray, min_probability: float)
 
 def _overall_vote_rate(votes: VoteMatrix, min_probability: float) -> float:
     """Return the votes over the shown cells of the matrix, bounded away from 0 and 1."""
-    rate = votes.n_votes / max(votes.n_shown, 1)
+    weights = votes._likelihood_weights
+    if weights is None:
+        rate = votes.n_votes / max(votes.n_shown, 1)
+    else:
+        shown = float(votes.shown.sum(axis=1) @ weights)
+        voted = float(votes.voted.sum(axis=1) @ weights)
+        rate = voted / shown if shown > 0 else 0.0
     return min(max(rate, min_probability), 1.0 - min_probability)
 
 

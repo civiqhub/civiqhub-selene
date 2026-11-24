@@ -83,6 +83,63 @@ Three things to notice:
 
 To build a matrix from your own votes, see the constructors of {py:class}`~civiqhub_selene.blocks.data.VoteMatrix`: `from_records`, `from_table` and `from_arrays`.
 
+### Survey responses
+
+Use `VoteMatrix.from_responses` for a respondent-by-item table with heterogeneous
+ordinal scales. Supply a mapping from each item identifier to its `OrdinalScale`.
+The keys give the column order unless `items` supplies it explicitly. Pass unique
+voter identifiers in table order. Each cell holds an integer score on the source
+scale or a missing value (`None` or NaN). A boolean `shown` mask distinguishes an
+unshown question from an abstention. By default every question is shown.
+
+For an item whose source scale has `k` levels, a source rank `r` maps to the
+nearest common rank to `1 + (r - 1) * (K - 1) / (k - 1)`. Ties round up, and the
+first and last ranks keep their positions. Unless a common `scale` is supplied, the
+common scores are the integers from 1 to the largest declared scale length. For
+example, ranks 1, 2 and 3 become 1, 3 and 5 on a five-level scale. The recoding
+uses the declared order of the scores and retains one common grid for the model.
+
+Give the optional `voter_weights` in row order, using one finite positive weight
+per respondent. A survey row with zero weight can be removed before creating
+the matrix. Both block models rescale the weights to average 1 in the fitted
+matrix. In the single-membership model they multiply each voter's response and
+group-membership log terms. In the mixed-membership model they multiply each
+voter's marginal log-likelihood and voter-specific regularization term. Shared
+parameter updates use the corresponding weighted counts. Item membership
+regularization and reported response counts retain their usual definitions.
+
+Build a `VoterCovariates` table with `VoterCovariates.from_records(votes, records)`.
+Give one record per voter identifier and the same fields in each record, using
+`None` for missing covariates. The constructor aligns the records to
+`votes.voters`. The covariate table is available for analysis beside the matrix.
+
+For a wide CSV with one row per voter, use `read_survey_csv` with the same
+per-item scales. The reader accepts an open text stream. A prepared semicolon
+CSV can specify ID, weight and covariate columns separately:
+
+```python
+from io import StringIO
+
+from civiqhub_selene.blocks import OrdinalScale, read_survey_csv
+
+records = StringIO("responseid;Q1;Q2;weight;mode\nA;2;5;1.25;web\nB;;2;0.75;phone\n")
+survey_votes, survey_covariates = read_survey_csv(
+    records,
+    item_scales={"Q1": OrdinalScale((1, 2, 3)), "Q2": OrdinalScale((1, 2, 3, 4, 5))},
+    weight_column="weight",
+    covariate_columns=("mode",),
+    delimiter=";",
+    unshown_label="",
+)
+```
+
+For a file, open it with `newline=""` and `encoding="utf-8-sig"` in place of
+`StringIO`. Declare the full scale of each question, even if some ranks are
+unobserved. The example uses `unshown_label=""` to exclude blank cells from
+the likelihood, as when the prepared data have no indication that the question
+was presented. By default, blank scores count as abstentions. Covariate values
+are read as text and an empty covariate is represented by `None`.
+
 ## Read the result
 
 A {py:class}`~civiqhub_selene.types.Result` carries a value and its provenance. Here the value is a {py:class}`~civiqhub_selene.blocks.results.SingleCoclustering`.

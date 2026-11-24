@@ -25,6 +25,7 @@ civiqhub_selene.blocks.synthetic
 civiqhub_selene.blocks.responses
 civiqhub_selene.blocks.spectral
 civiqhub_selene.blocks.starts
+civiqhub_selene.blocks.survey
 civiqhub_selene.blocks.iterative
 civiqhub_selene.blocks.base
 civiqhub_selene.blocks.single
