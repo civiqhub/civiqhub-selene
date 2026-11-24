@@ -13,6 +13,26 @@ from a CSV file, starts a block model, runs a full inference and draws the resul
 The notebooks are saved with their outputs, so they can be read on GitHub without
 running them.
 
+## Scripts
+
+Two command-line scripts frame a co-clustering of survey data: one prepares the vote
+matrices, the other reads the groups with the description of the respondents. They need
+pandas; the second also needs SciPy and Matplotlib. With `--demo`, both run on synthetic
+data drawn by the script itself.
+
+| Script | What it does |
+| --- | --- |
+| [`preprocess_ordinal_survey.py`](preprocess_ordinal_survey.py) | Split a survey table into one metadata base and one vote base per scale size (2 to 7 levels by default), joinable on a respondent identifier; encode each cell in the three states of a `VoteMatrix` (vote, abstention, not shown); build the `VoteMatrix` of each base |
+| [`profile_clusters.py`](profile_clusters.py) | Describe the groups of a co-clustering with the metadata of the respondents, for single or mixed memberships: test values of Lebart, Morineau and Piron, identity cards, heatmap, stacked bars, quantile boxes, association ranking, correspondence analysis |
+
+```bash
+python examples/preprocess_ordinal_survey.py --demo --out demo_bases
+python examples/profile_clusters.py --demo --soft --out demo_profile
+```
+
+Run `--help` on each script for its options. Keep real survey files outside the
+repository and pass their path on the command line.
+
 ## Run them
 
 From the root of the repository:
