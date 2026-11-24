@@ -128,8 +128,86 @@ no_votes - the matrix holds no vote
 
 Reading `absent.value` raises {py:class}`~civiqhub_selene.errors.UnavailableError`. Test `is_available` first.
 
+## Start from a spectral arrangement
+
+A block model only reaches a local optimum: where it starts decides much of where it ends. By default each start is random. {py:class}`~civiqhub_selene.blocks.starts.SpectralStart` starts from the arrangement of regularised spectral co-clustering (Qin and Rohe 2013; Rohe, Qin and Yu 2016), which usually reaches the best optimum in one start:
+
+```python
+from civiqhub_selene.blocks import SpectralStart
+
+spectral = LatentBlockModel(n_groups=3, n_blocks=2, n_starts=1, initialization=SpectralStart())
+found = spectral.estimate(votes, seed=0).value
+print(found.groups.agreement_with(coclustering.groups))
+```
+
+```text
+1.0
+```
+
+The start is a setting of the model: it enters the provenance of the result. {py:func}`~civiqhub_selene.blocks.spectral.spectral_embedding` gives the embedding itself, to read its spectrum before choosing a shape.
+
+## Let a voter follow several groups
+
+{py:class}`~civiqhub_selene.blocks.mixed.MixedMembershipBlockModel` gives each voter a degree of membership to each group, and one role per block: the group it follows on that block. Below, eight voters are drawn half in group 0 and half in group 1.
+
+```python
+import numpy as np
+
+from civiqhub_selene.blocks import MixedMembershipBlockModel
+
+shared = np.vstack([single_memberships((16, 16, 16)), [[0.5, 0.5, 0.0]] * 8])
+mixed_votes, _ = make_votes(shared, single_memberships((7, 7)), seed=0)
+mixed = MixedMembershipBlockModel(n_groups=3, n_blocks=2, initialization=SpectralStart())
+value = mixed.estimate(mixed_votes, seed=0).value
+print(repr(value))
+print(value.role_changes())
+```
+
+```text
+MixedCoclustering(56 voters in 3 groups x 14 items in 2 blocks)
+[[17  0  4]
+ [ 0 15  2]
+ [ 2  0 16]]
+```
+
+`role_changes()` counts the voters by the group they follow on block 0 (rows) and on block 1 (columns): off the diagonal, a voter changes role from one block to the other.
+
+## Draw the result
+
+{py:mod}`civiqhub_selene.viz` turns a result into NetworkX graphs and draws them with Matplotlib. It needs the `viz` extra:
+
+```bash
+pip install "civiqhub-selene[viz]"
+```
+
+A graph carries the numbers of the result: one node per group and per block, one edge per co-cluster.
+
+```python
+from civiqhub_selene import viz
+
+graph = viz.coclustering_graph(coclustering)
+print(graph.number_of_nodes(), graph.number_of_edges())
+```
+
+```text
+5 6
+```
+
+Each `draw_*` and `plot_*` function draws on Matplotlib axes and returns them:
+
+<!-- not run: it writes files -->
+
+```python
+viz.draw_coclustering(coclustering).figure.savefig("coclustering.png")
+viz.plot_vote_matrix(votes, coclustering).figure.savefig("matrix.png")
+viz.draw_roles(value).figure.savefig("roles.png")
+```
+
+The [examples](examples.md) run the whole inference, from a CSV file to the figures.
+
 ## Next
 
+- [Examples](examples.md) are notebooks that run the single-membership and the mixed-membership models from end to end.
 - [Finding your way](library-map.md) says which module holds what.
 - [Architecture](architecture.md) explains the contract behind `estimate` and how to add a method.
 - The [reference](reference/index.md) documents every public name.

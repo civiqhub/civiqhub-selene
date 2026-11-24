@@ -9,11 +9,11 @@ This file explains how the site is organised and how to change it. It is read on
 The build needs Python 3.13 or later.
 
 ```bash
-python -m pip install -e ".[blocks]" --group docs
+python -m pip install -e ".[viz]" --group docs
 python -m sphinx -W -b html docs docs/_build/html
 ```
 
-Then open `docs/_build/html/index.html`. The option `-W` turns every warning into an error, as in the CI.
+The reference imports `civiqhub_selene.viz`: install the `viz` extra, which includes `blocks`. Then open `docs/_build/html/index.html`. The option `-W` turns every warning into an error, as in the CI.
 
 This builds the documentation of the code you have, as one site without versions. The published site holds several versions: see [How the site is published](#how-the-site-is-published).
 
@@ -30,12 +30,12 @@ This builds the documentation of the code you have, as one site without versions
 | `_static/civiqhub-logo-light.svg`, `_static/civiqhub-logo-dark.svg`, `_static/civiqhub-symbol-light.svg`, `_static/civiqhub-symbol-dark.svg` | The CiviqHub wordmark and symbol, light and dark |
 | `_static/logo.svg`, `_static/favicon.ico` | Former glyph and ICO, unused until NOTICE is updated |
 | `index.md` | The home page and the table of contents of the site |
-| `getting-started.md`, `library-map.md`, `architecture.md` | The guide: pages written by hand |
+| `getting-started.md`, `library-map.md`, `architecture.md`, `examples.md` | The guide: pages written by hand. `examples.md` presents the notebooks of `examples/`, which live outside the site |
 | `reference/` | The reference: one page per public module, generated from the docstrings |
 | `changelog.md` | Includes `CHANGELOG.md` from the root of the repository |
 | `_build/` | The output of the build. Not committed |
 
-Sections that are planned and not written yet: the methods (definition, parameters and limits of each method), what the results do not say, how to write an estimator outside this repository, and the runnable examples.
+Sections that are planned and not written yet: the methods (definition, parameters and limits of each method), what the results do not say, and how to write an estimator outside this repository.
 
 ## Thème du site
 
@@ -155,12 +155,12 @@ Les diagrammes mermaid sont colorés avec les tokens du thème. `sphinxcontrib-m
 
 ### Extensions et dépendances
 
-Groupe `docs` de `pyproject.toml` : `sphinx==9.2.0` (BSD-2-Clause), `myst-parser==5.2.0` (MIT), `furo==2025.12.19` (MIT), `sphinxcontrib-mermaid==2.1.1` (BSD-2-Clause), `sphinxext-opengraph==0.13.0` (BSD-3-Clause). `sphinxext-opengraph` pose `ogp_site_url` d'après `html_baseurl` ; les cartes sociales PNG sont désactivées (`ogp_social_cards.enable = False`) parce que le build n'a pas de réseau et ne doit pas tirer matplotlib. L'origine publique est `https://selene.civiqhub.com/`. Si le script de publication passe encore `https://civiqhub.github.io/civiqhub-selene/`, `conf.py` la réécrit, chemin de version compris. Extension locale : `docs/_ext/selene_docs.py`, inchangée.
+Groupe `docs` de `pyproject.toml` : `sphinx==9.2.0` (BSD-2-Clause), `myst-parser==5.2.0` (MIT), `furo==2025.12.19` (MIT), `sphinxcontrib-mermaid==2.1.1` (BSD-2-Clause), `sphinxext-opengraph==0.13.0` (BSD-3-Clause). `sphinxext-opengraph` pose `ogp_site_url` d'après `html_baseurl` ; les cartes sociales PNG sont désactivées (`ogp_social_cards.enable = False`) parce que le build n'a pas de réseau. Matplotlib est installé par l'extra `viz`, que la référence importe ; il ne sert pas aux cartes. L'origine publique est `https://selene.civiqhub.com/`. Si le script de publication passe encore `https://civiqhub.github.io/civiqhub-selene/`, `conf.py` la réécrit, chemin de version compris. Extension locale : `docs/_ext/selene_docs.py`, inchangée.
 
 ### Build local
 
 ```bash
-python -m pip install -e ".[blocks]" --group docs
+python -m pip install -e ".[viz]" --group docs
 python -m sphinx -W -b html docs docs/_build/html
 python .github/scripts/build-docs-site.py --output _site --development HEAD
 ```
@@ -249,7 +249,7 @@ print(VoteCounts.from_scores([2, 2, -1]).total)
 - A block fenced with `python` is run by the tests. The blocks of a page share one namespace and run in the order of the page.
 - A `text` block that directly follows a Python block is its output: the test compares it with what the block prints, character for character. Show an output only when it does not depend on the machine or on the version of a dependency.
 - To show code that cannot run, such as a skeleton, write the comment `<!-- not run: the reason -->` on the line before the block, followed by an empty line.
-- A page whose blocks use NumPy or `civiqhub_selene.blocks` is run in the test jobs that install NumPy only. Nothing has to be declared.
+- A page whose blocks use NumPy or `civiqhub_selene.blocks` is run in the test jobs that install NumPy only; a page whose blocks use `civiqhub_selene.viz` also needs NetworkX and Matplotlib. Nothing has to be declared.
 - Examples use synthetic data only: `make_votes`, or values written by hand.
 - `ruff format` also formats the Python blocks of the Markdown files.
 

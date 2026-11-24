@@ -114,3 +114,16 @@ def test_the_workflows_run_the_script_that_is_tested_here() -> None:
     command = "python .github/scripts/build-docs-site.py"
     assert command in (workflows / "docs.yml").read_text(encoding="utf-8")
     assert command in (workflows / "ci.yml").read_text(encoding="utf-8")
+
+
+def test_the_reference_is_built_with_the_extras_each_commit_declares(
+    site: ModuleType, tmp_path: Path
+) -> None:
+    assert site.documented_extras(ROOT) == ".[blocks,viz]"
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "x"\n[project.optional-dependencies]\nblocks = ["numpy"]\n',
+        encoding="utf-8",
+    )
+    assert site.documented_extras(tmp_path) == ".[blocks]"
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "x"\n', encoding="utf-8")
+    assert site.documented_extras(tmp_path) == "."
