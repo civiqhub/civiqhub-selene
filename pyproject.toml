@@ -44,6 +44,7 @@ blocks = ["numpy>=2.0"]
 # same group; reading the registry imports nothing.
 [project.entry-points."civiqhub_selene.estimators"]
 "coclustering.single" = "civiqhub_selene.blocks.single:LatentBlockModel"
+"coclustering.mixed" = "civiqhub_selene.blocks.mixed:MixedMembershipBlockModel"
 
 [project.urls]
 Homepage = "https://civiqhub.com"
