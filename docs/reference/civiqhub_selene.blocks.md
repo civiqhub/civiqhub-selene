@@ -19,6 +19,7 @@ These names are imported from `civiqhub_selene.blocks`. Each one links to the mo
 :maxdepth: 1
 
 civiqhub_selene.blocks.data
+civiqhub_selene.blocks.covariates
 civiqhub_selene.blocks.partition
 civiqhub_selene.blocks.coclusters
 civiqhub_selene.blocks.synthetic

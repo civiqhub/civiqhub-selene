@@ -81,32 +81,39 @@ Three things to notice:
 - **The seed is explicit.** The same votes, the same settings and the same seed give the same result.
 - **The call is the same for every method.** {py:meth}`~civiqhub_selene.estimator.Estimator.estimate` is written once, for all estimators.
 
-To build a matrix from your own votes, see the constructors of {py:class}`~civiqhub_selene.blocks.data.VoteMatrix`: `from_records`, `from_table` and `from_arrays`.
+To build a matrix from your own votes, see the constructors of {py:class}`~civiqhub_selene.blocks.data.VoteMatrix`: `from_records`, `from_table`, `from_arrays` and `from_responses`.
 
 ### Survey responses
 
-Use `VoteMatrix.from_responses` for a respondent-by-item table with heterogeneous
-ordinal scales. Supply a mapping from each item identifier to its `OrdinalScale`.
-The keys give the column order unless `items` supplies it explicitly. Pass unique
-voter identifiers in table order. Each cell holds an integer score on the source
-scale or a missing value (`None` or NaN). A boolean `shown` mask distinguishes an
-unshown question from an abstention. By default every question is shown.
+Use `VoteMatrix.from_responses` for a respondent-by-item table of ordinal scores.
+Supply a mapping from each item identifier to its `OrdinalScale`. The keys give
+the column order unless `items` supplies it explicitly. Pass unique voter
+identifiers in table order. Each cell holds an integer score on the source scale
+or a missing value (`None` or NaN). A boolean `shown` mask distinguishes an
+unshown question from an abstention. By default every question is shown. A score
+in a cell marked as not shown is refused.
 
-For an item whose source scale has `k` levels, a source rank `r` maps to the
-nearest common rank to `1 + (r - 1) * (K - 1) / (k - 1)`. Ties round up, and the
-first and last ranks keep their positions. Unless a common `scale` is supplied, the
-common scores are the integers from 1 to the largest declared scale length. For
-example, ranks 1, 2 and 3 become 1, 3 and 5 on a five-level scale. The recoding
-uses the declared order of the scores and retains one common grid for the model.
+The source of truth of the block models is a continuous Gaussian latent, of
+parameters μ and σ, for each co-cluster. Each item `j` has its own observation
+scale, with `K_j` ranks and its own thresholds, so a shown cell has `K_j + 1`
+modalities. The CEM or VEM loop runs on those latents. `from_responses` keeps
+the original ranks of each column and the direction of agreement; it does not
+recode them onto a common grid.
+
+The response models still use one shared `K`. Distinct observation scales are
+refused, naming the first item that differs, until SEL-8.2 (`ItemScales`). A
+homogeneous table matches `from_records` on the same scores, voters and items.
 
 Give the optional `voter_weights` in row order, using one finite positive weight
 per respondent. A survey row with zero weight can be removed before creating
-the matrix. Both block models rescale the weights to average 1 in the fitted
-matrix. In the single-membership model they multiply each voter's response and
-group-membership log terms. In the mixed-membership model they multiply each
-voter's marginal log-likelihood and voter-specific regularization term. Shared
-parameter updates use the corresponding weighted counts. Item membership
-regularization and reported response counts retain their usual definitions.
+the matrix. Both block models rescale the weights to average 1. In the
+single-membership model they multiply each voter's response and group-membership
+log terms. In the mixed-membership model they multiply each voter's marginal
+log-likelihood and voter-specific regularisation term. Shared parameter updates
+use the corresponding weighted counts. Item membership regularisation and
+reported response counts keep their usual, unweighted definitions. When the
+block-share term is neutral (a single block), the fitted response parameters
+match those of a row duplication.
 
 Build a `VoterCovariates` table with `VoterCovariates.from_records(votes, records)`.
 Give one record per voter identifier and the same fields in each record, using
@@ -114,8 +121,9 @@ Give one record per voter identifier and the same fields in each record, using
 `votes.voters`. The covariate table is available for analysis beside the matrix.
 
 For a wide CSV with one row per voter, use `read_survey_csv` with the same
-per-item scales. The reader accepts an open text stream. A prepared semicolon
-CSV can specify ID, weight and covariate columns separately:
+per-item scales. The reader is part of the input contract of the library. It
+accepts an open text stream. A prepared semicolon CSV can specify ID, weight and
+covariate columns separately:
 
 ```python
 from io import StringIO
@@ -123,9 +131,10 @@ from io import StringIO
 from civiqhub_selene.blocks import OrdinalScale, read_survey_csv
 
 records = StringIO("responseid;Q1;Q2;weight;mode\nA;2;5;1.25;web\nB;;2;0.75;phone\n")
+five = OrdinalScale((1, 2, 3, 4, 5))
 survey_votes, survey_covariates = read_survey_csv(
     records,
-    item_scales={"Q1": OrdinalScale((1, 2, 3)), "Q2": OrdinalScale((1, 2, 3, 4, 5))},
+    item_scales={"Q1": five, "Q2": five},
     weight_column="weight",
     covariate_columns=("mode",),
     delimiter=";",

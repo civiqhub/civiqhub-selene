@@ -21,6 +21,8 @@ Importing `civiqhub_selene` or `civiqhub_selene.ordinal` never loads NumPy. Impo
 | --- | --- | --- |
 | Count the votes of one item | {py:class}`~civiqhub_selene.ordinal.counts.VoteCounts` | [`ordinal.counts`](reference/civiqhub_selene.ordinal.counts.md) |
 | Hold the votes of many voters on many items | {py:class}`~civiqhub_selene.blocks.data.VoteMatrix` | [`blocks.data`](reference/civiqhub_selene.blocks.data.md) |
+| Load a wide survey CSV into a vote matrix | {py:func}`~civiqhub_selene.blocks.survey.read_survey_csv` | [`blocks.survey`](reference/civiqhub_selene.blocks.survey.md) |
+| Align voter attributes to the matrix | {py:class}`~civiqhub_selene.blocks.covariates.VoterCovariates` | [`blocks.covariates`](reference/civiqhub_selene.blocks.covariates.md) |
 | Use another scale than -2 to +2 | {py:class}`~civiqhub_selene.blocks.data.OrdinalScale` | [`blocks.data`](reference/civiqhub_selene.blocks.data.md) |
 | Draw synthetic votes with a known truth | {py:func}`~civiqhub_selene.blocks.synthetic.make_votes` | [`blocks.synthetic`](reference/civiqhub_selene.blocks.synthetic.md) |
 | Read a matrix through groups and blocks | {py:meth}`VoteMatrix.group_by <civiqhub_selene.blocks.data.VoteMatrix.group_by>`, {py:class}`~civiqhub_selene.blocks.data.GroupedVotes` | [`blocks.data`](reference/civiqhub_selene.blocks.data.md) |

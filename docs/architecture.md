@@ -21,13 +21,15 @@ This page describes how the engine is built: the contract every method shares, t
 | `civiqhub_selene.registry` | `Registry`, `EstimatorSpec`, `default_registry` | standard library |
 | `civiqhub_selene.testing` | `EstimatorContract`, `fingerprint_of` | standard library; pytest when a test runs |
 | `civiqhub_selene.ordinal.counts` | `VoteCounts`, `SCORES` | standard library |
-| `civiqhub_selene.blocks.data` | `OrdinalScale`, `Vote`, `VoteMatrix`, `GroupedVotes`, `VoterCovariates` | NumPy |
+| `civiqhub_selene.blocks.data` | `OrdinalScale`, `Vote`, `VoteMatrix`, `GroupedVotes` | NumPy |
+| `civiqhub_selene.blocks.covariates` | `VoterCovariates` | NumPy |
 | `civiqhub_selene.blocks.partition` | `Partition`, `VoterGroup`, `ItemBlock` | NumPy |
 | `civiqhub_selene.blocks.coclusters` | `Cocluster`, `CoclusterTable` | NumPy |
 | `civiqhub_selene.blocks.synthetic` | `make_votes`, `PlantedTruth`, `single_memberships` | NumPy |
 | `civiqhub_selene.blocks.responses` | `ResponseModel`, `Categorical`, `OrdinalProbit` | NumPy |
 | `civiqhub_selene.blocks.spectral` | `spectral_embedding`, `SpectralEmbedding`, `n_singular_values`: regularised spectral co-clustering (DI-SIM, RSC) | NumPy |
 | `civiqhub_selene.blocks.starts` | `Initialization`, `RandomStart`, `SpectralStart`, `FixedStart`: the arrangement each start begins from | NumPy |
+| `civiqhub_selene.blocks.survey` | `read_survey_csv`: wide CSV responses into a `VoteMatrix` and `VoterCovariates` | NumPy |
 | `civiqhub_selene.blocks._numerics` | `count_states`, `logsumexp`, the normal law, `iterate`, `History`, `fit_latent_normal` | NumPy |
 | `civiqhub_selene.blocks.iterative` | `IterativeEstimator`, `HasObjective` | NumPy |
 | `civiqhub_selene.blocks.base` | `CoclusteringEstimator`, `BlockModel`, `availability`, `estimator_for`, `memberships` | NumPy |
@@ -78,9 +80,7 @@ class TestMyMethod(EstimatorContract):
 
 A group gathers voters, a block gathers items, and a co-cluster is the pair of a group and a block.
 
-- `VoteMatrix` holds `levels` (0: no vote; `k`: vote at rank `k` of the scale) and `shown`. Models read it through `votes._states()` only: an indicator array of shape (M, P, K + 1), zero everywhere on a cell that is not shown. Optional survey weights enter the
-  model likelihood through normalized voter weights, while the state array
-  continues to describe the observed cells.
+- `VoteMatrix` holds `levels` (0: no vote; `k`: vote at rank `k` of the scale) and `shown`. Models read it through `votes._states()` only: an indicator array of shape (M, P, K + 1), zero everywhere on a cell that is not shown. A shown cell of item `j` has `K_j + 1` modalities; the matrix currently stores one shared `K`. Optional mean-one survey weights enter the model likelihood as a weighted pseudo-likelihood, while the state array continues to describe the observed cells.
 - `Partition` arranges identifiers in clusters. It can come from a model or from anywhere else, and carries the fingerprint of the computation it comes from.
 - `GroupedVotes` reads a matrix through a partition of voters and a partition of items. `counts()` gives the sufficient statistic of every block model: the number of shown cells of each co-cluster in each state, shape (Q, L, K + 1).
 - `CoclusterTable` summarises each co-cluster by a vote rate and a distribution of the answers.
