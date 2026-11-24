@@ -176,12 +176,11 @@ The published site holds one folder per version:
 | Folder | Built from | Shown in the selector as |
 | --- | --- | --- |
 | `X.Y.Z/` | `main`, for the version `main` holds | `X.Y.Z (latest release)` |
-| `X.Y.Z/` | The tag `vX.Y.Z`, for each earlier release | `X.Y.Z` |
 | `dev/` | `develop` | `dev (development branch)` |
 
 The address of the site redirects to the latest release, or to `dev` as long as `main` holds no documentation.
 
-Every publication rebuilds every version, each from its own commit and with the tools this commit pins: GitHub Pages replaces the whole site each time. The script is `.github/scripts/build-docs-site.py`. Run it to build the site as it is published, from the references of your clone:
+Every publication rebuilds the latest release and the development branch, each from its own commit and with the tools this commit pins: GitHub Pages replaces the whole site each time. The root also holds `404.html`, which sends a retired release to the same page of the latest one. The script is `.github/scripts/build-docs-site.py`. Run it to build the site as it is published, from the references of your clone:
 
 ```bash
 git fetch origin develop main --tags

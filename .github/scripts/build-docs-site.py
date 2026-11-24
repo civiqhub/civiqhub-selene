@@ -7,11 +7,14 @@ Usage: python .github/scripts/build-docs-site.py --output _site --base-url https
 
 The site that is published holds:
 
-- ``X.Y.Z/``: the documentation of the release that ``origin/main`` holds, and of each
-  earlier release tag ``vX.Y.Z``;
+- ``X.Y.Z/``: the documentation of the latest release, the one ``origin/main`` holds;
+  earlier releases are not published (Decision of 2026-11-24: the site holds the
+  latest release and the development branch, nothing else);
 - ``dev/``: the documentation of the development branch, ``origin/develop``;
 - ``versions.json``: the list that the version selector of every page reads;
-- ``index.html``: a redirection to the latest release, or to ``dev`` before the first one.
+- ``index.html``: a redirection to the latest release, or to ``dev`` before the first one;
+- ``404.html``: a page GitHub Pages serves for a missing address; it sends a retired
+  release to the same page of the latest one.
 
 Each version is built from its own commit, in its own environment, with the tools that
 this commit pins: a version is always rebuilt as it was. A commit without
@@ -73,23 +76,23 @@ class Version:
 
 
 def select_versions(development: Source | None, releases: Sequence[Source]) -> list[Version]:
-    """Return the folders of the site: the releases, latest first, then ``dev``.
+    """Return the folders of the site: the latest release, then ``dev``.
 
     Args:
         development: The development branch, when it holds documentation.
         releases: The commits that may hold a release, by decreasing priority: the
             release branch first, then the tags. When two commits carry the same
             version, the first one is kept. A version that is not ``X.Y.Z`` is not a
-            release and is left out.
+            release and is left out. Only the highest release is published.
     """
     kept: dict[tuple[int, ...], Source] = {}
     for source in releases:
         if RELEASE.fullmatch(source.version):
             kept.setdefault(tuple(int(part) for part in source.version.split(".")), source)
     versions = []
-    for rank, number in enumerate(sorted(kept, reverse=True)):
-        source = kept[number]
-        label = f"{source.version} (latest release)" if rank == 0 else source.version
+    if kept:
+        source = kept[max(kept)]
+        label = f"{source.version} (latest release)"
         versions.append(Version(source.version, label, source.ref, "release"))
     if development is not None:
         label = f"{DEVELOPMENT_SLUG} (development branch)"
@@ -103,6 +106,33 @@ def versions_document(versions: Sequence[Version]) -> str:
         {"slug": version.slug, "label": version.label, "path": version.path} for version in versions
     ]
     return json.dumps({"default": versions[0].slug, "versions": listed}, indent=2) + "\n"
+
+
+def retired_version_page(version: Version, base_url: str) -> str:
+    """Return the GitHub Pages 404 page: send a retired release to the latest one."""
+    root = base_url.rstrip("/") + "/" if base_url else ""
+    href = f"{root}{version.path}"
+    return (
+        "<!doctype html>\n"
+        '<html lang="en">\n'
+        "<head>\n"
+        '<meta charset="utf-8">\n'
+        "<title>This page does not exist</title>\n"
+        "<script>\n"
+        "const match = window.location.pathname.match(/^(.*?\\/)(\\d+\\.\\d+\\.\\d+)\\/(.*)$/);\n"
+        f'if (match && match[2] !== "{version.slug}") {{\n'
+        "  window.location.replace("
+        f'match[1] + "{version.path}" + match[3] + window.location.hash'
+        ");\n"
+        "}\n"
+        "</script>\n"
+        "</head>\n"
+        "<body>\n"
+        "<p>This page does not exist. "
+        f'See the <a href="{href}">latest release</a>.</p>\n'
+        "</body>\n"
+        "</html>\n"
+    )
 
 
 def redirection_page(version: Version, base_url: str) -> str:
@@ -219,6 +249,10 @@ def main() -> None:
         build(version, output, base_url)
     (output / "versions.json").write_text(versions_document(versions), encoding="utf-8")
     (output / "index.html").write_text(redirection_page(versions[0], base_url), encoding="utf-8")
+    if versions[0].channel == "release":
+        (output / "404.html").write_text(
+            retired_version_page(versions[0], base_url), encoding="utf-8"
+        )
     print("Built: " + ", ".join(f"{version.slug} ({version.ref})" for version in versions))
 
 
