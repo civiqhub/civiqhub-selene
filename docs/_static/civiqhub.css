@@ -1,0 +1,967 @@
+/* Copyright 2026 CiviqHub SAS */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* Tokens of the CiviqHub theme (bootstrap values from DesignGrok).
+   Dark values are the carbon neutrals of the design system (Decision Yanis,
+   22/11/2026): no blue hue anywhere in dark mode. */
+
+:root {
+  --civiqhub-primary: #2C448B;
+  --civiqhub-primary-foreground: #ffffff;
+  --civiqhub-background: #ffffff;
+  --civiqhub-shell-surface: #FAFAFA;
+  --civiqhub-muted: #f1f5f9;
+  --civiqhub-border: #e2e8f0;
+  --civiqhub-foreground: #020617;
+  --civiqhub-muted-foreground: #64748b;
+  --civiqhub-success: #047857;
+  --civiqhub-destructive: #dc2626;
+  --civiqhub-radius-sm: 4px;
+  --civiqhub-radius-md: 8px;
+  --civiqhub-radius-lg: 12px;
+  --civiqhub-radius-xl: 16px;
+  --civiqhub-card-banner-from: color-mix(
+    in srgb,
+    var(--civiqhub-primary) 28%,
+    var(--civiqhub-background)
+  );
+  --civiqhub-card-banner-to: color-mix(
+    in srgb,
+    var(--civiqhub-primary) 10%,
+    var(--civiqhub-background)
+  );
+  --civiqhub-announcement: color-mix(
+    in srgb,
+    var(--civiqhub-primary) 10%,
+    var(--civiqhub-background)
+  );
+  --civiqhub-focus: var(--civiqhub-primary);
+  --civiqhub-focus-ring: color-mix(in srgb, var(--civiqhub-primary) 12%, transparent);
+  --civiqhub-link-hover: var(--civiqhub-primary);
+  --civiqhub-shadow-card: 0 1px 2px color-mix(in srgb, var(--civiqhub-foreground) 4%, transparent),
+    0 8px 24px color-mix(in srgb, var(--civiqhub-foreground) 4%, transparent);
+  --civiqhub-shadow-card-hover: 0 1px 2px
+      color-mix(in srgb, var(--civiqhub-foreground) 5%, transparent),
+    0 12px 28px color-mix(in srgb, var(--civiqhub-primary) 12%, transparent);
+  --civiqhub-sidebar-width: 18em;
+  --civiqhub-card-surface: var(--civiqhub-background);
+  --font-stack: "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", sans-serif;
+  --font-stack--headings: "Bricolage Grotesque", ui-sans-serif, system-ui,
+    -apple-system, "Segoe UI", sans-serif;
+}
+
+body[data-theme="dark"] {
+  --civiqhub-primary: #FAFAFA;
+  --civiqhub-primary-foreground: #171717;
+  --civiqhub-background: #171717;
+  --civiqhub-shell-surface: #000000;
+  --civiqhub-muted: #404040;
+  --civiqhub-border: #404040;
+  --civiqhub-foreground: #FAFAFA;
+  --civiqhub-muted-foreground: #e5e5e5;
+  --civiqhub-success: #73b876;
+  --civiqhub-destructive: #ff2f1c;
+  --civiqhub-card-banner-from: #171717;
+  --civiqhub-card-banner-to: #000000;
+  --civiqhub-announcement: #000000;
+  --civiqhub-focus: #FAFAFA;
+  --civiqhub-focus-ring: color-mix(in srgb, #FAFAFA 20%, transparent);
+  --civiqhub-link-hover: #FAFAFA;
+  --civiqhub-shadow-card: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 35%);
+  --civiqhub-shadow-card-hover: 0 1px 2px rgb(0 0 0 / 50%), 0 12px 28px rgb(0 0 0 / 55%);
+  --civiqhub-card-surface: #000000;
+  --color-code-background: #000000;
+  --color-problematic: #ff2f1c;
+  --color-api-added: #73b876;
+  --color-api-added-border: #73b876;
+  --color-api-removed: #ff2f1c;
+  --color-api-removed-border: #ff2f1c;
+  --color-api-deprecated: #F2A202;
+  --color-api-deprecated-border: #F2A202;
+  --color-highlight-on-target: #404040;
+  --color-admonition-title: #868686;
+  --color-admonition-title-background: rgba(134, 134, 134, 0.2);
+  --color-topic-title: #868686;
+  --color-topic-title-background: rgba(134, 134, 134, 0.2);
+  --color-sidebar-link-text: #FAFAFA;
+  --color-sidebar-link-text--top-level: #FAFAFA;
+  --color-sidebar-caption-text: #FAFAFA;
+  --color-sidebar-brand-text: #FAFAFA;
+  --color-sidebar-search-text: #FAFAFA;
+  --color-sidebar-search-foreground: #FAFAFA;
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) {
+    --civiqhub-primary: #FAFAFA;
+    --civiqhub-primary-foreground: #171717;
+    --civiqhub-background: #171717;
+    --civiqhub-shell-surface: #000000;
+    --civiqhub-muted: #404040;
+    --civiqhub-border: #404040;
+    --civiqhub-foreground: #FAFAFA;
+    --civiqhub-muted-foreground: #e5e5e5;
+    --civiqhub-success: #73b876;
+    --civiqhub-destructive: #ff2f1c;
+    --civiqhub-card-banner-from: #171717;
+    --civiqhub-card-banner-to: #000000;
+    --civiqhub-announcement: #000000;
+    --civiqhub-focus: #FAFAFA;
+    --civiqhub-focus-ring: color-mix(in srgb, #FAFAFA 20%, transparent);
+    --civiqhub-link-hover: #FAFAFA;
+    --civiqhub-shadow-card: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px rgb(0 0 0 / 35%);
+    --civiqhub-shadow-card-hover: 0 1px 2px rgb(0 0 0 / 50%), 0 12px 28px rgb(0 0 0 / 55%);
+    --civiqhub-card-surface: #000000;
+    --color-code-background: #000000;
+    --color-problematic: #ff2f1c;
+    --color-api-added: #73b876;
+    --color-api-added-border: #73b876;
+    --color-api-removed: #ff2f1c;
+    --color-api-removed-border: #ff2f1c;
+    --color-api-deprecated: #F2A202;
+    --color-api-deprecated-border: #F2A202;
+    --color-highlight-on-target: #404040;
+    --color-admonition-title: #868686;
+    --color-admonition-title-background: rgba(134, 134, 134, 0.2);
+    --color-topic-title: #868686;
+    --color-topic-title-background: rgba(134, 134, 134, 0.2);
+    --color-sidebar-link-text: #FAFAFA;
+    --color-sidebar-link-text--top-level: #FAFAFA;
+    --color-sidebar-caption-text: #FAFAFA;
+    --color-sidebar-brand-text: #FAFAFA;
+    --color-sidebar-search-text: #FAFAFA;
+    --color-sidebar-search-foreground: #FAFAFA;
+  }
+}
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/BricolageGrotesque-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/BricolageGrotesque-SemiBold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/BricolageGrotesque-Bold.woff2") format("woff2");
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body[data-theme="light"] {
+  color-scheme: light;
+}
+
+body[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) {
+    color-scheme: dark;
+  }
+}
+
+body {
+  font-weight: 400;
+  background: var(--civiqhub-background);
+  color: var(--civiqhub-foreground);
+}
+
+.theme-toggle {
+  color: var(--civiqhub-muted-foreground);
+}
+
+.theme-toggle:hover {
+  color: var(--civiqhub-foreground);
+}
+
+/* --- Sidebar ------------------------------------------------------------- */
+
+.sidebar-container {
+  width: var(--civiqhub-sidebar-width);
+}
+
+.sidebar-drawer {
+  min-width: var(--civiqhub-sidebar-width);
+  background: var(--civiqhub-shell-surface);
+  border-right: 1px solid var(--civiqhub-border);
+}
+
+/* Furo hides the drawer with left: -15em and width: 15em. Keep it off-canvas
+   after the column is widened, otherwise 3 em leak onto the page. */
+@media (max-width: 63em) {
+  .sidebar-drawer {
+    width: var(--civiqhub-sidebar-width);
+    left: calc(-1 * var(--civiqhub-sidebar-width));
+  }
+}
+
+.sidebar-sticky {
+  padding-top: 0.5rem;
+}
+
+.sidebar-brand {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 1.15rem 1.15rem 0.85rem;
+  text-align: left;
+}
+
+/* The SVG viewBox has vertical padding, so 2 rem made the word about 10 px
+   tall. 3 rem (48 px, about 177 px wide) keeps it readable in the 18 em
+   column without setting both width and height. */
+.sidebar-brand .sidebar-logo {
+  height: 3rem;
+  width: auto;
+  max-width: 100%;
+  margin: 0;
+}
+
+.sidebar-search-container,
+.sidebar-search-container:hover,
+.sidebar-search-container:focus-within {
+  padding: 0 1.15rem 1rem;
+  background: transparent;
+  border: none;
+}
+
+/* Furo draws a search icon on ::before; the template already has one. */
+.sidebar-search-container::before {
+  content: none;
+  display: none;
+}
+
+#searchbox {
+  display: none;
+}
+
+.civiqhub-search {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  height: 2rem;
+  padding: 0 0.45rem 0 0.7rem;
+  background: var(--civiqhub-background);
+  border: 1px solid var(--civiqhub-border);
+  border-radius: var(--civiqhub-radius-xl);
+}
+
+.civiqhub-search-icon {
+  display: grid;
+  place-items: center;
+  color: var(--civiqhub-muted-foreground);
+  flex-shrink: 0;
+}
+
+.civiqhub-search .sidebar-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 2rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: var(--civiqhub-foreground);
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+.civiqhub-search .sidebar-search::placeholder {
+  color: var(--civiqhub-muted-foreground);
+}
+
+.civiqhub-search .sidebar-search:focus {
+  outline: none;
+}
+
+.civiqhub-search:focus-within {
+  border-color: var(--civiqhub-focus);
+  box-shadow: 0 0 0 3px var(--civiqhub-focus-ring);
+}
+
+.civiqhub-search-keys {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin-left: auto;
+  padding-right: 0.15rem;
+}
+
+.civiqhub-search-keys kbd {
+  display: inline-block;
+  padding: 0.05rem 0.28rem;
+  border: 1px solid var(--civiqhub-border);
+  border-radius: var(--civiqhub-radius-sm);
+  background: var(--civiqhub-muted);
+  color: var(--civiqhub-foreground);
+  font-family: inherit;
+  font-size: 0.65rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.version-switcher {
+  padding: 0 1.15rem 1rem;
+}
+
+.version-switcher label,
+.sidebar-tree .caption,
+.sidebar-tree .caption-text,
+.toc-title {
+  color: var(--civiqhub-foreground);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.version-switcher select {
+  width: 100%;
+  min-height: 2rem;
+  height: auto;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--civiqhub-border);
+  border-radius: var(--civiqhub-radius-md);
+  background: var(--civiqhub-background);
+  color: var(--civiqhub-foreground);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.3;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.sidebar-tree {
+  font-size: 0.9375rem;
+  font-weight: 400;
+}
+
+.sidebar-tree .caption,
+.sidebar-tree p.caption {
+  margin: 1.15rem 0 0.35rem;
+  padding: 0 0.35rem;
+}
+
+.sidebar-tree .reference {
+  color: var(--civiqhub-muted-foreground);
+  border-radius: var(--civiqhub-radius-md);
+  padding: 0.38rem 0.7rem;
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: none;
+}
+
+.sidebar-tree .reference:hover {
+  background: var(--civiqhub-muted);
+  color: var(--civiqhub-foreground);
+}
+
+.sidebar-tree li.current > .reference {
+  background: transparent;
+}
+
+.sidebar-tree .current-page > .reference {
+  background: var(--civiqhub-muted);
+  color: var(--civiqhub-foreground);
+}
+
+/* Dark sidebar: Furo .toctree-l1>.reference is more specific than
+   .sidebar-tree .reference, and light color-sidebar-* keys otherwise stick.
+   Keep this block darker-only so the light tree is unchanged. */
+body[data-theme="dark"] .sidebar-tree .reference,
+body[data-theme="dark"] .sidebar-tree .toctree-l1 > .reference,
+body[data-theme="dark"] .sidebar-tree .toctree-l1 > label .icon,
+body[data-theme="dark"] .sidebar-tree .toctree-l2 .reference,
+body[data-theme="dark"] .sidebar-tree .toctree-l3 .reference,
+body[data-theme="dark"] .sidebar-tree label .icon,
+body[data-theme="dark"] .sidebar-tree .caption,
+body[data-theme="dark"] .sidebar-tree .caption-text,
+body[data-theme="dark"] .sidebar-tree :not(.caption) > .caption-text,
+body[data-theme="dark"] .civiqhub-search .sidebar-search,
+body[data-theme="dark"] .civiqhub-search .sidebar-search::placeholder,
+body[data-theme="dark"] .civiqhub-search-icon,
+body[data-theme="dark"] .civiqhub-search-keys kbd {
+  color: #FAFAFA;
+}
+
+body[data-theme="dark"] .sidebar-tree .reference:hover,
+body[data-theme="dark"] .sidebar-tree .current-page > .reference,
+body[data-theme="dark"] .sidebar-tree .toctree-l1 > .reference:hover {
+  color: #FAFAFA;
+  background: #404040;
+}
+
+body[data-theme="dark"] .sidebar-tree .reference.external:after {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin: 0 0.25rem;
+  vertical-align: middle;
+  background-color: #FAFAFA;
+  -webkit-mask: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' viewBox='0 0 24 24'%3E%3Cpath stroke='none' d='M0 0h24v24H0z'/%3E%3Cpath d='M11 7H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-5M10 14 20 4M15 4h5v5'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' viewBox='0 0 24 24'%3E%3Cpath stroke='none' d='M0 0h24v24H0z'/%3E%3Cpath d='M11 7H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-5M10 14 20 4M15 4h5v5'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) .sidebar-tree .reference,
+  body:not([data-theme="light"]) .sidebar-tree .toctree-l1 > .reference,
+  body:not([data-theme="light"]) .sidebar-tree .toctree-l1 > label .icon,
+  body:not([data-theme="light"]) .sidebar-tree .toctree-l2 .reference,
+  body:not([data-theme="light"]) .sidebar-tree .toctree-l3 .reference,
+  body:not([data-theme="light"]) .sidebar-tree label .icon,
+  body:not([data-theme="light"]) .sidebar-tree .caption,
+  body:not([data-theme="light"]) .sidebar-tree .caption-text,
+  body:not([data-theme="light"]) .sidebar-tree :not(.caption) > .caption-text,
+  body:not([data-theme="light"]) .civiqhub-search .sidebar-search,
+  body:not([data-theme="light"]) .civiqhub-search .sidebar-search::placeholder,
+  body:not([data-theme="light"]) .civiqhub-search-icon,
+  body:not([data-theme="light"]) .civiqhub-search-keys kbd {
+    color: #FAFAFA;
+  }
+
+  body:not([data-theme="light"]) .sidebar-tree .reference:hover,
+  body:not([data-theme="light"]) .sidebar-tree .current-page > .reference,
+  body:not([data-theme="light"]) .sidebar-tree .toctree-l1 > .reference:hover {
+    color: #FAFAFA;
+    background: #404040;
+  }
+
+  body:not([data-theme="light"]) .sidebar-tree .reference.external:after {
+    content: "";
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin: 0 0.25rem;
+    vertical-align: middle;
+    background-color: #FAFAFA;
+    -webkit-mask: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' viewBox='0 0 24 24'%3E%3Cpath stroke='none' d='M0 0h24v24H0z'/%3E%3Cpath d='M11 7H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-5M10 14 20 4M15 4h5v5'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+    mask: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' viewBox='0 0 24 24'%3E%3Cpath stroke='none' d='M0 0h24v24H0z'/%3E%3Cpath d='M11 7H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-5M10 14 20 4M15 4h5v5'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+  }
+}
+
+.sidebar-scroll {
+  padding-inline: 0.75rem;
+}
+
+/* --- Reading column ------------------------------------------------------ */
+
+.article-container {
+  max-width: 46.5rem;
+}
+
+article[role="main"] {
+  line-height: 1.6;
+  font-weight: 400;
+}
+
+article[role="main"] h1 {
+  font-size: 2.25rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  color: var(--civiqhub-foreground);
+}
+
+article[role="main"] h2,
+article[role="main"] h3,
+article[role="main"] h4 {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--civiqhub-foreground);
+}
+
+article[role="main"] a.reference:hover,
+article[role="main"] a.external:hover {
+  color: var(--civiqhub-link-hover);
+}
+
+body[data-theme="dark"] article[role="main"] a.reference,
+body[data-theme="dark"] article[role="main"] a.external {
+  color: var(--civiqhub-foreground);
+  text-decoration: underline;
+  text-decoration-color: #868686;
+  text-underline-offset: 0.18em;
+}
+
+body[data-theme="dark"] article[role="main"] a.reference:hover,
+body[data-theme="dark"] article[role="main"] a.external:hover {
+  color: var(--civiqhub-foreground);
+  text-decoration-color: #FAFAFA;
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) article[role="main"] a.reference,
+  body:not([data-theme="light"]) article[role="main"] a.external {
+    color: var(--civiqhub-foreground);
+    text-decoration: underline;
+    text-decoration-color: #868686;
+    text-underline-offset: 0.18em;
+  }
+
+  body:not([data-theme="light"]) article[role="main"] a.reference:hover,
+  body:not([data-theme="light"]) article[role="main"] a.external:hover {
+    color: var(--civiqhub-foreground);
+    text-decoration-color: #FAFAFA;
+  }
+}
+
+article[role="main"] > section > p:first-of-type,
+.civiqhub-home > section > p:first-of-type {
+  font-size: 1.125rem;
+  color: var(--civiqhub-muted-foreground);
+  line-height: 1.6;
+}
+
+.civiqhub-home > section > h1 {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.civiqhub-home > section > h1::before {
+  content: "";
+  display: inline-block;
+  width: 1.7rem;
+  height: 1.7rem;
+  flex-shrink: 0;
+  background: currentColor;
+  mask: url("home.svg") center / contain no-repeat;
+}
+
+.civiqhub-breadcrumb {
+  margin: 0 0 0.35rem;
+}
+
+.civiqhub-breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--civiqhub-muted-foreground);
+}
+
+.civiqhub-breadcrumb li:not(:last-child)::after {
+  content: "/";
+  margin-left: 0.35rem;
+  color: var(--civiqhub-muted-foreground);
+}
+
+.civiqhub-breadcrumb a {
+  color: var(--civiqhub-muted-foreground);
+  text-decoration: none;
+}
+
+.civiqhub-breadcrumb a:hover {
+  color: var(--civiqhub-foreground);
+}
+
+/* --- Home cards ---------------------------------------------------------- */
+
+.civiqhub-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin: 0.5rem 0 2rem;
+}
+
+.civiqhub-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--civiqhub-border);
+  border-radius: var(--civiqhub-radius-xl);
+  background: var(--civiqhub-card-surface);
+  box-shadow: var(--civiqhub-shadow-card);
+  text-decoration: none;
+  color: inherit;
+}
+
+.civiqhub-card:hover {
+  box-shadow: var(--civiqhub-shadow-card-hover);
+}
+
+.civiqhub-card-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 10.5rem;
+  padding: 1.5rem 1rem;
+  background:
+    radial-gradient(130% 90% at 18% 0%, var(--civiqhub-card-banner-from), transparent 58%),
+    linear-gradient(165deg, var(--civiqhub-card-banner-from), var(--civiqhub-card-banner-to));
+}
+
+.civiqhub-card-banner img {
+  width: 9.5rem;
+  height: auto;
+}
+
+.civiqhub-card-body {
+  padding: 1.05rem 1.15rem 1.2rem;
+  border-top: 1px solid var(--civiqhub-border);
+}
+
+.civiqhub-card-title {
+  display: inline-block;
+  margin: 0 0 0.4rem;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--civiqhub-foreground);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.civiqhub-card-body p {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--civiqhub-muted-foreground);
+}
+
+@media (min-width: 48em) {
+  .civiqhub-cards {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* --- Code, admonitions, chrome ------------------------------------------- */
+
+code.literal,
+code:not(.highlight *) {
+  border-radius: var(--civiqhub-radius-sm);
+}
+
+div[class*="highlight-"],
+.highlight,
+pre {
+  border-radius: var(--civiqhub-radius-md);
+}
+
+.highlight {
+  border: 1px solid var(--civiqhub-border);
+  background-color: var(--color-code-background);
+}
+
+body[data-theme="dark"] .highlight {
+  background-color: #000000;
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) .highlight {
+    background-color: #000000;
+  }
+}
+
+.admonition {
+  border-radius: var(--civiqhub-radius-md);
+}
+
+.admonition.tip,
+.admonition.hint {
+  border-color: var(--civiqhub-success);
+}
+
+.admonition.danger,
+.admonition.error {
+  border-color: var(--civiqhub-destructive);
+}
+
+body[data-theme="dark"] .admonition.note,
+body[data-theme="dark"] .admonition.seealso {
+  border-color: #868686;
+}
+
+body[data-theme="dark"] .admonition.important {
+  border-color: #e5e5e5;
+}
+
+body[data-theme="dark"] .admonition.warning,
+body[data-theme="dark"] .admonition.caution {
+  border-color: #F2A202;
+}
+
+body[data-theme="dark"] .admonition.attention {
+  border-color: #ff2f1c;
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) .admonition.note,
+  body:not([data-theme="light"]) .admonition.seealso {
+    border-color: #868686;
+  }
+
+  body:not([data-theme="light"]) .admonition.important {
+    border-color: #e5e5e5;
+  }
+
+  body:not([data-theme="light"]) .admonition.warning,
+  body:not([data-theme="light"]) .admonition.caution {
+    border-color: #F2A202;
+  }
+
+  body:not([data-theme="light"]) .admonition.attention {
+    border-color: #ff2f1c;
+  }
+}
+
+.related-pages a {
+  border-radius: var(--civiqhub-radius-md);
+}
+
+.mobile-header {
+  background: var(--civiqhub-background);
+  border-bottom: 1px solid var(--civiqhub-border);
+}
+
+.mobile-header .brand {
+  font-weight: 700;
+  color: var(--civiqhub-foreground);
+}
+
+.mobile-header .nav-overlay-icon,
+.mobile-header .toc-overlay-icon,
+.mobile-header .theme-toggle {
+  color: var(--civiqhub-foreground);
+}
+
+#search-results {
+  margin-top: 1rem;
+}
+
+#search-results .search li {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--civiqhub-border);
+  border-radius: var(--civiqhub-radius-md);
+}
+
+@media (max-width: 22rem) {
+  .civiqhub-search-keys {
+    display: none;
+  }
+}
+
+/* Development announcement: Furo defaults to a black bar and nowrap. */
+.announcement {
+  background: var(--civiqhub-announcement);
+  color: var(--civiqhub-foreground);
+  border-bottom: 1px solid var(--civiqhub-border);
+}
+
+.announcement-content {
+  white-space: normal;
+}
+
+/* Reference tree: nested module names wrap at the dots, never mid-word. */
+.sidebar-tree .toctree-l2 .reference,
+.sidebar-tree .toctree-l3 .reference {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+
+.sidebar-tree .pre {
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+/* Guide tables: Furo wraps them; allow a horizontal scroll at 390 px. */
+.table-wrapper {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+footer .muted-link,
+.bottom-of-page .left-details,
+.bottom-of-page .right-details {
+  color: var(--civiqhub-muted-foreground);
+}
+
+.bottom-of-page svg {
+  color: var(--civiqhub-foreground);
+  fill: currentColor;
+}
+
+/* Mermaid: palette tokens in both modes. sphinxcontrib-mermaid 2.1.1 already
+   re-renders on body[data-theme]; these rules keep nodes on-token after that. */
+.mermaid .node rect,
+.mermaid .node polygon,
+.mermaid .node circle,
+.mermaid .node ellipse,
+.mermaid .node path {
+  fill: var(--civiqhub-muted) !important;
+  stroke: var(--civiqhub-border) !important;
+}
+
+.mermaid .cluster rect {
+  fill: var(--civiqhub-shell-surface) !important;
+  stroke: var(--civiqhub-border) !important;
+}
+
+.mermaid .nodeLabel,
+.mermaid .edgeLabel,
+.mermaid .label,
+.mermaid .cluster-label,
+.mermaid .nodeLabel b,
+.mermaid span {
+  color: var(--civiqhub-foreground) !important;
+}
+
+.mermaid .edgeLabel rect,
+.mermaid .labelBkg {
+  fill: var(--civiqhub-muted) !important;
+}
+
+.mermaid .edgeLabel,
+.mermaid .edgeLabel span,
+.mermaid .edgeLabel p,
+.mermaid .edgeLabel foreignObject div {
+  color: var(--civiqhub-foreground) !important;
+  background-color: var(--civiqhub-muted) !important;
+}
+
+.mermaid .flowchart-link,
+.mermaid .edgePath .path,
+.mermaid .edge-pattern-solid,
+.mermaid line {
+  stroke: var(--civiqhub-muted-foreground) !important;
+}
+
+.mermaid marker path,
+.mermaid .arrowheadPath,
+.mermaid .arrowMarkerPath {
+  fill: var(--civiqhub-muted-foreground) !important;
+  stroke: var(--civiqhub-muted-foreground) !important;
+}
+
+body[data-theme="dark"] .mermaid .node rect,
+body[data-theme="dark"] .mermaid .node polygon,
+body[data-theme="dark"] .mermaid .node circle,
+body[data-theme="dark"] .mermaid .node ellipse,
+body[data-theme="dark"] .mermaid .node path {
+  fill: #000000 !important;
+  stroke: #868686 !important;
+}
+
+body[data-theme="dark"] .mermaid .cluster rect {
+  fill: #171717 !important;
+  stroke: #868686 !important;
+}
+
+body[data-theme="dark"] .mermaid .nodeLabel,
+body[data-theme="dark"] .mermaid .edgeLabel,
+body[data-theme="dark"] .mermaid .label,
+body[data-theme="dark"] .mermaid .cluster-label,
+body[data-theme="dark"] .mermaid .nodeLabel b,
+body[data-theme="dark"] .mermaid span,
+body[data-theme="dark"] .mermaid .edgeLabel span,
+body[data-theme="dark"] .mermaid .edgeLabel p,
+body[data-theme="dark"] .mermaid .edgeLabel foreignObject div {
+  color: #FAFAFA !important;
+}
+
+body[data-theme="dark"] .mermaid .edgeLabel rect,
+body[data-theme="dark"] .mermaid .labelBkg {
+  fill: #171717 !important;
+}
+
+body[data-theme="dark"] .mermaid .edgeLabel,
+body[data-theme="dark"] .mermaid .edgeLabel span,
+body[data-theme="dark"] .mermaid .edgeLabel p,
+body[data-theme="dark"] .mermaid .edgeLabel foreignObject div {
+  background-color: #171717 !important;
+}
+
+body[data-theme="dark"] .mermaid .flowchart-link,
+body[data-theme="dark"] .mermaid .edgePath .path,
+body[data-theme="dark"] .mermaid .edge-pattern-solid,
+body[data-theme="dark"] .mermaid line,
+body[data-theme="dark"] .mermaid marker path,
+body[data-theme="dark"] .mermaid .arrowheadPath,
+body[data-theme="dark"] .mermaid .arrowMarkerPath {
+  stroke: #868686 !important;
+}
+
+body[data-theme="dark"] .mermaid marker path,
+body[data-theme="dark"] .mermaid .arrowheadPath,
+body[data-theme="dark"] .mermaid .arrowMarkerPath {
+  fill: #868686 !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) .mermaid .node rect,
+  body:not([data-theme="light"]) .mermaid .node polygon,
+  body:not([data-theme="light"]) .mermaid .node circle,
+  body:not([data-theme="light"]) .mermaid .node ellipse,
+  body:not([data-theme="light"]) .mermaid .node path {
+    fill: #000000 !important;
+    stroke: #868686 !important;
+  }
+
+  body:not([data-theme="light"]) .mermaid .cluster rect {
+    fill: #171717 !important;
+    stroke: #868686 !important;
+  }
+
+  body:not([data-theme="light"]) .mermaid .nodeLabel,
+  body:not([data-theme="light"]) .mermaid .edgeLabel,
+  body:not([data-theme="light"]) .mermaid .label,
+  body:not([data-theme="light"]) .mermaid .cluster-label,
+  body:not([data-theme="light"]) .mermaid .nodeLabel b,
+  body:not([data-theme="light"]) .mermaid span,
+  body:not([data-theme="light"]) .mermaid .edgeLabel span,
+  body:not([data-theme="light"]) .mermaid .edgeLabel p,
+  body:not([data-theme="light"]) .mermaid .edgeLabel foreignObject div {
+    color: #FAFAFA !important;
+    background-color: #171717 !important;
+  }
+
+  body:not([data-theme="light"]) .mermaid .edgeLabel rect,
+  body:not([data-theme="light"]) .mermaid .labelBkg {
+    fill: #171717 !important;
+  }
+
+  body:not([data-theme="light"]) .mermaid .flowchart-link,
+  body:not([data-theme="light"]) .mermaid .edgePath .path,
+  body:not([data-theme="light"]) .mermaid .edge-pattern-solid,
+  body:not([data-theme="light"]) .mermaid line,
+  body:not([data-theme="light"]) .mermaid marker path,
+  body:not([data-theme="light"]) .mermaid .arrowheadPath,
+  body:not([data-theme="light"]) .mermaid .arrowMarkerPath {
+    stroke: #868686 !important;
+    fill: #868686 !important;
+  }
+}

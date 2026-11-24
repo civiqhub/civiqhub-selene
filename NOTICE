@@ -3,3 +3,18 @@ Copyright 2026 CiviqHub SAS
 
 This product includes software developed by CiviqHub SAS (https://civiqhub.com)
 and by the contributors of civiqhub-selene.
+
+The documentation theme under docs/_static/ and docs/_templates/ (except the
+version selector, which is native to this repository) is adapted from
+civiqhub-py at commit 9365fe7c1ea1874ae995bf9cc7628cec0388d2d9
+(https://github.com/civiqhub/civiqhub-py). CiviqHub SAS is the sole
+rightsholder of those files and publishes them here under Apache-2.0.
+
+The footer block of docs/_templates/page.html is adapted from Furo
+(https://github.com/pradyunsg/furo), Copyright (c) Pradyun Gedam, MIT License.
+The MIT license text is at https://github.com/pradyunsg/furo/blob/main/LICENSE.
+
+docs/_static/fonts/ contains Bricolage Grotesque (Regular, SemiBold, Bold),
+copyright The Bricolage Grotesque Project Authors, licensed under the SIL Open
+Font License 1.1. The license is in docs/_static/fonts/OFL.txt. The files were
+rebuilt from google/fonts at commit 06bfe0d62a98375cb09c942fa18e68bd32cff057.

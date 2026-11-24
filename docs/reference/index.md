@@ -1,4 +1,4 @@
-# Reference
+# Référence de l'API
 
 Every public name of the engine, with its definition. These pages are generated from the docstrings of the code: they describe the version shown at the top of the site and cannot drift from it.
 

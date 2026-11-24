@@ -24,6 +24,11 @@ This builds the documentation of the code you have, as one site without versions
 | `conf.py` | The configuration of Sphinx |
 | `_ext/selene_docs.py` | A local Sphinx extension; its docstring says what it does |
 | `_templates/sidebar/version-switcher.html`, `_static/version-switcher.js`, `_static/version-switcher.css` | The version selector of the sidebar |
+| `_templates/sidebar/brand.html`, `_templates/sidebar/search.html`, `_templates/page.html` | The mark of the site, the search field, and the theme-migration script |
+| `_static/civiqhub.css`, `_static/theme-migrate.js`, `_static/sidebar-wrap.js`, `_static/search-shortcut.js` | The CiviqHub theme (light and dark), the one-time theme migration, wrapping of sidebar module names, and the Ctrl K shortcut |
+| `_static/fonts/` | Bricolage Grotesque (OFL 1.1) and `OFL.txt` |
+| `_static/civiqhub-logo-light.svg`, `_static/civiqhub-logo-dark.svg`, `_static/civiqhub-symbol-light.svg`, `_static/civiqhub-symbol-dark.svg` | The CiviqHub wordmark and symbol, light and dark |
+| `_static/logo.svg`, `_static/favicon.ico` | Former glyph and ICO, unused until NOTICE is updated |
 | `index.md` | The home page and the table of contents of the site |
 | `getting-started.md`, `library-map.md`, `architecture.md` | The guide: pages written by hand |
 | `reference/` | The reference: one page per public module, generated from the docstrings |
@@ -31,6 +36,136 @@ This builds the documentation of the code you have, as one site without versions
 | `_build/` | The output of the build. Not committed |
 
 Sections that are planned and not written yet: the methods (definition, parameters and limits of each method), what the results do not say, how to write an estimator outside this repository, and the runnable examples.
+
+## Thème du site
+
+Le site publié propose les modes clair, sombre et auto (préférence du système). Il reprend le style de la documentation produit CiviqHub sur GitBook, et le thème fusionné de `civiqhub-py` (commit `9365fe7`) : marque en tête de barre latérale, recherche en pilule, légendes de section en capitales, colonne de lecture, cartes d'accueil, avec le bleu `#2C448B` comme fil conducteur. L'adresse publique du site est <https://selene.civiqhub.com/>.
+
+### Police Bricolage Grotesque
+
+Trois graisses statiques, sous-ensemble latin (accents français, guillemets, ponctuation de code), licence SIL OFL 1.1.
+
+| Fichier | Graisse | sha256 |
+| --- | --- | --- |
+| `docs/_static/fonts/BricolageGrotesque-Regular.woff2` | 400 | `e621e8a37e58558ca0e1dab28e2989854a79d89926879377788c400329a68bde` |
+| `docs/_static/fonts/BricolageGrotesque-SemiBold.woff2` | 600 | `31302f47b289491baa9154e8ba49107173ca3461db2e62382e5d9b785fadaefd` |
+| `docs/_static/fonts/BricolageGrotesque-Bold.woff2` | 700 | `522c92d99315b6c4b4fc9efb11857c318cc0e64f955d5a28707601cbbf5b4344` |
+
+`docs/_static/fonts/OFL.txt` est la licence OFL 1.1 livrée à côté.
+
+Provenance : le dépôt [`google/fonts`](https://github.com/google/fonts), dossier `ofl/bricolagegrotesque`, commit `06bfe0d62a98375cb09c942fa18e68bd32cff057`. Source variable : `BricolageGrotesque[opsz,wdth,wght].ttf`. Reconstruction (instances `opsz=14`, `wdth=100`, `wght` 400 / 600 / 700, puis sous-ensemble latin Google Fonts compressé en `woff2`) :
+
+```bash
+git clone --filter=blob:none --sparse https://github.com/google/fonts.git
+cd fonts
+git sparse-checkout set ofl/bricolagegrotesque
+git checkout 06bfe0d62a98375cb09c942fa18e68bd32cff057
+
+LATIN="U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD"
+SRC="ofl/bricolagegrotesque/BricolageGrotesque[opsz,wdth,wght].ttf"
+
+for spec in Regular:400 SemiBold:600 Bold:700; do
+  name="${spec%:*}"
+  weight="${spec#*:}"
+  fonttools varLib.instancer "$SRC" opsz=14 wdth=100 "wght=${weight}" \
+    --output "BricolageGrotesque-${name}.ttf"
+  pyftsubset "BricolageGrotesque-${name}.ttf" \
+    --unicodes="$LATIN" \
+    --layout-features="*" \
+    --flavor=woff2 \
+    --output-file="BricolageGrotesque-${name}.woff2"
+done
+cp ofl/bricolagegrotesque/OFL.txt OFL.txt
+```
+
+`civiqhub.css` déclare trois `@font-face` (`font-display: swap`). Texte courant en 400, titres H2 à H4 et légendes de barre latérale en 600, H1 en 700. La police de code reste celle de Furo.
+
+### Fichiers du thème
+
+| Fichier | Rôle |
+| --- | --- |
+| `_static/civiqhub.css` | Tokens clair et sombre, `@font-face`, barre latérale, recherche, cartes, colonne de lecture, mermaid |
+| `_static/theme-migrate.js` | Une fois, retire `localStorage.theme = "light"` laissé par l'ancien verrou |
+| `_static/sidebar-wrap.js` | Enveloppe les noms de modules aux points dans la barre latérale |
+| `_ext/civiqhub_carbon.py` | Style Pygments sombre, palette carbone seulement |
+| `_static/search-shortcut.js` | Ctrl K / Cmd K focusent le champ de recherche |
+| `_static/civiqhub-logo-light.svg` | Logo complet CiviqHub, mode clair (`#1f1f1e`) |
+| `_static/civiqhub-logo-dark.svg` | Logo complet CiviqHub, mode sombre (`#fff`) |
+| `_static/civiqhub-symbol-light.svg` | Symbole seul, favicon par défaut |
+| `_static/civiqhub-symbol-dark.svg` | Symbole seul, favicon si `prefers-color-scheme: dark` |
+| `_static/logo.svg` | Ancien glyphe, encore dans le dépôt, non utilisé |
+| `_static/favicon.ico` | Ancien favicon ICO, encore dans le dépôt, non utilisé |
+| `_static/home.svg` | Glyphe de maison du H1 d'accueil |
+| `_static/github.svg` | Icône GitHub du pied de page |
+| `_static/fonts/` | Les trois `woff2` et `OFL.txt` |
+| `_static/screenshots/` | Captures de relecture du thème. Le build les retire de `_static/` du site publié |
+| `_static/version-switcher.js`, `_static/version-switcher.css` | Sélecteur de version de la publication, natif à ce dépôt, au style du thème |
+| `_templates/page.html` | Charge `theme-migrate.js` dans le `<head>` ; favicon sombre ; fil d'Ariane ; enveloppe d'accueil |
+| `_templates/sidebar/brand.html` | Marque : logo complet clair et sombre |
+| `_templates/sidebar/search.html` | Pilule : une loupe, « Rechercher... », badge Ctrl K |
+| `_templates/sidebar/version-switcher.html` | Emplacement du sélecteur de version, propre à ce dépôt |
+
+Les fichiers du thème repris de `civiqhub-py` portent l'en-tête Apache-2.0 de ce dépôt. `NOTICE` cite leur origine, Bricolage Grotesque, le glyphe, et le pied de page adapté de Furo (MIT).
+
+### Tokens
+
+Les couleurs et arrondis clairs viennent de `civiqhub-web` au SHA `22756d33636bb8b341e7c41ec8846c421867dc10`, fichier `packages/civiqhub-ui/src/tokens/generated.css`. Ce sont des valeurs de bootstrap : aucun contrat du design system n'est `ready`. Les valeurs sombres sont les neutres carbone du design system (Décision Yanis du 22/11/2026, 14:44 heure de Paris) : aucune teinte bleue.
+
+| Variable CSS | Clair | Sombre | Rôle |
+| --- | --- | --- | --- |
+| `--civiqhub-primary` | `#2C448B` | `#FAFAFA` | Remplissage de marque en clair ; texte de marque en sombre |
+| `--civiqhub-primary-foreground` | `#ffffff` | `#171717` | Texte sur la marque |
+| `--civiqhub-background` | `#ffffff` | `#171717` | Fond de page (web `neutral-900` en sombre) |
+| `--civiqhub-shell-surface` | `#FAFAFA` | `#000000` | Barre latérale, cartes, encarts, admonitions, annonce |
+| `--civiqhub-muted` | `#f1f5f9` | `#404040` | Entrée active, survol, kbd, bordures UI |
+| `--civiqhub-border` | `#e2e8f0` | `#404040` | Bordures UI |
+| `--civiqhub-foreground` | `#020617` | `#FAFAFA` | Texte principal, liens |
+| `--civiqhub-muted-foreground` | `#64748b` | `#e5e5e5` | Texte secondaire (contenu). En sombre, les menus de la barre sont `#FAFAFA` |
+| `color-brand-primary` / `color-brand-content` | `#2C448B` | `#FAFAFA` | Liens et accents. En sombre, soulignement `#868686` puis `#FAFAFA` au survol |
+| `--civiqhub-success` | `#047857` | `#73b876` | Avertissements tip / hint |
+| `--civiqhub-destructive` | `#dc2626` | `#ff2f1c` | Avertissements danger / error |
+| warning / caution | Furo | `#F2A202` | Titres d'admonition warning et caution |
+| note / seealso | Furo | `#868686` | Titres d'admonition note ; jamais comme texte sur `#404040` |
+| `--civiqhub-radius-sm` / `md` / `lg` / `xl` | 4 / 8 / 12 / 16 px | identiques | Arrondis |
+| `--civiqhub-card-banner-from` / `to` | `color-mix` de primary 28 % puis 10 % avec le fond | `#171717` / `#000000` | Bandeaux des cartes |
+| `--civiqhub-announcement` | primary 10 % dans le fond | `#000000` | Bandeau de la branche de développement |
+| blocs de code | `#f1f5f9` | `#000000` | Fond des blocs. Jetons : texte `#FAFAFA`, commentaires `#868686`, chaînes `#73b876`, nombres `#F2A202`, erreurs `#ff2f1c`, noms `#e5e5e5` |
+
+Le mode clair ne change pas. Le sombre n'utilise que les couleurs du tableau, plus des transparences de ces valeurs ou de `#000000`. `#868686` n'est jamais posé comme texte sur `#404040` (contraste 2,85:1). Police mono garde Furo, en attendant [#650](https://github.com/civiqhub/civiqhub-web/issues/650). Le favicon est le symbole CiviqHub fourni par Yanis le 22/11/2026 (clair par défaut, sombre si `prefers-color-scheme: dark`). Liens clairs en `primary` `#2C448B` : provisoire jusqu'à l'arbitrage du ds:gap [#648](https://github.com/civiqhub/civiqhub-web/issues/648).
+
+Les SVG `civiqhub-logo-*.svg` et `civiqhub-symbol-*.svg` sont des actifs de marque CiviqHub fournis par Yanis le 22/11/2026. `logo.svg` et `favicon.ico` restent dans le dépôt, non utilisés, jusqu'à la PR qui mettra `NOTICE` à jour.
+
+Écarts volontaires par rapport à `civiqhub-py` :
+
+- les bandeaux des cartes mélangent le primary à 28 % puis 10 % (py : 18 % puis 6 %), plus proches du lavis du GitBook ;
+- le bandeau d'annonce de la branche de développement est un lavis de primary à 10 %, texte foreground, et peut aller à la ligne (Furo le pose en barre noire, `nowrap`) ;
+- les noms de modules dans l'arbre de référence s'enveloppent aux points (`<wbr>` après chaque `.`) ;
+- la colonne de navigation fait 18 em, pour le libellé complet du sélecteur de version et les noms de sous-modules ;
+- les tableaux du guide défilent à l'horizontale sous 48 em, pour rester lisibles à 390 px.
+
+### Modes clair, sombre et auto
+
+Furo 2025.12.19 lit `localStorage.getItem("theme")` dans `base.html` et pose `body[data-theme]` (`light`, `dark` ou `auto`). Le bouton de bascule natif est visible (clair, sombre, auto). Le mode par défaut est `auto` : la préférence `prefers-color-scheme` du système.
+
+`theme-migrate.js` s'exécute dans le `<head>` (`_templates/page.html`) **et** via `html_js_files`. Si la clé `theme` vaut `"light"` et que `civiqhub-theme-migrated` est absente, il supprime `theme` puis pose la marque. Les visiteurs passés depuis la fusion de la PR n°10 avaient `theme = "light"` écrit par `force-light.js`, pas par un choix. Après cette migration, Furo retombe sur `auto`. Un visiteur qui choisit ensuite le mode clair garde `theme = "light"` : la marque empêche de l'effacer à nouveau.
+
+`civiqhub.css` redéfinit les variables `--civiqhub-*` sous `body[data-theme="dark"]` et, pour `auto`, sous `@media (prefers-color-scheme: dark)` pour `body:not([data-theme="light"])`, comme Furo. `html { color-scheme }` suit le mode. `docs/conf.py` définit `dark_css_variables` (neutres carbone) et `pygments_dark_style = "civiqhub_carbon.CiviqHubCarbonDark"`.
+
+Les diagrammes mermaid sont colorés avec les tokens du thème. `sphinxcontrib-mermaid` 2.1.1 observe `body[data-theme]` et relance le rendu sans rechargement.
+
+### Extensions et dépendances
+
+Groupe `docs` de `pyproject.toml` : `sphinx==9.2.0` (BSD-2-Clause), `myst-parser==5.2.0` (MIT), `furo==2025.12.19` (MIT), `sphinxcontrib-mermaid==2.1.1` (BSD-2-Clause), `sphinxext-opengraph==0.13.0` (BSD-3-Clause). `sphinxext-opengraph` pose `ogp_site_url` d'après `html_baseurl` ; les cartes sociales PNG sont désactivées (`ogp_social_cards.enable = False`) parce que le build n'a pas de réseau et ne doit pas tirer matplotlib. L'origine publique est `https://selene.civiqhub.com/`. Si le script de publication passe encore `https://civiqhub.github.io/civiqhub-selene/`, `conf.py` la réécrit, chemin de version compris. Extension locale : `docs/_ext/selene_docs.py`, inchangée.
+
+### Build local
+
+```bash
+python -m pip install -e ".[blocks]" --group docs
+python -m sphinx -W -b html docs docs/_build/html
+python .github/scripts/build-docs-site.py --output _site --development HEAD
+```
+
+La première commande construit un site sans versions. La seconde reproduit la publication (`dev/` pour HEAD). Python 3.13 ou plus récent.
 
 ## How the site is published
 
