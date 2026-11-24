@@ -23,7 +23,7 @@ data drawn by the script itself.
 | Script | What it does |
 | --- | --- |
 | [`preprocess_ordinal_survey.py`](preprocess_ordinal_survey.py) | Split a survey table into one metadata base and one vote base per scale size (2 to 7 levels by default), joinable on a respondent identifier; encode each cell in the three states of a `VoteMatrix` (vote, abstention, not shown); build the `VoteMatrix` of each base |
-| [`profile_clusters.py`](profile_clusters.py) | Describe the groups of a co-clustering with the metadata of the respondents, for single or mixed memberships: test values of Lebart, Morineau and Piron, identity cards, heatmap, stacked bars, quantile boxes, association ranking, correspondence analysis |
+| [`profile_clusters.py`](profile_clusters.py) | Describe the groups of a co-clustering with the metadata of the respondents, for single or mixed memberships, with optional survey weights: test values of Lebart, Morineau and Piron, identity cards, heatmap, stacked bars, quantile boxes, association ranking, correspondence analysis |
 
 ```bash
 python examples/preprocess_ordinal_survey.py --demo --out demo_bases

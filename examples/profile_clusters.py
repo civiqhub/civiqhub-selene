@@ -40,6 +40,7 @@ Usage::
 
     python examples/profile_clusters.py --demo --out profile_demo           # hard groups
     python examples/profile_clusters.py --demo --soft --out profile_demo    # mixed
+    python examples/profile_clusters.py --demo --weighted --out profile_demo  # weights
 
     python examples/profile_clusters.py --metadata bases/metadata.csv \\
         --membership groups.csv --spec spec.json --out profile
@@ -51,6 +52,7 @@ or one column per group with the memberships (mixed). ``spec.json``::
      "variables": {"age": "continuous", "income": "semicontinuous", "sex": "categorical",
                    "diploma": {"kind": "ordinal", "order": [1, 2, 3, 4]}},
      "labels": {"sex": {"1": "Man", "2": "Woman"}},
+     "weight": "poids",
      "min_count": 10}
 
 Needs pandas, SciPy and Matplotlib.
@@ -204,6 +206,9 @@ class ProfileSpec:
         min_count: Categories with fewer respondents overall are merged into "(other)".
         missing_as_category: Keep "no answer" as a category of its own.
         threshold: |test value| from which a feature counts as characteristic.
+        weight_column: Column of survey weights (for example calibration weights), or
+            None. Weights are rescaled to mean 1; every share, mean, quantile and count
+            then describes the weighted population.
     """
 
     id_column: str
@@ -211,6 +216,7 @@ class ProfileSpec:
     min_count: int = 10
     missing_as_category: bool = True
     threshold: float = 2.0
+    weight_column: str | None = None
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> ProfileSpec:
@@ -227,6 +233,7 @@ class ProfileSpec:
             min_count=int(raw.get("min_count", 10)),
             missing_as_category=bool(raw.get("missing_as_category", True)),
             threshold=float(raw.get("threshold", 2.0)),
+            weight_column=raw.get("weight"),
         )
 
     @staticmethod
@@ -234,7 +241,7 @@ class ProfileSpec:
         """A first guess of the kinds, to check and correct by hand before use."""
         guess = {}
         for column in metadata.columns:
-            if column == id_column:
+            if column == id_column or column in ("poids", "weight"):
                 continue
             values = metadata[column].dropna()
             numeric = pd.api.types.is_numeric_dtype(values)
@@ -278,6 +285,15 @@ class ClusterProfiler:
 
         theta = weights.to_numpy()
         hard = membership.is_hard
+        s = np.ones(len(common))
+        if spec.weight_column is not None:
+            if spec.weight_column not in meta.columns:
+                raise ValueError(f"no weight column {spec.weight_column!r} in the metadata")
+            s = pd.to_numeric(meta[spec.weight_column], errors="coerce").to_numpy(dtype=float)
+            if not np.isfinite(s).all() or (s <= 0).any():
+                raise ValueError(f"the weights {spec.weight_column!r} must be positive numbers")
+            s = s / s.mean()
+        weighted = spec.weight_column is not None
         rows: list[dict[str, Any]] = []
         association: list[dict[str, Any]] = []
         crosstabs: dict[str, pd.DataFrame] = {}
@@ -285,7 +301,9 @@ class ClusterProfiler:
         for variable in spec.variables:
             column = meta[variable.name]
             if variable.is_numeric:
-                new_rows, eta, table = _describe_numeric(variable, column, theta, weights.columns)
+                new_rows, eta, table = _describe_numeric(
+                    variable, column, theta, s, weights.columns
+                )
                 quantiles[variable.name] = table
                 association.append(
                     {
@@ -296,11 +314,11 @@ class ClusterProfiler:
                     }
                 )
             else:
-                counts, indicator, rows_theta = _crosstab(
-                    variable, column, theta, weights.columns, spec
+                counts, indicator, rows_theta, rows_s = _crosstab(
+                    variable, column, theta, s, weights.columns, spec
                 )
                 new_rows, cramer = _describe_categorical(
-                    variable, counts, hard, indicator, rows_theta
+                    variable, counts, hard and not weighted, indicator, rows_theta, rows_s
                 )
                 crosstabs[variable.name] = counts
                 association.append(
@@ -313,15 +331,17 @@ class ClusterProfiler:
                 )
             rows.extend(new_rows)
 
-        mass = theta.sum(axis=0)
+        mass = (s[:, None] * theta).sum(axis=0)
         sizes = pd.DataFrame(
             {
                 "group": weights.columns,
                 "mass": mass,
-                "share": mass / len(common),
-                "n_eff": [_kish(theta[:, q]) for q in range(theta.shape[1])],
+                "share": mass / s.sum(),
+                "n_eff": [_kish(s * theta[:, q]) for q in range(theta.shape[1])],
             }
         )
+        if weighted:
+            sizes.insert(2, "respondents", theta.sum(axis=0))
         if not hard:
             sizes["mean_membership"] = [
                 theta[:, q][theta[:, q] > 0].mean() for q in range(theta.shape[1])
@@ -336,17 +356,23 @@ class ClusterProfiler:
             hard=hard,
             n=len(common),
             dropped=dropped,
+            weighted=weighted,
         )
 
 
 def _describe_numeric(
-    variable: VariableSpec, column: pd.Series, theta: np.ndarray, groups: pd.Index
+    variable: VariableSpec,
+    column: pd.Series,
+    theta: np.ndarray,
+    s: np.ndarray,
+    groups: pd.Index,
 ) -> tuple[list[dict[str, Any]], float, pd.DataFrame]:
     values = pd.to_numeric(column, errors="coerce").to_numpy(dtype=float)
     present = ~np.isnan(values)
-    x, w_all = values[present], theta[present]
-    n_total = len(x)
-    mean, variance = x.mean(), x.var()  # empirical variance, divisor N, as in Lebart
+    x, w_all, s_x = values[present], theta[present], s[present]
+    # weighted mean and variance (divisor: sum of weights, N without weights, as in Lebart)
+    mean = _wmean(x, s_x)
+    variance = _wmean(np.square(x - mean), s_x)
     positive = x > 0 if variable.kind == "semicontinuous" else np.ones_like(x, dtype=bool)
 
     def summary(weights: np.ndarray, all_weights: np.ndarray) -> dict[str, float]:
@@ -358,24 +384,24 @@ def _describe_numeric(
             out[name] = _wquantile(x[positive], weights[positive], p)
         return out
 
-    overall = summary(np.ones(n_total), np.ones(len(values)))
+    overall = summary(s_x, s)
     rows, table = [], {OVERALL: overall}
     between = 0.0
     for q, group in enumerate(groups):
-        w = w_all[:, q]
+        w = w_all[:, q] * s_x
         n_q = w.sum()
-        own = summary(w, theta[:, q])
+        own = summary(w, theta[:, q] * s)
         table[group] = own
         between += n_q * (own["mean"] - mean) ** 2
         for statistic, value in own.items():
             reference = overall[statistic]
             t = math.nan
             if statistic == "mean":
-                t = _test_value_weighted(x, w)
+                t = _test_value_weighted(x, w_all[:, q], s_x)
             elif statistic == "share_zero":
-                t = -_test_value_weighted(positive.astype(float), w)
+                t = -_test_value_weighted(positive.astype(float), w_all[:, q], s_x)
             rows.append(_row(group, variable, statistic, value, reference, t, _kish(w), lift=False))
-    eta = math.sqrt(between / (n_total * variance)) if variance > 0 else math.nan
+    eta = math.sqrt(between / (s_x.sum() * variance)) if variance > 0 else math.nan
     return rows, eta, pd.DataFrame(table).T
 
 
@@ -383,11 +409,13 @@ def _crosstab(
     variable: VariableSpec,
     column: pd.Series,
     theta: np.ndarray,
+    s: np.ndarray,
     groups: pd.Index,
     spec: ProfileSpec,
-) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
-    """Weighted counts, categories by groups, rare categories merged; also the 0/1
-    indicators of the categories and the memberships of the rows kept."""
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray, np.ndarray]:
+    """Weighted counts, categories by groups, rare categories merged (on respondent
+    counts); also the 0/1 indicators of the categories, and the memberships and survey
+    weights of the rows kept."""
     codes = column.map(lambda v: MISSING if pd.isna(v) else _text(v))
     keep = np.ones(len(codes), dtype=bool)
     if not spec.missing_as_category:
@@ -399,38 +427,43 @@ def _crosstab(
         codes = codes.where(~codes.isin(rare), OTHER)
     indicator = pd.get_dummies(codes).astype(float)
     counts = pd.DataFrame(
-        indicator.to_numpy().T @ theta[keep], index=indicator.columns, columns=groups
+        indicator.to_numpy().T @ (theta[keep] * s[keep, None]),
+        index=indicator.columns,
+        columns=groups,
     )
     order = _category_order(variable, list(counts.index))
     counts = counts.loc[order]
     indicator = indicator[order].to_numpy()
     counts.index = [variable.labels.get(c, c) for c in counts.index]
     counts.index.name = variable.name
-    return counts, indicator, theta[keep]
+    return counts, indicator, theta[keep], s[keep]
 
 
 def _describe_categorical(
     variable: VariableSpec,
     counts: pd.DataFrame,
-    hard: bool,
+    exact: bool,
     indicator: np.ndarray,
     theta: np.ndarray,
+    s: np.ndarray,
 ) -> tuple[list[dict[str, Any]], float]:
+    """Shares of each category. ``exact``: integer counts (single membership, no survey
+    weights), for the hypergeometric test value."""
     n_total = counts.to_numpy().sum()
     n_category = counts.sum(axis=1)
     n_group = counts.sum(axis=0)
     rows = []
     for q, group in enumerate(counts.columns):
-        n_q, n_eff = n_group[group], _kish(theta[:, q])
+        n_q, n_eff = n_group[group], _kish(theta[:, q] * s)
         for m, category in enumerate(counts.index):
             n_qm = counts.at[category, group]
             share, reference = n_qm / n_q, n_category[category] / n_total
-            if hard:
+            if exact:
                 t = _test_value_hypergeometric(
                     round(n_qm), round(n_total), round(n_category[category]), round(n_q)
                 )
             else:
-                t = _test_value_weighted(indicator[:, m], theta[:, q])
+                t = _test_value_weighted(indicator[:, m], theta[:, q], s)
             row = _row(group, variable, category, share, reference, t, n_eff, lift=True)
             low, high = _wilson(share, n_eff)
             row.update(ci_low=low, ci_high=high)
@@ -491,21 +524,30 @@ def _kish(w: np.ndarray) -> float:
     return float(w.sum() ** 2 / squares) if squares > 0 else 0.0
 
 
-def _test_value_weighted(x: np.ndarray, w: np.ndarray) -> float:
-    """Test value of the weighted mean of x, under random permutation of the values.
+def _test_value_weighted(x: np.ndarray, theta: np.ndarray, s: np.ndarray | None = None) -> float:
+    """Test value of a group mean of x, under random permutation of the memberships.
 
-    Null hypothesis of Lebart et al. 2.3.2: the values are drawn at random, without
-    replacement, among the N respondents. For fixed weights w and a random permutation,
-    Var(sum w_i x_pi(i)) = sum (w_i - mean w)^2 * sum (x_j - mean x)^2 / (N - 1). With
-    weights 0 or 1 this is the variance s2 / n_q * (N - n_q) / (N - 1) of section 2.3.2 a;
-    with memberships it extends it exactly. The value is then read as a standard normal.
+    Null hypothesis of Lebart et al. 2.3.2: the group is drawn at random, without
+    replacement, among the N respondents. With a = s * (x - m), where m is the mean of
+    x weighted by the survey weights s, the group gap is carried by the linear statistic
+    T = sum theta_i a_i, of mean 0 and, under a random permutation of theta,
+    Var(T) = sum (theta_i - mean theta)^2 * sum (a_j - mean a)^2 / (N - 1).
+
+    Without survey weights and with memberships 0 or 1, T / sqrt(Var T) is exactly the
+    test value (mean_q - mean) / sqrt(s2 / n_q * (N - n_q) / (N - 1)) of section 2.3.2 a.
+    With memberships it extends it exactly; with survey weights, T is the first-order
+    (linearised) form of the gap of the weighted group mean, an extension not in the book.
     """
-    n, total = len(x), w.sum()
-    spread_w, spread_x = np.square(w - w.mean()).sum(), np.square(x - x.mean()).sum()
-    if n < 2 or total <= 0 or spread_w <= 0 or spread_x <= 0:
+    n = len(x)
+    s = np.ones(n) if s is None else s
+    if n < 2 or s.sum() <= 0:
         return math.nan
-    gap = np.dot(w, x) / total - x.mean()
-    return float(gap / math.sqrt(spread_w * spread_x / (n - 1)) * total)
+    a = s * (x - np.dot(s, x) / s.sum())
+    spread_a = np.square(a - a.mean()).sum()
+    spread_theta = np.square(theta - theta.mean()).sum()
+    if spread_a <= 0 or spread_theta <= 0:
+        return math.nan
+    return float(np.dot(theta, a) / math.sqrt(spread_a * spread_theta / (n - 1)))
 
 
 def _test_value_hypergeometric(k: int, n: int, n_category: int, n_group: int) -> float:
@@ -559,6 +601,7 @@ class ClusterProfile:
         hard: True for single memberships.
         n: Respondents in the reference population.
         dropped: Respondents only in the memberships, only in the metadata.
+        weighted: True if the figures use survey weights.
     """
 
     table: pd.DataFrame
@@ -570,6 +613,7 @@ class ClusterProfile:
     hard: bool
     n: int
     dropped: tuple[int, int]
+    weighted: bool = False
 
     @property
     def groups(self) -> list[str]:
@@ -604,7 +648,8 @@ class ClusterProfile:
             "# Group profiles",
             "",
             f"{self.n} respondents; {'single' if self.hard else 'mixed'} membership; "
-            f"features with |test value| >= {self.spec.threshold}.",
+            + (f"weighted by {self.spec.weight_column!r}; " if self.weighted else "")
+            + f"features with |test value| >= {self.spec.threshold}.",
         ]
         if any(self.dropped):
             lines.append(
@@ -898,7 +943,7 @@ def _is_ordinal(profile: ClusterProfile, variable: str) -> bool:
 
 
 def synthetic_profile_data(
-    n: int = 900, seed: int = 0, soft: bool = False
+    n: int = 900, seed: int = 0, soft: bool = False, weighted: bool = False
 ) -> tuple[pd.DataFrame, Membership, ProfileSpec]:
     """Synthetic metadata and three groups with planted profiles. No real respondent.
 
@@ -940,6 +985,7 @@ def synthetic_profile_data(
             "region": region,
             "occupation": occupation,
             "diploma": diploma,
+            "weight": np.round(rng.lognormal(0.0, 0.3, n), 4),
         }
     )
     if soft:
@@ -976,6 +1022,7 @@ def synthetic_profile_data(
                 "diploma": {"1": "none", "2": "secondary", "3": "bac", "4": "higher"},
             },
             "min_count": 10,
+            "weight": "weight" if weighted else None,
         }
     )
     return metadata, membership, spec
@@ -1017,6 +1064,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--demo", action="store_true", help="use synthetic data")
     parser.add_argument("--soft", action="store_true", help="demo with mixed memberships")
+    parser.add_argument("--weighted", action="store_true", help="demo with survey weights")
     parser.add_argument("--metadata", help="CSV of the metadata, with the identifier")
     parser.add_argument("--membership", help="CSV: id + group, or id + one column per group")
     parser.add_argument("--spec", help="JSON specification of the variables")
@@ -1031,7 +1079,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
     if args.demo:
-        metadata, membership, spec = synthetic_profile_data(soft=args.soft)
+        metadata, membership, spec = synthetic_profile_data(soft=args.soft, weighted=args.weighted)
     else:
         if not args.metadata:
             parser.error("give --metadata, or --demo")
