@@ -10,6 +10,7 @@ Changes to a method, its parameters or its reference vectors are listed explicit
 
 ### Changed
 
+- The documentation site publishes only the latest release and the development branch. Earlier releases are not built (Decision of 2026-11-24).
 - The development branch carries the version `0.1.0.dev0`, so that the provenance of a result computed from it (`engine_version`) cannot be mistaken for the published 0.0.1. The service scaffold under `services/api` stays at 0.0.1 until the next release.
 - Block models take a new setting, `initialization`, the object that gives the arrangement each start begins from. Its default, `RandomStart()`, draws exactly the former random starts: the values of `LatentBlockModel` and its reference vector are unchanged. The setting enters the provenance, so the fingerprint of a result computed before this change differs from the fingerprint of the same computation now.
 

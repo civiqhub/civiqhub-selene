@@ -1,7 +1,7 @@
 name: docs
 
 # Publishes the documentation site to GitHub Pages, with one folder per version: the
-# release that main holds, the earlier release tags, and the development branch. It runs
+# latest release that main holds, and the development branch. It runs
 # when one of the two branches moves, never on a pull request.
 on:
   push:

@@ -38,7 +38,9 @@ def site() -> ModuleType:
     return module
 
 
-def test_releases_come_first_latest_on_top_then_the_development_branch(site: ModuleType) -> None:
+def test_the_site_holds_the_latest_release_and_the_development_branch_only(
+    site: ModuleType,
+) -> None:
     versions = site.select_versions(
         site.Source("origin/develop", "0.3.0.dev0"),
         [
@@ -48,15 +50,14 @@ def test_releases_come_first_latest_on_top_then_the_development_branch(site: Mod
             site.Source("v0.1.0", "0.1.0"),
         ],
     )
-    assert [version.slug for version in versions] == ["0.10.0", "0.2.0", "0.1.0", "dev"]
+    assert [version.slug for version in versions] == ["0.10.0", "dev"]
     assert [version.label for version in versions] == [
         "0.10.0 (latest release)",
-        "0.2.0",
-        "0.1.0",
         "dev (development branch)",
     ]
-    assert [version.channel for version in versions] == ["release", "release", "release", "dev"]
-    assert [version.path for version in versions] == ["0.10.0/", "0.2.0/", "0.1.0/", "dev/"]
+    assert [version.channel for version in versions] == ["release", "dev"]
+    assert [version.path for version in versions] == ["0.10.0/", "dev/"]
+    assert len(json.loads(site.versions_document(versions))["versions"]) == 2
 
 
 def test_the_release_branch_wins_over_the_tag_of_the_same_version(site: ModuleType) -> None:
@@ -92,6 +93,13 @@ def test_the_versions_document_lists_each_folder_and_names_the_default(site: Mod
             {"slug": "dev", "label": "dev (development branch)", "path": "dev/"},
         ],
     }
+
+
+def test_an_earlier_release_sends_to_the_same_page_of_the_latest(site: ModuleType) -> None:
+    (version,) = site.select_versions(None, [site.Source("origin/main", "0.2.0")])
+    page = site.retired_version_page(version)
+    assert "0.2.0/" in page
+    assert "window.location.replace" in page
 
 
 def test_the_home_page_sends_to_the_default_version(site: ModuleType) -> None:

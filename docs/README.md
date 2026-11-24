@@ -176,7 +176,6 @@ The published site holds one folder per version:
 | Folder | Built from | Shown in the selector as |
 | --- | --- | --- |
 | `X.Y.Z/` | `main`, for the version `main` holds | `X.Y.Z (latest release)` |
-| `X.Y.Z/` | The tag `vX.Y.Z`, for each earlier release | `X.Y.Z` |
 | `dev/` | `develop` | `dev (development branch)` |
 
 The address of the site redirects to the latest release, or to `dev` as long as `main` holds no documentation.
