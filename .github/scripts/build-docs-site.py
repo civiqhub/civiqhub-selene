@@ -149,6 +149,18 @@ def run(command: Sequence[str | Path], *, cwd: Path, env: dict[str, str] | None 
     subprocess.run([str(part) for part in command], cwd=cwd, env=env, check=True)
 
 
+def documented_extras(tree: Path) -> str:
+    """Return the requirement of the package with the extras its reference imports.
+
+    ``blocks`` exists since the first version with a site; ``viz`` since its
+    subpackage was added. An older commit is installed with the extras it declares.
+    """
+    with (tree / "pyproject.toml").open("rb") as handle:
+        declared = tomllib.load(handle)["project"].get("optional-dependencies", {})
+    extras = [extra for extra in ("blocks", "viz") if extra in declared]
+    return f".[{','.join(extras)}]" if extras else "."
+
+
 def build(version: Version, output: Path, base_url: str) -> None:
     """Build one version from its commit, in a fresh environment, into its folder."""
     print(f"Building {version.slug} from {version.ref}", flush=True)
@@ -163,9 +175,19 @@ def build(version: Version, output: Path, base_url: str) -> None:
         try:
             run([sys.executable, "-m", "venv", environment], cwd=tree)
             run([python, "-m", "pip", "install", "--quiet", "--upgrade", "pip"], cwd=tree)
-            # The package and the tools are those of this commit.
+            # The package and the tools are those of this commit, with the extras that
+            # the reference documents.
             run(
-                [python, "-m", "pip", "install", "--quiet", ".[blocks]", "--group", "docs"],
+                [
+                    python,
+                    "-m",
+                    "pip",
+                    "install",
+                    "--quiet",
+                    documented_extras(tree),
+                    "--group",
+                    "docs",
+                ],
                 cwd=tree,
             )
             address = ["-D", f"html_baseurl={base_url}{version.path}"] if base_url else []

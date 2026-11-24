@@ -12,6 +12,7 @@ Every public name of the engine, with its definition. These pages are generated 
 | [`civiqhub_selene`](civiqhub_selene.md) | The contract every method shares | The standard library |
 | [`civiqhub_selene.ordinal`](civiqhub_selene.ordinal.md) | The ordinal reading of the votes on one item | The standard library |
 | [`civiqhub_selene.blocks`](civiqhub_selene.blocks.md) | Co-clustering of voters and items | NumPy, behind the `blocks` extra |
+| [`civiqhub_selene.viz`](civiqhub_selene.viz.md) | Graphs and figures of co-clustering results | NetworkX and Matplotlib, behind the `viz` extra |
 
 To find a name from what you want to do, start from [Finding your way](../library-map.md).
 
@@ -22,4 +23,5 @@ To find a name from what you want to do, start from [Finding your way](../librar
 civiqhub_selene
 civiqhub_selene.ordinal
 civiqhub_selene.blocks
+civiqhub_selene.viz
 ```
