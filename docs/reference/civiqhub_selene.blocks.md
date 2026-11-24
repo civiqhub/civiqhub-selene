@@ -29,5 +29,6 @@ civiqhub_selene.blocks.iterative
 civiqhub_selene.blocks.base
 civiqhub_selene.blocks.single
 civiqhub_selene.blocks.mixed
+civiqhub_selene.blocks.selection
 civiqhub_selene.blocks.results
 ```

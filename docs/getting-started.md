@@ -146,6 +146,25 @@ print(found.groups.agreement_with(coclustering.groups))
 
 The start is a setting of the model: it enters the provenance of the result. {py:func}`~civiqhub_selene.blocks.spectral.spectral_embedding` gives the embedding itself, to read its spectrum before choosing a shape.
 
+## Choose the number of groups and blocks
+
+Above, the shape was given: 3 groups and 2 blocks. {py:func}`~civiqhub_selene.blocks.selection.select_shape` estimates the model at every shape of a grid, keeps the best one by a criterion, and returns the model at that shape. For the single-membership model the criterion is the integrated likelihood; for the mixed-membership one, the log-likelihood of held-out votes.
+
+```python
+from civiqhub_selene.blocks import select_shape
+
+chosen = select_shape(votes, spectral, n_groups=(1, 2, 3, 4), n_blocks=(1, 2, 3), seed=0)
+print(chosen.value.selection.criterion, chosen.value.selection.best)
+print(repr(chosen.value))
+```
+
+```text
+integrated_likelihood (3, 2)
+SingleCoclustering(48 voters in 3 groups x 14 items in 2 blocks)
+```
+
+`chosen.value.selection` keeps the score of every shape of the grid; `print` shows them as a table.
+
 ## Let a voter follow several groups
 
 {py:class}`~civiqhub_selene.blocks.mixed.MixedMembershipBlockModel` gives each voter a degree of membership to each group, and one role per block: the group it follows on that block. Below, eight voters are drawn half in group 0 and half in group 1.

@@ -35,6 +35,7 @@ In a vote matrix, a cell is voted, shown without a vote, or not shown. An empty 
 | Co-cluster with mixed memberships: a voter follows one group per block | {py:class}`~civiqhub_selene.blocks.mixed.MixedMembershipBlockModel` | [`blocks.mixed`](reference/civiqhub_selene.blocks.mixed.md) |
 | Start a model from regularised spectral co-clustering | {py:class}`~civiqhub_selene.blocks.starts.SpectralStart` | [`blocks.starts`](reference/civiqhub_selene.blocks.starts.md) |
 | Start a model from a previous result, or from random arrangements | {py:class}`~civiqhub_selene.blocks.starts.FixedStart`, {py:class}`~civiqhub_selene.blocks.starts.RandomStart` | [`blocks.starts`](reference/civiqhub_selene.blocks.starts.md) |
+| Choose the number of groups and of blocks | {py:func}`~civiqhub_selene.blocks.selection.select_shape`, {py:class}`~civiqhub_selene.blocks.selection.ShapeSelection` | [`blocks.selection`](reference/civiqhub_selene.blocks.selection.md) |
 | Read the spectrum of the votes before choosing a shape | {py:func}`~civiqhub_selene.blocks.spectral.spectral_embedding`, {py:class}`~civiqhub_selene.blocks.spectral.SpectralEmbedding` | [`blocks.spectral`](reference/civiqhub_selene.blocks.spectral.md) |
 | Choose how the votes of a co-cluster are modelled | {py:class}`~civiqhub_selene.blocks.responses.OrdinalProbit`, {py:class}`~civiqhub_selene.blocks.responses.Categorical` | [`blocks.responses`](reference/civiqhub_selene.blocks.responses.md) |
 | Get a model from a plain word such as `"single"` or `"mixed"` | {py:func}`~civiqhub_selene.blocks.base.estimator_for`, {py:func}`~civiqhub_selene.blocks.base.memberships` | [`blocks.base`](reference/civiqhub_selene.blocks.base.md) |
@@ -109,4 +110,4 @@ A module whose name starts with an underscore, such as `civiqhub_selene.blocks._
 
 ## Not written yet
 
-The dissensus index and the collective regime of the ordinal family, the choice of the number of groups and blocks (`select_shape`, with the integrated likelihood and the held-out likelihood), the consensus between groups and the `cocluster` function are planned. The [changelog](changelog.md) lists what each version adds.
+The dissensus index and the collective regime of the ordinal family, the consensus between groups and the `cocluster` function are planned. The [changelog](changelog.md) lists what each version adds.

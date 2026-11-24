@@ -7,7 +7,8 @@ A group gathers voters, a block gathers items, and a co-cluster is the pair of a
 and a block. This subpackage holds the data the block models work on, the models (one
 group per voter with :class:`LatentBlockModel`, mixed memberships with
 :class:`MixedMembershipBlockModel`) and the arrangements they start from
-(:class:`RandomStart`, :class:`SpectralStart`, :class:`FixedStart`).
+(:class:`RandomStart`, :class:`SpectralStart`, :class:`FixedStart`), and the choice of
+their number of groups and blocks (:func:`select_shape`).
 
 Install it with ``pip install "civiqhub-selene[blocks]"``. Without NumPy, importing
 this subpackage raises :class:`~civiqhub_selene.errors.MissingExtraError`; the package
@@ -25,6 +26,7 @@ from civiqhub_selene.blocks.coclusters import Cocluster, CoclusterTable
 from civiqhub_selene.blocks.data import GroupedVotes, OrdinalScale, Vote, VoteMatrix
 from civiqhub_selene.blocks.mixed import MixedMembershipBlockModel
 from civiqhub_selene.blocks.partition import ItemBlock, Partition, VoterGroup
+from civiqhub_selene.blocks.selection import ShapeSelection, select_shape
 from civiqhub_selene.blocks.single import LatentBlockModel
 from civiqhub_selene.blocks.starts import FixedStart, RandomStart, SpectralStart
 
@@ -39,8 +41,10 @@ __all__ = [
     "OrdinalScale",
     "Partition",
     "RandomStart",
+    "ShapeSelection",
     "SpectralStart",
     "Vote",
     "VoteMatrix",
     "VoterGroup",
+    "select_shape",
 ]

@@ -33,12 +33,13 @@ This page describes how the engine is built: the contract every method shares, t
 | `civiqhub_selene.blocks.base` | `CoclusteringEstimator`, `BlockModel`, `availability`, `estimator_for`, `memberships` | NumPy |
 | `civiqhub_selene.blocks.single` | `LatentBlockModel`, the single-membership block model | NumPy |
 | `civiqhub_selene.blocks.mixed` | `MixedMembershipBlockModel`, the mixed-membership block model (MM-OLBM) | NumPy |
+| `civiqhub_selene.blocks.selection` | `ShapeSelection`, `select_shape`, `CRITERIA`: the choice of the number of groups and blocks | NumPy |
 | `civiqhub_selene.blocks.results` | `Coclustering`, `SingleCoclustering`, `MixedCoclustering`, `Selection`, `HasIntegratedLikelihood`, `PredictsVotes` | NumPy |
 | `civiqhub_selene.viz.graphs` | `coclustering_graph`, `membership_graph`, `role_graph`, `group_graph`, `vote_graph` | NumPy, NetworkX |
 | `civiqhub_selene.viz.draw` | `draw_coclustering`, `draw_memberships`, `draw_roles`, `draw_groups`, `plot_vote_matrix`, `plot_spectrum`, `plot_embedding`, `plot_history`, `plot_mixedness` | NumPy, NetworkX, Matplotlib |
 | `civiqhub_selene.viz.style` | The colours of the figures | standard library |
 
-Not written yet: the dissensus index and the collective regime (`ordinal`), the choice of shape (`select_shape`), the consensus between groups and the `cocluster` function.
+Not written yet: the dissensus index and the collective regime (`ordinal`), the consensus between groups and the `cocluster` function.
 
 ## The contract of a method
 
@@ -158,6 +159,19 @@ A step uses the response model through four calls:
 | `response_model.to_table(parameters, counts, votes.scale)` | the `CoclusterTable` of the value |
 
 `complexity_penalty((Q, L), votes)` gives the penalty of the response model in the integrated likelihood.
+
+## Choosing the shape
+
+A block model is estimated at a fixed shape. `ShapeSelection` (or its shortcut `select_shape`) estimates it at every shape of a grid, scores each shape and returns the co-clustering at the best one, whose `selection` (a `Selection`) keeps the scores of every shape. It is an estimator like the others: its settings, the model included, enter the provenance, and the value cites the selection as its computation.
+
+A criterion relies on what a value can do, through the protocols of `blocks.results`, not on the name of its class:
+
+| Criterion | Reads | Suits |
+| --- | --- | --- |
+| `integrated_likelihood` | `HasIntegratedLikelihood` | the single-membership model (its default) |
+| `held_out_likelihood` | `PredictsVotes`, on cells held out by `VoteMatrix.hold_out` in `n_folds` folds | every model; the default of the mixed-membership model |
+
+The search covers the whole grid, or follows a greedy path from the smallest shape (`search="greedy"`).
 
 ## Adding a method
 
