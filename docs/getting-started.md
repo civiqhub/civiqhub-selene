@@ -14,7 +14,7 @@ The core and the ordinal family use the standard library only. Co-clustering nee
 pip install "civiqhub-selene[blocks]"
 ```
 
-The published version 0.0.1 holds the structure of the project and no computation. Until the next release, install the development branch to run what this site describes:
+To run what is not released yet, install the development branch:
 
 ```bash
 pip install "civiqhub-selene[blocks] @ git+https://github.com/civiqhub/civiqhub-selene@develop"
