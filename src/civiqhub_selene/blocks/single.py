@@ -116,6 +116,17 @@ class LatentBlockModel(BlockModel[_HardState, SingleCoclustering]):
         objective = sum_ij sum_s S[i, j, s] * log p[R[i], C[j], s]
                     + sum_i log group_shares[R[i]] + sum_j log block_shares[C[j]]
 
+    With optional mean-one survey weights ``w[i]``, this becomes the weighted
+    pseudo-likelihood of Skinner (1989) and Pfeffermann (1993)::
+
+        objective = sum_i w[i] * (sum_j sum_s S[i, j, s] * log p[R[i], C[j], s]
+                                  + log group_shares[R[i]])
+                    + sum_j log block_shares[C[j]]
+
+    When every weight is 1 this is the unweighted objective. The block-share term is
+    not multiplied by ``w[i]``: with a single block it is zero, and the response
+    parameters then match those of a row duplication.
+
     Each start begins from the arrangement its ``initialization`` gives: random by
     default, or the one of regularised spectral co-clustering with ``SpectralStart()``.
     Each iteration updates the parameters of the response model and the shares from
@@ -129,6 +140,11 @@ class LatentBlockModel(BlockModel[_HardState, SingleCoclustering]):
         integrated_likelihood = objective - complexity_penalty of the response model
                                 - 0.5 * (Q - 1) * log(M) - 0.5 * (L - 1) * log(P)
 
+    Using that same penalty on the weighted objective is a Hypothesis: a weighted ICL
+    is not a settled model-selection criterion. A shown cell of item ``j`` has
+    ``K_j + 1`` modalities; this estimator currently reads one shared scale of ``K``
+    scores. Distinct observation scales per item are SEL-8.2 (ItemScales).
+
     The memberships of the value are soft readings of the final arrangement: the
     scores of each voter for each group, turned into shares that sum to 1.
 
@@ -136,7 +152,8 @@ class LatentBlockModel(BlockModel[_HardState, SingleCoclustering]):
     Pattern Recognition 36(2); Biernacki, Celeux and Govaert (2000), Assessing a
     mixture model for clustering with the integrated completed likelihood, IEEE
     Transactions on Pattern Analysis and Machine Intelligence 22(7); Corneli,
-    Bouveyron and Latouche (2020) for the ordinal response model.
+    Bouveyron and Latouche (2020) for the ordinal response model; Skinner (1989)
+    and Pfeffermann (1993) for the weighted pseudo-likelihood.
 
     The settings are those of :class:`~civiqhub_selene.blocks.base.BlockModel`.
     """

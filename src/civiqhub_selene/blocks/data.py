@@ -14,7 +14,6 @@ from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from functools import cached_property
 from itertools import pairwise
-from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, NamedTuple, TypeAlias
 
 import numpy as np
@@ -29,10 +28,9 @@ from civiqhub_selene.types import Displayable
 
 if TYPE_CHECKING:
     from civiqhub_selene.blocks.coclusters import CoclusterTable
+    from civiqhub_selene.blocks.covariates import VoterCovariates as VoterCovariates
 
-__all__ = ["GroupedVotes", "OrdinalScale", "Vote", "VoteMatrix", "VoterCovariates"]
-
-Covariate: TypeAlias = str | int | float | bool | None
+__all__ = ["GroupedVotes", "OrdinalScale", "Vote", "VoteMatrix"]
 
 Selector: TypeAlias = slice | str | Iterable[str]
 """One side of a selection: ``:``, one identifier, or a collection of identifiers."""
@@ -135,6 +133,44 @@ def _identifiers(received: Iterable[str], kind: str) -> tuple[str, ...]:
 
 def _numbered(prefix: str, count: int) -> tuple[str, ...]:
     return tuple(f"{prefix}{number}" for number in range(1, count + 1))
+
+
+def _shared_item_scale(
+    item_scales: Mapping[str, OrdinalScale],
+    columns: tuple[str, ...],
+    scale: OrdinalScale | None,
+) -> OrdinalScale:
+    """Return the unique observation scale of every item, or refuse the first mismatch."""
+    if set(item_scales) != set(columns):
+        raise InvalidInputError("item_scales must have exactly the response table items")
+    sources = tuple(item_scales[item] for item in columns)
+    if not all(isinstance(source, OrdinalScale) for source in sources):
+        raise InvalidInputError("item_scales must contain an OrdinalScale for each item")
+    if not sources:
+        return OrdinalScale() if scale is None else scale
+    reference_item = columns[0]
+    reference = sources[0]
+    for item, source in zip(columns[1:], sources[1:], strict=True):
+        if source.scores != reference.scores:
+            raise InvalidInputError(
+                f"item {item!r} uses the scale {source._formatted()}, "
+                f"which differs from {reference_item!r} ({reference._formatted()})",
+                hint=(
+                    "Give every item the same OrdinalScale; per-item observation "
+                    "scales are SEL-8.2 (ItemScales)."
+                ),
+            )
+    if scale is None:
+        return reference
+    if not isinstance(scale, OrdinalScale):
+        raise InvalidInputError(f"the scale is an OrdinalScale, got {scale!r}")
+    if scale.scores != reference.scores:
+        raise InvalidInputError(
+            f"the given scale {scale._formatted()} differs from the item scale "
+            f"{reference._formatted()}",
+            hint="Omit scale, or pass the same OrdinalScale as every item.",
+        )
+    return scale
 
 
 def _frozen(array: NDArray[Any]) -> None:
@@ -350,20 +386,25 @@ class VoteMatrix(Displayable):
         """Build a survey matrix from a table of scores in voter and item order.
 
         With ``item_scales``, provide one scale for every item, keyed by its identifier.
-        The order of the keys supplies the column order if ``items`` is omitted.
-        Scores are recoded to the nearest relative rank on the common scale, with
-        ties rounded up. The end ranks coincide. For example, three ranks map to
-        1, 3 and 5 on a five-level scale. By default, the common scores are the
-        integers from 1 to the largest declared scale length.
+        The order of the keys supplies the column order if ``items`` is omitted. The
+        matrix keeps the original ranks on that scale, in the direction of agreement,
+        and does not recode them onto a common grid.
+
+        Every item must share the same observation scale. A shown cell of item ``j``
+        has ``K_j + 1`` modalities (shown without a vote, or a vote at one of the
+        ``K_j`` ranks). Distinct ``K_j`` wait on SEL-8.2 (ItemScales): the response
+        models still use one shared ``K``. A homogeneous table matches
+        :meth:`from_records` on the same scores, voters and items.
 
         ``None`` and NaN indicate a cell without a response. The ``shown`` mask
-        distinguishes an abstention from a question that was not shown. Pass
-        ``voter_weights`` in row order. Each weight must be finite and positive.
+        distinguishes an abstention from a question that was not shown. A score in a
+        cell marked as not shown is refused. Pass ``voter_weights`` in row order.
+        Each weight must be finite and positive.
 
         Raises:
             InvalidInputError: If the dimensions or identifiers do not match, a
-                score is outside its declared scale, or the common scale is too
-                short to keep the ranks distinct.
+                score is outside its declared scale, a scored cell is marked as not
+                shown, or the item scales are not all the same.
         """
         rows = [list(row) for row in table]
         widths = {len(row) for row in rows}
@@ -379,26 +420,20 @@ class VoteMatrix(Displayable):
         if len(columns) != width:
             raise InvalidInputError("the item identifiers must match the response table columns")
 
-        sources: tuple[OrdinalScale, ...] | None = None
         if item_scales is not None:
-            if set(item_scales) != set(columns):
-                raise InvalidInputError("item_scales must have exactly the response table items")
-            sources = tuple(item_scales[item] for item in columns)
-            if not all(isinstance(source, OrdinalScale) for source in sources):
-                raise InvalidInputError("item_scales must contain an OrdinalScale for each item")
-            if sources:
-                largest = max(source.n_levels for source in sources)
-                if scale is None:
-                    scale = OrdinalScale(tuple(range(1, largest + 1)))
-                elif not isinstance(scale, OrdinalScale) or scale.n_levels < largest:
-                    raise InvalidInputError(
-                        f"the common scale must be an OrdinalScale with at least {largest} levels"
-                    )
+            scale = _shared_item_scale(item_scales, columns, scale)
         scale = OrdinalScale() if scale is None else scale
         if not isinstance(scale, OrdinalScale):
             raise InvalidInputError(f"the scale is an OrdinalScale, got {scale!r}")
 
-        levels = np.zeros((len(rows), width), dtype=np.int64)
+        n_rows = len(rows)
+        row_ids = _numbered("v", n_rows) if voters is None else _identifiers(voters, "voter")
+        if len(row_ids) != n_rows:
+            raise InvalidInputError(
+                f"{len(row_ids)} voters do not follow the {n_rows} rows of the table"
+            )
+        shown_array = None if shown is None else np.asarray(shown)
+        levels = np.zeros((n_rows, width), dtype=np.int64)
         for row_position, row in enumerate(rows):
             for column_position, cell in enumerate(row):
                 if cell is None:
@@ -408,17 +443,25 @@ class VoteMatrix(Displayable):
                         continue
                     if float(cell).is_integer():
                         cell = int(cell)
-                source = scale if sources is None else sources[column_position]
-                level = source.level_of(cell)  # type: ignore[arg-type]
-                if sources is not None:
-                    span = source.n_levels - 1
-                    rank, remainder = divmod((level - 1) * (scale.n_levels - 1), span)
-                    level = 1 + rank + int(2 * remainder >= span)
+                item = columns[column_position]
+                try:
+                    level = scale.level_of(cell)  # type: ignore[arg-type]
+                except InvalidInputError as error:
+                    raise InvalidInputError(f"item {item!r}: {error}") from error
+                if (
+                    shown_array is not None
+                    and shown_array.shape == (n_rows, width)
+                    and not bool(shown_array[row_position, column_position])
+                ):
+                    raise InvalidInputError(
+                        f"voter {row_ids[row_position]!r} has a score for item {item!r} "
+                        "in a cell marked as not shown"
+                    )
                 levels[row_position, column_position] = level
         return cls.from_arrays(
             levels,
             shown=shown,
-            voters=voters,
+            voters=row_ids,
             items=columns,
             scale=scale,
             voter_weights=voter_weights,
@@ -476,7 +519,7 @@ class VoteMatrix(Displayable):
 
     @cached_property
     def _likelihood_weights(self) -> FloatArray | None:
-        """Weights rescaled to sum to the number of voters."""
+        """Mean-one survey weights: they average 1, so they sum to the number of voters."""
         weights = self.voter_weights
         if weights is None or not weights.size:
             return weights
@@ -598,7 +641,8 @@ class VoteMatrix(Displayable):
         """Return a stable fingerprint of the content: 16 hexadecimal characters.
 
         SHA-256 of the shape, the scores, the identifiers, then the bytes of ``levels``
-        (little-endian 64-bit integers) and of ``shown``.
+        (little-endian 64-bit integers), of ``shown``, and of the survey weights when
+        they are present.
         """
         return self._fingerprint
 
@@ -660,50 +704,6 @@ class VoteMatrix(Displayable):
             f"{shown_share:.1%} of the {n_cells} cells shown, "
             f"{voted_share:.1%} of the shown cells voted",
         ]
-
-
-@dataclass(frozen=True)
-class VoterCovariates:
-    """A table of voter attributes whose columns follow the order of ``voters``.
-
-    Values are text, booleans, numbers, or ``None`` for missing values.
-    Use :meth:`from_records` to align a table to a :class:`VoteMatrix` by voter ID.
-    """
-
-    voters: tuple[str, ...]
-    columns: Mapping[str, tuple[Covariate, ...]]
-
-    def __post_init__(self) -> None:
-        voters = _identifiers(self.voters, "voter")
-        names = _identifiers(self.columns, "covariate")
-        columns = {name: tuple(self.columns[name]) for name in names}
-        for name, values in columns.items():
-            if len(values) != len(voters):
-                raise InvalidInputError(f"covariate {name!r} must have one value per voter")
-            if any(
-                value is not None
-                and (
-                    not isinstance(value, (str, bool, int, float))
-                    or (isinstance(value, float) and not math.isfinite(value))
-                )
-                for value in values
-            ):
-                raise InvalidInputError(f"covariate {name!r} contains an invalid value")
-        object.__setattr__(self, "voters", voters)
-        object.__setattr__(self, "columns", MappingProxyType(columns))
-
-    @classmethod
-    def from_records(
-        cls, votes: VoteMatrix, records: Mapping[str, Mapping[str, Covariate]]
-    ) -> "VoterCovariates":
-        """Align one record per voter to the matrix, with identical fields in each record."""
-        if set(records) != set(votes.voters):
-            raise InvalidInputError("covariate records must match the voter IDs")
-        rows = [records[voter] for voter in votes.voters]
-        names = tuple(rows[0]) if rows else ()
-        if any(row.keys() != rows[0].keys() for row in rows):
-            raise InvalidInputError("covariate records must have the same fields")
-        return cls(votes.voters, {name: tuple(row[name] for row in rows) for name in names})
 
 
 @dataclass(frozen=True, eq=False, repr=False)
@@ -883,3 +883,12 @@ def _selection(selector: object, identifiers: tuple[str, ...], kind: str) -> lis
         if identifier not in known:
             raise InvalidInputError(f"the {kind} {identifier!r} is not in the matrix")
     return [position for position, identifier in enumerate(identifiers) if identifier in wanted]
+
+
+def __getattr__(name: str) -> Any:
+    """Re-export :class:`VoterCovariates` from :mod:`civiqhub_selene.blocks.covariates`."""
+    if name == "VoterCovariates":
+        from civiqhub_selene.blocks.covariates import VoterCovariates
+
+        return VoterCovariates
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

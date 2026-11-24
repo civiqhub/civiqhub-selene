@@ -4,10 +4,12 @@
 """Load wide survey CSV records into the inputs for ordinal co-clustering."""
 
 import csv
+import math
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Literal
 
-from civiqhub_selene.blocks.data import OrdinalScale, VoteMatrix, VoterCovariates
+from civiqhub_selene.blocks.covariates import VoterCovariates
+from civiqhub_selene.blocks.data import OrdinalScale, VoteMatrix
 from civiqhub_selene.errors import InvalidInputError
 
 __all__ = ["read_survey_csv"]
@@ -33,6 +35,9 @@ def read_survey_csv(
     ``""`` when the source uses blank scores for that purpose. Covariates are text
     and blanks are returned as ``None``. Other columns are ignored.
 
+    Every item must share the same observation scale. Distinct per-item scales are
+    SEL-8.2 (ItemScales).
+
     Args:
         lines: An iterable of CSV lines, such as an open text file.
         item_scales: A declared scale for every item column to read.
@@ -42,7 +47,7 @@ def read_survey_csv(
         delimiter: CSV field delimiter.
         decimal: Decimal separator for weights.
         unshown_label: Optional marker for a question treated as not shown.
-        scale: Optional common scale used by :meth:`VoteMatrix.from_responses`.
+        scale: Optional scale of the matrix when every item already shares it.
 
     Returns:
         The matrix and the covariate table, in CSV voter order.
@@ -86,16 +91,20 @@ def read_survey_csv(
                 )
             voter = row[positions[voter_column]].strip()
             if not voter:
-                raise InvalidInputError(f"empty voter identifier at CSV line {reader.line_num}")
+                raise InvalidInputError(
+                    f"empty voter identifier in column {voter_column!r} at CSV line "
+                    f"{reader.line_num}"
+                )
             voters.append(voter)
             if weight_column is not None:
-                weight = row[positions[weight_column]].strip()
-                try:
-                    weights.append(float(weight.replace(decimal, ".")))
-                except ValueError as error:
-                    raise InvalidInputError(
-                        f"invalid weight at CSV line {reader.line_num}"
-                    ) from error
+                weights.append(
+                    _parse_weight(
+                        row[positions[weight_column]],
+                        column=weight_column,
+                        line=reader.line_num,
+                        decimal=decimal,
+                    )
+                )
             for name, values in covariates.items():
                 values.append(row[positions[name]].strip() or None)
 
@@ -129,3 +138,20 @@ def read_survey_csv(
     return votes, VoterCovariates(
         votes.voters, {name: tuple(values) for name, values in covariates.items()}
     )
+
+
+def _parse_weight(raw: str, *, column: str, line: int, decimal: str) -> float:
+    """Return a finite positive weight, naming the CSV column on error."""
+    text = raw.strip()
+    try:
+        weight = float(text.replace(decimal, "."))
+    except ValueError as error:
+        raise InvalidInputError(
+            f"invalid weight {text!r} in column {column!r} at CSV line {line}"
+        ) from error
+    if not math.isfinite(weight) or weight <= 0:
+        raise InvalidInputError(
+            f"weight {weight} in column {column!r} at CSV line {line} must be "
+            "finite and strictly positive"
+        )
+    return weight

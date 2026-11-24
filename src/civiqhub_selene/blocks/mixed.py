@@ -188,6 +188,17 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
         log_likelihood = sum_i log sum_c prod_l theta[i, c_l]
                                      * prod_j sum_l phi[j, l] * F[c_l, l, s_ij]
 
+    With optional mean-one survey weights ``w[i]``, ``log_likelihood`` is the
+    weighted pseudo-likelihood of Skinner (1989) and Pfeffermann (1993)::
+
+        log_likelihood = sum_i w[i] * log sum_c prod_l theta[i, c_l]
+                                              * prod_j sum_l phi[j, l] * F[c_l, l, s_ij]
+
+    The value reports this weighted ``log_likelihood``. The co-cluster counts on the
+    value stay the raw, unweighted number of survey rows. A shown cell of item ``j``
+    has ``K_j + 1`` modalities; this estimator currently reads one shared scale of
+    ``K`` scores. Distinct observation scales per item are SEL-8.2 (ItemScales).
+
     The model is estimated by expectation-maximisation, regularised by symmetric
     Dirichlet priors on the memberships, of concentrations ``voter_concentration``
     (alpha) and ``item_concentration`` (beta). It maximises::
@@ -218,7 +229,8 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
     and the main block of an item are their largest membership. Its table of
     co-clusters reads the expected counts. The value carries the observed
     log-likelihood; it has no integrated likelihood, and its shape is compared by the
-    log-likelihood of held-out cells.
+    log-likelihood of held-out cells. A weighted ICL, were it used, would be a
+    Hypothesis.
 
     The cost of an iteration grows as ``M * P * Q**L``: the number of profiles is
     bounded by :data:`MAX_PROFILES`.
@@ -226,7 +238,8 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
     References: Airoldi, Blei, Fienberg and Xing (2008), Mixed membership stochastic
     blockmodels, Journal of Machine Learning Research 9, for the mixed membership;
     Dempster, Laird and Rubin (1977) for expectation-maximisation; Corneli, Bouveyron
-    and Latouche (2020) for the ordinal response model. The role per block and the
+    and Latouche (2020) for the ordinal response model; Skinner (1989) and
+    Pfeffermann (1993) for the weighted pseudo-likelihood. The role per block and the
     exact expectation over the profiles follow the reference engine of the CiviqHub
     explainer "LBM and MM-OLBM step by step".
 
