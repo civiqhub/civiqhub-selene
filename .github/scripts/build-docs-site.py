@@ -7,8 +7,8 @@ Usage: python .github/scripts/build-docs-site.py --output _site --base-url https
 
 The site that is published holds:
 
-- ``X.Y.Z/``: the documentation of the latest release, the one ``origin/main`` holds.
-  Earlier releases are not published (Decision of 2026-11-24: the site holds the
+- ``X.Y.Z/``: the documentation of the latest release, the one ``origin/main`` holds;
+  earlier releases are not published (Decision of 2026-11-24: the site holds the
   latest release and the development branch, nothing else);
 - ``dev/``: the documentation of the development branch, ``origin/develop``;
 - ``versions.json``: the list that the version selector of every page reads;
@@ -108,8 +108,10 @@ def versions_document(versions: Sequence[Version]) -> str:
     return json.dumps({"default": versions[0].slug, "versions": listed}, indent=2) + "\n"
 
 
-def retired_version_page(version: Version) -> str:
+def retired_version_page(version: Version, base_url: str) -> str:
     """Return the GitHub Pages 404 page: send a retired release to the latest one."""
+    root = base_url.rstrip("/") + "/" if base_url else ""
+    href = f"{root}{version.path}"
     return (
         "<!doctype html>\n"
         '<html lang="en">\n'
@@ -127,7 +129,7 @@ def retired_version_page(version: Version) -> str:
         "</head>\n"
         "<body>\n"
         "<p>This page does not exist. "
-        f'See the <a href="{version.path}">latest release</a>.</p>\n'
+        f'See the <a href="{href}">latest release</a>.</p>\n'
         "</body>\n"
         "</html>\n"
     )
@@ -248,7 +250,9 @@ def main() -> None:
     (output / "versions.json").write_text(versions_document(versions), encoding="utf-8")
     (output / "index.html").write_text(redirection_page(versions[0], base_url), encoding="utf-8")
     if versions[0].channel == "release":
-        (output / "404.html").write_text(retired_version_page(versions[0]), encoding="utf-8")
+        (output / "404.html").write_text(
+            retired_version_page(versions[0], base_url), encoding="utf-8"
+        )
     print("Built: " + ", ".join(f"{version.slug} ({version.ref})" for version in versions))
 
 

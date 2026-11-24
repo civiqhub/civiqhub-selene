@@ -97,9 +97,12 @@ def test_the_versions_document_lists_each_folder_and_names_the_default(site: Mod
 
 def test_an_earlier_release_sends_to_the_same_page_of_the_latest(site: ModuleType) -> None:
     (version,) = site.select_versions(None, [site.Source("origin/main", "0.2.0")])
-    page = site.retired_version_page(version)
+    page = site.retired_version_page(version, "https://example.org/docs/")
     assert "0.2.0/" in page
     assert "window.location.replace" in page
+    assert '<a href="https://example.org/docs/0.2.0/">' in page
+    assert site.retired_version_page(version, "https://example.org/docs") == page
+    assert '<a href="0.2.0/">' in site.retired_version_page(version, "")
 
 
 def test_the_home_page_sends_to_the_default_version(site: ModuleType) -> None:
