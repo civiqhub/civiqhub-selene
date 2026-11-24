@@ -93,12 +93,14 @@ or a missing value (`None` or NaN). A boolean `shown` mask distinguishes an
 unshown question from an abstention. By default every question is shown. A score
 in a cell marked as not shown is refused.
 
-The source of truth of the block models is a continuous Gaussian latent, of
-parameters μ and σ, for each co-cluster. Each item `j` has its own observation
-scale, with `K_j` ranks and its own thresholds, so a shown cell has `K_j + 1`
-modalities. The CEM or VEM loop runs on those latents. `from_responses` keeps
-the original ranks of each column and the direction of agreement; it does not
-recode them onto a common grid.
+The model that SEL-8.2 (`ItemScales`) and SEL-8.3 aim at is a continuous Gaussian
+latent, of parameters μ and σ, for each co-cluster of
+{py:class}`~civiqhub_selene.blocks.responses.OrdinalProbit`. Each item `j` would
+then have its own observation scale, with `K_j` ranks and its own thresholds, so
+a shown cell has `K_j + 1` modalities. The CEM or EM loop would run on those
+latents. Today the thresholds of `OrdinalProbit` are fixed and common to every
+item. `from_responses` keeps the original ranks of each column and the direction
+of agreement; it does not recode them onto a common grid.
 
 The response models still use one shared `K`. Distinct observation scales are
 refused, naming the first item that differs, until SEL-8.2 (`ItemScales`). A
@@ -111,9 +113,10 @@ single-membership model they multiply each voter's response and group-membership
 log terms. In the mixed-membership model they multiply each voter's marginal
 log-likelihood and voter-specific regularisation term. Shared parameter updates
 use the corresponding weighted counts. Item membership regularisation and
-reported response counts keep their usual, unweighted definitions. When the
-block-share term is neutral (a single block), the fitted response parameters
-match those of a row duplication.
+reported response counts keep their usual, unweighted definitions. The spectral
+start and the reported `group_memberships` of the single-membership model are
+not weighted. When the block-share term is neutral (a single block), the fitted
+response parameters match those of a row duplication.
 
 Build a `VoterCovariates` table with `VoterCovariates.from_records(votes, records)`.
 Give one record per voter identifier and the same fields in each record, using

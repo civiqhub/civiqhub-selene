@@ -28,7 +28,6 @@ from civiqhub_selene.types import Displayable
 
 if TYPE_CHECKING:
     from civiqhub_selene.blocks.coclusters import CoclusterTable
-    from civiqhub_selene.blocks.covariates import VoterCovariates as VoterCovariates
 
 __all__ = ["GroupedVotes", "OrdinalScale", "Vote", "VoteMatrix"]
 
@@ -447,7 +446,7 @@ class VoteMatrix(Displayable):
                 try:
                     level = scale.level_of(cell)  # type: ignore[arg-type]
                 except InvalidInputError as error:
-                    raise InvalidInputError(f"item {item!r}: {error}") from error
+                    raise InvalidInputError(f"item {item!r}: {error}", hint=error.hint) from error
                 if (
                     shown_array is not None
                     and shown_array.shape == (n_rows, width)
@@ -883,12 +882,3 @@ def _selection(selector: object, identifiers: tuple[str, ...], kind: str) -> lis
         if identifier not in known:
             raise InvalidInputError(f"the {kind} {identifier!r} is not in the matrix")
     return [position for position, identifier in enumerate(identifiers) if identifier in wanted]
-
-
-def __getattr__(name: str) -> Any:
-    """Re-export :class:`VoterCovariates` from :mod:`civiqhub_selene.blocks.covariates`."""
-    if name == "VoterCovariates":
-        from civiqhub_selene.blocks.covariates import VoterCovariates
-
-        return VoterCovariates
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

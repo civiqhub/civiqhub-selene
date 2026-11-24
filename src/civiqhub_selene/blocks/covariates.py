@@ -19,12 +19,14 @@ __all__ = ["VoterCovariates"]
 Covariate: TypeAlias = str | int | float | bool | None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=False)
 class VoterCovariates:
     """A table of voter attributes whose columns follow the order of ``voters``.
 
     Values are text, booleans, numbers, or ``None`` for missing values.
     Use :meth:`from_records` to align a table to a :class:`VoteMatrix` by voter ID.
+    Equality and hashing follow :meth:`fingerprint`, which does not depend on the
+    order of the columns.
     """
 
     voters: tuple[str, ...]
@@ -32,7 +34,7 @@ class VoterCovariates:
 
     def __post_init__(self) -> None:
         voters = _identifiers(self.voters, "voter")
-        names = _identifiers(self.columns, "covariate")
+        names = tuple(sorted(_identifiers(self.columns, "covariate")))
         columns = {name: tuple(self.columns[name]) for name in names}
         for name, values in columns.items():
             if len(values) != len(voters):
@@ -65,12 +67,20 @@ class VoterCovariates:
     def fingerprint(self) -> str:
         """Return a stable fingerprint of the voters and columns: 16 hexadecimal characters.
 
-        SHA-256 of the voter identifiers and of each covariate column, in column order.
+        SHA-256 of the voter identifiers and of each covariate column, sorted by name.
         """
         return self._fingerprint
 
     @cached_property
     def _fingerprint(self) -> str:
         digest = hashlib.sha256()
-        digest.update(repr((self.voters, tuple(self.columns.items()))).encode())
+        digest.update(repr((self.voters, tuple(sorted(self.columns.items())))).encode())
         return digest.hexdigest()[:16]
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, VoterCovariates):
+            return NotImplemented
+        return self.fingerprint() == other.fingerprint()
+
+    def __hash__(self) -> int:
+        return hash(self.fingerprint())

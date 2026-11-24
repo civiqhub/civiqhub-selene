@@ -203,8 +203,11 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
     Dirichlet priors on the memberships, of concentrations ``voter_concentration``
     (alpha) and ``item_concentration`` (beta). It maximises::
 
-        objective = log_likelihood + (alpha - 1) * sum_iq log theta[i, q]
+        objective = log_likelihood + (alpha - 1) * sum_i w[i] * sum_q log theta[i, q]
                                    + (beta - 1) * sum_jl log phi[j, l]
+
+    ``w[i]`` is 1 when the matrix has no survey weights. The prior on ``theta`` is
+    weighted by voter; the prior on ``phi`` is not.
 
     The expectation step is exact: it enumerates the profiles and gives the posterior
     probability of each profile of each voter, the probability of each role on each
@@ -230,7 +233,7 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
     co-clusters reads the expected counts. The value carries the observed
     log-likelihood; it has no integrated likelihood, and its shape is compared by the
     log-likelihood of held-out cells. A weighted ICL, were it used, would be a
-    Hypothesis.
+    Hypothesis. The spectral start does not use the survey weights.
 
     The cost of an iteration grows as ``M * P * Q**L``: the number of profiles is
     bounded by :data:`MAX_PROFILES`.

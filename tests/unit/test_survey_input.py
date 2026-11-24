@@ -1,8 +1,10 @@
 # Copyright 2026 CiviqHub SAS
 # SPDX-License-Identifier: Apache-2.0
 
+import ast
 import re
 from io import StringIO
+from pathlib import Path
 
 import pytest
 
@@ -11,6 +13,7 @@ pytest.importorskip("numpy")
 import numpy as np
 
 from civiqhub_selene.blocks import (
+    FixedStart,
     LatentBlockModel,
     MixedMembershipBlockModel,
     OrdinalScale,
@@ -19,7 +22,6 @@ from civiqhub_selene.blocks import (
     read_survey_csv,
 )
 from civiqhub_selene.blocks.covariates import VoterCovariates as CovariatesFromModule
-from civiqhub_selene.blocks.data import VoterCovariates as CovariatesFromData
 from civiqhub_selene.blocks.responses import Categorical
 from civiqhub_selene.errors import InvalidInputError
 
@@ -103,8 +105,32 @@ def test_survey_weights_are_positive_finite_and_aligned(weights: list[float]) ->
 
 
 def test_voter_covariates_is_exported_from_the_covariates_module() -> None:
-    assert CovariatesFromModule is VoterCovariates is CovariatesFromData
+    assert CovariatesFromModule is VoterCovariates
     assert VoterCovariates.__module__ == "civiqhub_selene.blocks.covariates"
+
+
+def test_blocks_modules_do_not_import_covariates() -> None:
+    """Engine modules do not import covariates; only the package re-export and survey do."""
+    root = Path(__file__).resolve().parents[2] / "src" / "civiqhub_selene" / "blocks"
+    allowed = {"__init__.py", "covariates.py", "survey.py"}
+    offenders: list[str] = []
+    for path in sorted(root.glob("*.py")):
+        if path.name in allowed:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            modules: list[str] = []
+            if isinstance(node, ast.Import):
+                modules.extend(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module is not None:
+                modules.append(node.module)
+            if any(
+                name == "civiqhub_selene.blocks.covariates" or name.endswith(".covariates")
+                for name in modules
+            ):
+                offenders.append(path.name)
+                break
+    assert offenders == []
 
 
 def test_voter_covariates_align_by_identifier_and_keep_a_stable_fingerprint() -> None:
@@ -123,6 +149,12 @@ def test_voter_covariates_align_by_identifier_and_keep_a_stable_fingerprint() ->
     assert covariates.fingerprint() == same.fingerprint()
     assert covariates.fingerprint() != other.fingerprint()
     assert re.fullmatch(r"[0-9a-f]{16}", covariates.fingerprint())
+    by_mode_first = VoterCovariates(votes.voters, {"mode": ("phone", "web"), "age": (41, None)})
+    by_age_first = VoterCovariates(votes.voters, {"age": (41, None), "mode": ("phone", "web")})
+    assert by_mode_first == by_age_first
+    assert hash(by_mode_first) == hash(by_age_first)
+    assert by_mode_first.fingerprint() == by_age_first.fingerprint()
+    assert {by_mode_first, by_age_first} == {by_mode_first}
     with pytest.raises(InvalidInputError, match="voter IDs"):
         VoterCovariates.from_records(votes, {"a": {"mode": "web"}})
     with pytest.raises(InvalidInputError, match="same fields"):
@@ -208,6 +240,63 @@ def test_weighted_parameters_match_duplication_when_block_shares_are_neutral(
     assert weighted.coclusters.vote_rate[0, 0] == pytest.approx(
         duplicated.coclusters.vote_rate[0, 0]
     )
+
+
+def _shares_by_group(shares: np.ndarray) -> np.ndarray:
+    rows = np.asarray(shares[:, 0, :])
+    return rows[np.lexsort(rows.T)]
+
+
+@pytest.mark.parametrize("model_type", [LatentBlockModel, MixedMembershipBlockModel])
+def test_weighted_parameters_match_duplication_with_two_groups_and_the_default_model(
+    model_type: type[LatentBlockModel] | type[MixedMembershipBlockModel],
+) -> None:
+    # TEST ONLY. Seed 7. Two groups, one block, default OrdinalProbit: the block-share
+    # term is log(1) = 0. FixedStart keeps the three copies of b in the same group;
+    # RandomStart on four rows can split them. A tight tolerance is needed because the
+    # outer loop stops on the absolute gain of an extensive objective.
+    scale = OrdinalScale((1, 2))
+    weighted_model = model_type(
+        n_groups=2,
+        n_blocks=1,
+        n_starts=1,
+        tolerance=1e-8,
+        initialization=FixedStart((0, 1), (0, 0)),
+    )
+    duplicated_model = model_type(
+        n_groups=2,
+        n_blocks=1,
+        n_starts=1,
+        tolerance=1e-8,
+        initialization=FixedStart((0, 1, 1, 1), (0, 0)),
+    )
+    weighted = weighted_model.estimate(
+        VoteMatrix.from_responses(
+            [[1, 1], [2, 2]],
+            voters=["a", "b"],
+            items=["x", "y"],
+            scale=scale,
+            voter_weights=[1, 3],
+        ),
+        seed=7,
+    ).value
+    duplicated = duplicated_model.estimate(
+        VoteMatrix.from_responses(
+            [[1, 1], [2, 2], [2, 2], [2, 2]],
+            voters=["a", "b1", "b2", "b3"],
+            items=["x", "y"],
+            scale=scale,
+        ),
+        seed=7,
+    ).value
+    np.testing.assert_allclose(
+        _shares_by_group(weighted.coclusters.vote_shares),
+        _shares_by_group(duplicated.coclusters.vote_shares),
+        atol=1e-8,
+    )
+    rates = np.sort(np.asarray(weighted.coclusters.vote_rate[:, 0]))
+    duplicated_rates = np.sort(np.asarray(duplicated.coclusters.vote_rate[:, 0]))
+    np.testing.assert_allclose(rates, duplicated_rates, atol=1e-8)
 
 
 def test_csv_loads_homogeneous_scales_weights_and_aligned_covariates() -> None:

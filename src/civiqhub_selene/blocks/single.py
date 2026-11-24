@@ -125,7 +125,8 @@ class LatentBlockModel(BlockModel[_HardState, SingleCoclustering]):
 
     When every weight is 1 this is the unweighted objective. The block-share term is
     not multiplied by ``w[i]``: with a single block it is zero, and the response
-    parameters then match those of a row duplication.
+    parameters then match those of a row duplication. The spectral start and the
+    reported ``group_memberships`` do not use the survey weights.
 
     Each start begins from the arrangement its ``initialization`` gives: random by
     default, or the one of regularised spectral co-clustering with ``SpectralStart()``.
