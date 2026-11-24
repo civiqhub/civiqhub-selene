@@ -7,7 +7,7 @@ This page describes how the engine is built: the contract every method shares, t
 1. **An estimator is a frozen value.** Every setting is a named, typed field of a frozen dataclass; nothing is read from the environment. `estimate(data, *, seed=0)` is written once, in `Estimator`, and is never overridden.
 2. **Every result is a `Result`.** It carries a value or an explained absence (`Unavailable`), the provenance, and the uncertainty when the method defines one. Never `None`, never NaN, never a default in place of an absence.
 3. **Determinism.** Same data, same settings, same seed: same result and same fingerprint. Any randomness goes through the seed received.
-4. **Dependencies.** The package root and `ordinal` import the standard library only. `blocks` imports NumPy and raises `MissingExtraError` when it is missing. No module imports the `civiqhub` SDK, a network client or a storage layer.
+4. **Dependencies.** The package root and `ordinal` import the standard library only. `blocks` imports NumPy and raises `MissingExtraError` when it is missing. `viz` imports NetworkX and Matplotlib, raises `MissingExtraError` when one is missing, and is imported by no other part of the engine: a figure reads a result, it never feeds a computation. No module imports the `civiqhub` SDK, a network client or a storage layer.
 5. **Extension without modification.** A new method is a class declared under the entry-point group `civiqhub_selene.estimators`, with a key `family.choice`. It passes the contract kit. No existing class is modified.
 6. **Three states per cell.** In a vote matrix, a cell is voted, shown without a vote, or not shown. An empty cell is never a zero nor a neutral answer.
 
@@ -26,13 +26,19 @@ This page describes how the engine is built: the contract every method shares, t
 | `civiqhub_selene.blocks.coclusters` | `Cocluster`, `CoclusterTable` | NumPy |
 | `civiqhub_selene.blocks.synthetic` | `make_votes`, `PlantedTruth`, `single_memberships` | NumPy |
 | `civiqhub_selene.blocks.responses` | `ResponseModel`, `Categorical`, `OrdinalProbit` | NumPy |
+| `civiqhub_selene.blocks.spectral` | `spectral_embedding`, `SpectralEmbedding`, `n_singular_values`: regularised spectral co-clustering (DI-SIM, RSC) | NumPy |
+| `civiqhub_selene.blocks.starts` | `Initialization`, `RandomStart`, `SpectralStart`, `FixedStart`: the arrangement each start begins from | NumPy |
 | `civiqhub_selene.blocks._numerics` | `count_states`, `logsumexp`, the normal law, `iterate`, `History`, `fit_latent_normal` | NumPy |
 | `civiqhub_selene.blocks.iterative` | `IterativeEstimator`, `HasObjective` | NumPy |
 | `civiqhub_selene.blocks.base` | `CoclusteringEstimator`, `BlockModel`, `availability`, `estimator_for`, `memberships` | NumPy |
 | `civiqhub_selene.blocks.single` | `LatentBlockModel`, the single-membership block model | NumPy |
+| `civiqhub_selene.blocks.mixed` | `MixedMembershipBlockModel`, the mixed-membership block model (MM-OLBM) | NumPy |
 | `civiqhub_selene.blocks.results` | `Coclustering`, `SingleCoclustering`, `MixedCoclustering`, `Selection`, `HasIntegratedLikelihood`, `PredictsVotes` | NumPy |
+| `civiqhub_selene.viz.graphs` | `coclustering_graph`, `membership_graph`, `role_graph`, `group_graph`, `vote_graph` | NumPy, NetworkX |
+| `civiqhub_selene.viz.draw` | `draw_coclustering`, `draw_memberships`, `draw_roles`, `draw_groups`, `plot_vote_matrix`, `plot_spectrum`, `plot_embedding`, `plot_history`, `plot_mixedness` | NumPy, NetworkX, Matplotlib |
+| `civiqhub_selene.viz.style` | The colours of the figures | standard library |
 
-Not written yet: the dissensus index and the collective regime (`ordinal`), the mixed-membership block model (`MixedMembershipBlockModel`), the choice of shape (`select_shape`), the consensus between groups and the `cocluster` function.
+Not written yet: the dissensus index and the collective regime (`ordinal`), the choice of shape (`select_shape`), the consensus between groups and the `cocluster` function.
 
 ## The contract of a method
 
@@ -79,7 +85,7 @@ A group gathers voters, a block gathers items, and a co-cluster is the pair of a
 
 ## The pipeline of a block model
 
-A block model is a latent structure (who belongs to which group, which item to which block) and a response model, which says how the cells of a co-cluster spread between "shown without a vote" and each score. The two are independent: any block model runs with any response model.
+A block model is a latent structure (who belongs to which group, which item to which block) and a response model, which says how the cells of a co-cluster spread between "shown without a vote" and each score. The two are independent: any block model runs with any response model. A third setting, the initialization, gives the arrangement each start begins from; it is independent of both.
 
 ```mermaid
 flowchart LR
@@ -89,9 +95,11 @@ flowchart LR
   model --> estimate
   estimate --> loop["IterativeEstimator._compute<br>n_starts seeds, iterate, best start"]
   loop --> hooks["_start, _step, _finish<br>written by the model"]
+  start["Initialization<br>RandomStart, SpectralStart or FixedStart"] --> hooks
   hooks --> response["ResponseModel<br>OrdinalProbit or Categorical"]
   hooks --> value["SingleCoclustering<br>or MixedCoclustering"]
   value --> result["Result"]
+  value -.-> viz["viz.graphs, viz.draw<br>read the value, never feed a computation"]
 ```
 
 ```text
@@ -100,7 +108,7 @@ Estimator                      estimate()     written once
 '- CoclusteringEstimator       with_shape(), availability
 BlockModel(IterativeEstimator, CoclusteringEstimator)
 |- LatentBlockModel            "single"
-'- MixedMembershipBlockModel   "mixed"        to come
+'- MixedMembershipBlockModel   "mixed"
 ```
 
 What is written once:
@@ -125,7 +133,11 @@ class MyBlockModel(BlockModel[MyState, SingleCoclustering]):
     default_criterion = "integrated_likelihood"
 
     def _start(self, votes, rng):
-        """Return a starting state, drawn with rng only. Called once per start."""
+        """Return a starting state, drawn with rng only. Called once per start.
+
+        Read the arrangement of the start from the setting shared by every block model:
+        groups, blocks = self.initialization.arrangement(votes, (Q, L), rng)
+        """
 
     def _step(self, votes, state):
         """Return the state after one full iteration. It must not lower state.objective."""
@@ -134,7 +146,7 @@ class MyBlockModel(BlockModel[MyState, SingleCoclustering]):
         """Return the public value, from the best final state."""
 ```
 
-A state is any frozen object with an `objective`. A model never writes a loop and never draws a seed. `civiqhub_selene/blocks/single.py` is the model to read first: `LatentBlockModel` is these three hooks and nothing else. `tests/unit/test_blocks_pipeline.py` holds a shorter model written with the public pieces only; it is a test of the architecture, not a delivered method.
+A state is any frozen object with an `objective`. A model never writes a loop and never draws a seed, and never chooses its starting arrangement: it reads it from `initialization`, so that a new way to start (a new `Initialization`) serves every block model at once. `civiqhub_selene/blocks/mixed.py` shows the same three hooks for an expectation-maximisation over soft memberships. `civiqhub_selene/blocks/single.py` is the model to read first: `LatentBlockModel` is these three hooks and nothing else. `tests/unit/test_blocks_pipeline.py` holds a shorter model written with the public pieces only; it is a test of the architecture, not a delivered method.
 
 A step uses the response model through four calls:
 
@@ -169,6 +181,8 @@ A step uses the response model through four calls:
 | `tests/vectors` | Expected values stored as data, with their tolerance and their source |
 | `tests/contract` | Reserved for the contract between the engine and the service |
 
+`tests/unit/test_examples.py` runs every code cell of the notebooks of `examples/`. A test file of the `viz` extra carries the markers `blocks` and `viz`, and skips itself when NetworkX or Matplotlib is missing.
+
 Two files of `tests/unit` check the documentation: `test_docs_reference.py` (every public module has a page in the reference) and `test_docs_examples.py` (every Python block of the pages runs and prints the output shown).
 
 A test file of the `blocks` extra is marked and skips itself when NumPy is missing:
@@ -198,5 +212,23 @@ The `test-core` job of the CI installs the package without any extra, checks tha
 | group, block | A cluster of voters; a cluster of items |
 | co-cluster | The pair of a group and a block |
 | membership | The degree to which a voter belongs to each group, or an item to each block; also the choice `"single"` or `"mixed"` |
+| role | Under a mixed membership, the group a voter follows on one block |
+| start, arrangement | The group of each voter and the block of each item a start of a block model begins from |
 | fingerprint | A stable identifier of a content or of a computation: 16 hexadecimal characters of a SHA-256 |
 | computation | The fingerprint of one precise computation: method, settings, seed, input, lineage |
+
+```{note}
+A method that returns `None` fails the contract kit. The engine wraps every outcome in a `Result`.
+```
+
+```{warning}
+The `blocks` extra needs NumPy, and the `viz` extra NetworkX and Matplotlib. Without them, importing the subpackage raises `MissingExtraError`.
+```
+
+```{danger}
+No module of this library imports the `civiqhub` SDK, a network client, or a storage layer.
+```
+
+```{tip}
+Inherit `EstimatorContract` and run its seven tests on every new estimator before proposing it.
+```

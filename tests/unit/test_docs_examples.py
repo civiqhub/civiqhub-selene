@@ -9,7 +9,8 @@ The rules, also written in ``docs/README.md``:
   one namespace and run in the order of the page;
 - a ``text`` block that directly follows a Python block is what that block prints;
 - a Python block preceded by the comment ``<!-- not run: reason -->`` is skipped;
-- a page whose blocks need NumPy carries the ``blocks`` marker.
+- a page whose blocks need NumPy carries the ``blocks`` marker; a page whose blocks need
+  ``civiqhub_selene.viz`` is skipped when NetworkX or Matplotlib is missing.
 """
 
 import contextlib
@@ -27,7 +28,10 @@ DOCS = ROOT / "docs"
 
 _FENCE = re.compile(r"^ *(?P<ticks>`{3,})(?P<language>.*)$")
 _NOT_RUN = "<!-- not run:"
-_NEEDS_NUMPY = re.compile(r"\b(numpy|civiqhub_selene\.blocks)\b")
+_NEEDS_NUMPY = re.compile(r"\b(numpy|civiqhub_selene\.blocks|civiqhub_selene import viz)\b")
+_NEEDS_VIZ = re.compile(
+    r"\b(civiqhub_selene\.viz|civiqhub_selene import viz|networkx|matplotlib)\b"
+)
 
 
 @dataclass(frozen=True)
@@ -82,6 +86,10 @@ def needs_numpy(blocks: list[Block]) -> bool:
     return any(_NEEDS_NUMPY.search(block.code) for block in blocks if block.run)
 
 
+def needs_viz(blocks: list[Block]) -> bool:
+    return any(_NEEDS_VIZ.search(block.code) for block in blocks if block.run)
+
+
 def pages() -> list[Path]:
     """Return the README and every page under ``docs``, when the checkout holds them."""
     found = [ROOT / "README.md", *sorted(DOCS.rglob("*.md"))]
@@ -103,6 +111,9 @@ def test_the_python_blocks_of_a_page_run_and_print_what_the_page_shows(page: Pat
     blocks = blocks_of(page.read_text(encoding="utf-8"))
     if needs_numpy(blocks):
         pytest.importorskip("numpy")
+    if needs_viz(blocks):
+        pytest.importorskip("networkx")
+        pytest.importorskip("matplotlib")
     namespace: dict[str, object] = {"__name__": "__docs__"}
     for block in blocks:
         if not block.run:
@@ -185,3 +196,17 @@ def test_blocks_are_read_with_their_output_and_their_skip_comment() -> None:
 def test_a_page_needs_numpy_when_a_block_that_runs_names_it(code: str, expected: bool) -> None:
     assert needs_numpy([Block(1, code, None, True)]) is expected
     assert needs_numpy([Block(1, code, None, False)]) is False
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        ("from civiqhub_selene import viz\n", True),
+        ("from civiqhub_selene.viz import draw_roles\n", True),
+        ("import matplotlib.pyplot as plt\n", True),
+        ("from civiqhub_selene.blocks import VoteMatrix\n", False),
+    ],
+)
+def test_a_page_needs_viz_when_a_block_that_runs_names_it(code: str, expected: bool) -> None:
+    assert needs_viz([Block(1, code, None, True)]) is expected
+    assert needs_numpy([Block(1, "from civiqhub_selene import viz\n", None, True)]) is True

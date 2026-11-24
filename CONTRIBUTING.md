@@ -1,6 +1,6 @@
 # Contributing to civiqhub-selene
 
-`civiqhub-selene` is an early scaffold and not functional yet. This guide explains how to contribute. Decisions, reviews and releases are described in [`GOVERNANCE.md`](GOVERNANCE.md).
+`civiqhub-selene` is in early development. This guide explains how to contribute. Decisions, reviews and releases are described in [`GOVERNANCE.md`](GOVERNANCE.md).
 
 ## Developer Certificate of Origin
 
@@ -36,7 +36,7 @@ You may add your own copyright line above the SPDX identifier for a substantial 
 ## Dependency policy
 
 - **Core:** the engine relies on the standard library (dataclasses, enums, protocols). NumPy and SciPy are added when a method actually needs them, not in advance. Co-clustering needs NumPy: it lives in `civiqhub_selene.blocks`, behind the `blocks` extra, and the package root and `ordinal` never import it.
-- **Optional:** heavy dependencies (embedding models, graph libraries, data adapters) live in the extras declared in `pyproject.toml` and are never imported by the core.
+- **Optional:** heavy dependencies (embedding models, graph libraries, data adapters) live in the extras declared in `pyproject.toml` and are never imported by the core. The figures of `civiqhub_selene.viz` need NetworkX and Matplotlib, behind the `viz` extra; no other part of the engine imports `viz`.
 - **Boundaries:** the engine depends on neither the `civiqhub` SDK, nor the CiviqHub backend, nor any network service. The service wrapper under `services/api` keeps its own dependencies; they never enter the scientific package.
 - **Licenses:** every dependency, optional ones included, uses a permissive license compatible with Apache-2.0 (BSD, MIT, Apache-2.0, PSF). GPL and AGPL dependencies are excluded by project policy. Model weights and datasets keep their own licenses and are checked separately. Discuss any new dependency in an issue before adding it.
 - **Development tools:** linters, type checkers, test libraries and documentation tools live in the dependency groups of `pyproject.toml`, never in the dependencies or the extras: they are not installed with the package and are not redistributed. They may use another OSI-approved license when no permissive equivalent exists; Hypothesis (MPL-2.0), used for property-based tests, is the one such tool. GPL and AGPL tools stay excluded.
@@ -65,7 +65,7 @@ The documentation site is built from the Markdown pages under [`docs/`](docs) an
 
 ## Data
 
-Tests, vectors, examples and documentation use synthetic data only. Never commit data from real participants, even anonymised, and never include such data in an issue or a pull request.
+Tests, vectors, examples and documentation use synthetic data only. The notebooks of `examples/` read files drawn by `examples/data/make_data.py`; [`examples/README.md`](examples/README.md) says how to run and save them. Never commit data from real participants, even anonymised, and never include such data in an issue or a pull request.
 
 ## Service contributions
 
@@ -78,7 +78,7 @@ git clone https://github.com/civiqhub/civiqhub-selene
 cd civiqhub-selene
 python -m venv .venv && source .venv/bin/activate
 python -m pip install --upgrade pip
-pip install -e ".[blocks]" --group dev
+pip install -e ".[viz]" --group dev
 ruff check && ruff format --check
 mypy
 pytest
@@ -87,7 +87,7 @@ pytest
 To build the documentation site, with Python 3.13 or later:
 
 ```bash
-pip install -e ".[blocks]" --group docs
+pip install -e ".[viz]" --group docs
 python -m sphinx -W -b html docs docs/_build/html
 ```
 
