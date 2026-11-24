@@ -8,6 +8,7 @@ from a CSV file, starts a block model, runs a full inference and draws the resul
 | [`01_spectral_start.ipynb`](01_spectral_start.ipynb) | Load a vote matrix; compute the regularised spectral embedding (DI-SIM, RSC); read its spectrum, its "star" and its projection; find groups and blocks before any model; compare the encodings of the votes |
 | [`02_olbm.ipynb`](02_olbm.ipynb) | Co-clustering with one group per voter (`LatentBlockModel`): choose the shape with the integrated likelihood, compare spectral and random starts, read the result and its provenance, draw the co-clusters, the sorted matrix, the agreement between groups, use the NetworkX graphs as data |
 | [`03_mm_olbm.ipynb`](03_mm_olbm.ipynb) | Mixed memberships (`MixedMembershipBlockModel`): start from the spectral arrangement or from the single-membership result, read and draw the memberships, the roles from block to block and the changes of role, compare both models on held-out votes |
+| [`04_olbm_vs_mm_olbm.ipynb`](04_olbm_vs_mm_olbm.ipynb) | One pipeline for both models, compared on the same footing: main arrangement, members planted in two groups, roles, held-out votes; on a collective with shared members, where the MM-OLBM predicts better, and on one without, where the OLBM does |
 
 The notebooks are saved with their outputs, so they can be read on GitHub without
 running them.

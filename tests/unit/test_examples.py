@@ -43,6 +43,7 @@ def test_the_examples_are_found() -> None:
         "01_spectral_start.ipynb",
         "02_olbm.ipynb",
         "03_mm_olbm.ipynb",
+        "04_olbm_vs_mm_olbm.ipynb",
     ]
 
 
