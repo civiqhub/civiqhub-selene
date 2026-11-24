@@ -22,11 +22,13 @@ except ImportError as error:
     raise MissingExtraError("civiqhub_selene.blocks needs NumPy, which is not installed") from error
 
 from civiqhub_selene.blocks.coclusters import Cocluster, CoclusterTable
+from civiqhub_selene.blocks.covariates import VoterCovariates
 from civiqhub_selene.blocks.data import GroupedVotes, OrdinalScale, Vote, VoteMatrix
 from civiqhub_selene.blocks.mixed import MixedMembershipBlockModel
 from civiqhub_selene.blocks.partition import ItemBlock, Partition, VoterGroup
 from civiqhub_selene.blocks.single import LatentBlockModel
 from civiqhub_selene.blocks.starts import FixedStart, RandomStart, SpectralStart
+from civiqhub_selene.blocks.survey import read_survey_csv
 
 __all__ = [
     "Cocluster",
@@ -42,5 +44,7 @@ __all__ = [
     "SpectralStart",
     "Vote",
     "VoteMatrix",
+    "VoterCovariates",
     "VoterGroup",
+    "read_survey_csv",
 ]

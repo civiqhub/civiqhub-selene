@@ -10,7 +10,7 @@ answer, and only shown cells enter a computation.
 
 import hashlib
 import math
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from functools import cached_property
 from itertools import pairwise
@@ -134,6 +134,44 @@ def _numbered(prefix: str, count: int) -> tuple[str, ...]:
     return tuple(f"{prefix}{number}" for number in range(1, count + 1))
 
 
+def _shared_item_scale(
+    item_scales: Mapping[str, OrdinalScale],
+    columns: tuple[str, ...],
+    scale: OrdinalScale | None,
+) -> OrdinalScale:
+    """Return the unique observation scale of every item, or refuse the first mismatch."""
+    if set(item_scales) != set(columns):
+        raise InvalidInputError("item_scales must have exactly the response table items")
+    sources = tuple(item_scales[item] for item in columns)
+    if not all(isinstance(source, OrdinalScale) for source in sources):
+        raise InvalidInputError("item_scales must contain an OrdinalScale for each item")
+    if not sources:
+        return OrdinalScale() if scale is None else scale
+    reference_item = columns[0]
+    reference = sources[0]
+    for item, source in zip(columns[1:], sources[1:], strict=True):
+        if source.scores != reference.scores:
+            raise InvalidInputError(
+                f"item {item!r} uses the scale {source._formatted()}, "
+                f"which differs from {reference_item!r} ({reference._formatted()})",
+                hint=(
+                    "Give every item the same OrdinalScale; per-item observation "
+                    "scales are SEL-8.2 (ItemScales)."
+                ),
+            )
+    if scale is None:
+        return reference
+    if not isinstance(scale, OrdinalScale):
+        raise InvalidInputError(f"the scale is an OrdinalScale, got {scale!r}")
+    if scale.scores != reference.scores:
+        raise InvalidInputError(
+            f"the given scale {scale._formatted()} differs from the item scale "
+            f"{reference._formatted()}",
+            hint="Omit scale, or pass the same OrdinalScale as every item.",
+        )
+    return scale
+
+
 def _frozen(array: NDArray[Any]) -> None:
     array.setflags(write=False)
 
@@ -156,6 +194,7 @@ class VoteMatrix(Displayable):
         voters: Opaque identifiers of the rows, unique.
         items: Opaque identifiers of the columns, unique.
         scale: The scale of scores. Defaults to the five-score agreement scale.
+        voter_weights: Optional finite, positive survey weights, in row order.
 
     Raises:
         InvalidInputError: If the arrays are not two matrices of the same shape, if a
@@ -168,6 +207,7 @@ class VoteMatrix(Displayable):
     voters: tuple[str, ...]
     items: tuple[str, ...]
     scale: OrdinalScale = field(default_factory=OrdinalScale)
+    voter_weights: FloatArray | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.scale, OrdinalScale):
@@ -206,6 +246,15 @@ class VoteMatrix(Displayable):
         object.__setattr__(self, "shown", shown)
         object.__setattr__(self, "voters", voters)
         object.__setattr__(self, "items", items)
+        if self.voter_weights is not None:
+            received = np.asarray(self.voter_weights)
+            if received.shape != (len(voters),) or received.dtype.kind not in "fiu":
+                raise InvalidInputError("voter_weights must contain one numeric weight per voter")
+            weights: FloatArray = np.array(received, dtype=np.float64)
+            if not np.isfinite(weights).all() or (weights <= 0).any():
+                raise InvalidInputError("voter_weights must be finite and strictly positive")
+            _frozen(weights)
+            object.__setattr__(self, "voter_weights", weights)
 
     # Constructors ---------------------------------------------------------------------
 
@@ -319,23 +368,103 @@ class VoteMatrix(Displayable):
             InvalidInputError: If the rows have different lengths or if a score is not
                 on the scale.
         """
-        scale = OrdinalScale() if scale is None else scale
+        return cls.from_responses(table, voters=voters, items=items, scale=scale)
+
+    @classmethod
+    def from_responses(
+        cls,
+        table: Iterable[Iterable[float | None]],
+        *,
+        voters: Iterable[str] | None = None,
+        items: Iterable[str] | None = None,
+        item_scales: Mapping[str, OrdinalScale] | None = None,
+        scale: OrdinalScale | None = None,
+        shown: ArrayLike | None = None,
+        voter_weights: ArrayLike | None = None,
+    ) -> "VoteMatrix":
+        """Build a survey matrix from a table of scores in voter and item order.
+
+        With ``item_scales``, provide one scale for every item, keyed by its identifier.
+        The order of the keys supplies the column order if ``items`` is omitted. The
+        matrix keeps the original ranks on that scale, in the direction of agreement,
+        and does not recode them onto a common grid.
+
+        Every item must share the same observation scale. A shown cell of item ``j``
+        has ``K_j + 1`` modalities (shown without a vote, or a vote at one of the
+        ``K_j`` ranks). Distinct ``K_j`` wait on SEL-8.2 (ItemScales): the response
+        models still use one shared ``K``. A homogeneous table matches
+        :meth:`from_records` on the same scores, voters and items.
+
+        ``None`` and NaN indicate a cell without a response. The ``shown`` mask
+        distinguishes an abstention from a question that was not shown. A score in a
+        cell marked as not shown is refused. Pass ``voter_weights`` in row order.
+        Each weight must be finite and positive.
+
+        Raises:
+            InvalidInputError: If the dimensions or identifiers do not match, a
+                score is outside its declared scale, a scored cell is marked as not
+                shown, or the item scales are not all the same.
+        """
         rows = [list(row) for row in table]
         widths = {len(row) for row in rows}
         if len(widths) > 1:
             raise InvalidInputError(
                 f"the rows of a table have the same length, got lengths {sorted(widths)}"
             )
-        width = widths.pop() if widths else 0
-        levels = np.zeros((len(rows), width), dtype=np.int64)
+        if item_scales is not None and items is None:
+            items = tuple(item_scales)
+        identifiers = None if items is None else _identifiers(items, "item")
+        width = widths.pop() if widths else len(identifiers or ())
+        columns = _numbered("i", width) if identifiers is None else identifiers
+        if len(columns) != width:
+            raise InvalidInputError("the item identifiers must match the response table columns")
+
+        if item_scales is not None:
+            scale = _shared_item_scale(item_scales, columns, scale)
+        scale = OrdinalScale() if scale is None else scale
+        if not isinstance(scale, OrdinalScale):
+            raise InvalidInputError(f"the scale is an OrdinalScale, got {scale!r}")
+
+        n_rows = len(rows)
+        row_ids = _numbered("v", n_rows) if voters is None else _identifiers(voters, "voter")
+        if len(row_ids) != n_rows:
+            raise InvalidInputError(
+                f"{len(row_ids)} voters do not follow the {n_rows} rows of the table"
+            )
+        shown_array = None if shown is None else np.asarray(shown)
+        levels = np.zeros((n_rows, width), dtype=np.int64)
         for row_position, row in enumerate(rows):
             for column_position, cell in enumerate(row):
-                if cell is None or (isinstance(cell, float) and math.isnan(cell)):
+                if cell is None:
                     continue
-                if isinstance(cell, (float, np.floating)) and float(cell).is_integer():
-                    cell = int(cell)
-                levels[row_position, column_position] = scale.level_of(cell)  # type: ignore[arg-type]
-        return cls.from_arrays(levels, voters=voters, items=items, scale=scale)
+                if isinstance(cell, (float, np.floating)):
+                    if math.isnan(cell):
+                        continue
+                    if float(cell).is_integer():
+                        cell = int(cell)
+                item = columns[column_position]
+                try:
+                    level = scale.level_of(cell)  # type: ignore[arg-type]
+                except InvalidInputError as error:
+                    raise InvalidInputError(f"item {item!r}: {error}", hint=error.hint) from error
+                if (
+                    shown_array is not None
+                    and shown_array.shape == (n_rows, width)
+                    and not bool(shown_array[row_position, column_position])
+                ):
+                    raise InvalidInputError(
+                        f"voter {row_ids[row_position]!r} has a score for item {item!r} "
+                        "in a cell marked as not shown"
+                    )
+                levels[row_position, column_position] = level
+        return cls.from_arrays(
+            levels,
+            shown=shown,
+            voters=row_ids,
+            items=columns,
+            scale=scale,
+            voter_weights=voter_weights,
+        )
 
     @classmethod
     def from_arrays(
@@ -346,6 +475,7 @@ class VoteMatrix(Displayable):
         voters: Iterable[str] | None = None,
         items: Iterable[str] | None = None,
         scale: OrdinalScale | None = None,
+        voter_weights: ArrayLike | None = None,
     ) -> "VoteMatrix":
         """Build a matrix from its internal encoding, as NumPy arrays or lists.
 
@@ -355,6 +485,7 @@ class VoteMatrix(Displayable):
             voters: Identifiers of the rows. Defaults to ``v1, v2, ...``.
             items: Identifiers of the columns. Defaults to ``i1, i2, ...``.
             scale: The scale of scores. Defaults to the five-score agreement scale.
+            voter_weights: Optional survey weights, one per row.
         """
         level_array = np.asarray(levels)
         if level_array.ndim != 2:
@@ -370,6 +501,7 @@ class VoteMatrix(Displayable):
             _numbered("v", level_array.shape[0]) if voters is None else tuple(voters),
             _numbered("i", level_array.shape[1]) if items is None else tuple(items),
             OrdinalScale() if scale is None else scale,
+            None if voter_weights is None else np.asarray(voter_weights),
         )
 
     # Counts ---------------------------------------------------------------------------
@@ -383,6 +515,17 @@ class VoteMatrix(Displayable):
     def n_levels(self) -> int:
         """The number of scores on the scale."""
         return self.scale.n_levels
+
+    @cached_property
+    def _likelihood_weights(self) -> FloatArray | None:
+        """Mean-one survey weights: they average 1, so they sum to the number of voters."""
+        weights = self.voter_weights
+        if weights is None or not weights.size:
+            return weights
+        relative = weights / np.max(weights)
+        scaled: FloatArray = relative / relative.mean()
+        _frozen(scaled)
+        return scaled
 
     @cached_property
     def voted(self) -> BoolArray:
@@ -448,6 +591,7 @@ class VoteMatrix(Displayable):
             tuple(self.voters[row] for row in rows),
             tuple(self.items[column] for column in columns),
             self.scale,
+            None if self.voter_weights is None else self.voter_weights[rows],
         )
 
     def group_by(
@@ -488,13 +632,16 @@ class VoteMatrix(Displayable):
                 f"cells to hold out are booleans of shape {self.levels.shape}, "
                 f"got {mask.dtype} of shape {mask.shape}"
             )
-        return VoteMatrix(self.levels, self.shown & ~mask, self.voters, self.items, self.scale)
+        return VoteMatrix(
+            self.levels, self.shown & ~mask, self.voters, self.items, self.scale, self.voter_weights
+        )
 
     def fingerprint(self) -> str:
         """Return a stable fingerprint of the content: 16 hexadecimal characters.
 
         SHA-256 of the shape, the scores, the identifiers, then the bytes of ``levels``
-        (little-endian 64-bit integers) and of ``shown``.
+        (little-endian 64-bit integers), of ``shown``, and of the survey weights when
+        they are present.
         """
         return self._fingerprint
 
@@ -504,6 +651,8 @@ class VoteMatrix(Displayable):
         digest.update(repr((self.shape, self.scale.scores, self.voters, self.items)).encode())
         digest.update(np.ascontiguousarray(self.levels, dtype="<i8").tobytes())
         digest.update(np.ascontiguousarray(self.shown, dtype=np.uint8).tobytes())
+        if self.voter_weights is not None:
+            digest.update(np.ascontiguousarray(self.voter_weights, dtype="<f8").tobytes())
         return digest.hexdigest()[:16]
 
     def __eq__(self, other: object) -> bool:

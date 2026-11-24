@@ -107,6 +107,7 @@ def _expect(
     item_memberships: FloatArray,
     logs: FloatArray,
     profiles: IntArray,
+    voter_weights: FloatArray | None = None,
 ) -> _Expectation:
     """The exact expectation step over the profiles.
 
@@ -116,6 +117,7 @@ def _expect(
     profile is proportional to ``prod_l voter_memberships[i, c_l] * prod_j den[i, j, c]``
     over the shown cells, and the cell takes the block ``l`` with the probability
     ``item_memberships[j, l] * F[c_l, l, s_ij] / den[i, j, c]`` under that profile.
+    Voter weights multiply contributions to the shared counts and likelihood.
     """
     n_voters, n_items, n_states = states.shape
     n_profiles, n_blocks = profiles.shape
@@ -142,8 +144,12 @@ def _expect(
         totals = logsumexp(scores, axis=1)
         posterior = np.exp(scores - totals[:, np.newaxis])
         profile_probabilities[rows] = posterior
-        log_likelihood += float(totals.sum())
         ratio = np.where(visible, posterior[:, np.newaxis, :] / safe, 0.0)
+        if voter_weights is None:
+            log_likelihood += float(totals.sum())
+        else:
+            log_likelihood += float(totals @ voter_weights[rows])
+            ratio *= voter_weights[rows, np.newaxis, np.newaxis]
         gathered += np.einsum("ijc,ijs->jsc", ratio, states[rows])
     counts: FloatArray = probabilities * np.einsum(
         "jsc,clq,jl->qls", gathered, follows, item_memberships
@@ -182,12 +188,26 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
         log_likelihood = sum_i log sum_c prod_l theta[i, c_l]
                                      * prod_j sum_l phi[j, l] * F[c_l, l, s_ij]
 
+    With optional mean-one survey weights ``w[i]``, ``log_likelihood`` is the
+    weighted pseudo-likelihood of Skinner (1989) and Pfeffermann (1993)::
+
+        log_likelihood = sum_i w[i] * log sum_c prod_l theta[i, c_l]
+                                              * prod_j sum_l phi[j, l] * F[c_l, l, s_ij]
+
+    The value reports this weighted ``log_likelihood``. The co-cluster counts on the
+    value stay the raw, unweighted number of survey rows. A shown cell of item ``j``
+    has ``K_j + 1`` modalities; this estimator currently reads one shared scale of
+    ``K`` scores. Distinct observation scales per item are SEL-8.2 (ItemScales).
+
     The model is estimated by expectation-maximisation, regularised by symmetric
     Dirichlet priors on the memberships, of concentrations ``voter_concentration``
     (alpha) and ``item_concentration`` (beta). It maximises::
 
-        objective = log_likelihood + (alpha - 1) * sum_iq log theta[i, q]
+        objective = log_likelihood + (alpha - 1) * sum_i w[i] * sum_q log theta[i, q]
                                    + (beta - 1) * sum_jl log phi[j, l]
+
+    ``w[i]`` is 1 when the matrix has no survey weights. The prior on ``theta`` is
+    weighted by voter; the prior on ``phi`` is not.
 
     The expectation step is exact: it enumerates the profiles and gives the posterior
     probability of each profile of each voter, the probability of each role on each
@@ -212,7 +232,8 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
     and the main block of an item are their largest membership. Its table of
     co-clusters reads the expected counts. The value carries the observed
     log-likelihood; it has no integrated likelihood, and its shape is compared by the
-    log-likelihood of held-out cells.
+    log-likelihood of held-out cells. A weighted ICL, were it used, would be a
+    Hypothesis. The spectral start does not use the survey weights.
 
     The cost of an iteration grows as ``M * P * Q**L``: the number of profiles is
     bounded by :data:`MAX_PROFILES`.
@@ -220,7 +241,8 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
     References: Airoldi, Blei, Fienberg and Xing (2008), Mixed membership stochastic
     blockmodels, Journal of Machine Learning Research 9, for the mixed membership;
     Dempster, Laird and Rubin (1977) for expectation-maximisation; Corneli, Bouveyron
-    and Latouche (2020) for the ordinal response model. The role per block and the
+    and Latouche (2020) for the ordinal response model; Skinner (1989) and
+    Pfeffermann (1993) for the weighted pseudo-likelihood. The role per block and the
     exact expectation over the profiles follow the reference engine of the CiviqHub
     explainer "LBM and MM-OLBM step by step".
 
@@ -288,7 +310,13 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
         shape = (self.n_groups, self.n_blocks)
         group_index, block_index = self.initialization.arrangement(votes, shape, rng)
         initial = self.response_model.initial_parameters(shape, votes, rng)
-        counts = count_states(votes._states(), group_index, block_index, shape)
+        counts = count_states(
+            votes._states(),
+            group_index,
+            block_index,
+            shape,
+            voter_weights=votes._likelihood_weights,
+        )
         parameters = self.response_model.update(counts, initial)
         return self._state(
             votes,
@@ -311,6 +339,18 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
         self, votes: VoteMatrix, state: _MixedState, history: History, computation: str
     ) -> MixedCoclustering:
         expectation = state.expectation
+        profiles = _profiles(self.n_groups, self.n_blocks)
+        counts = expectation.counts
+        if votes.voter_weights is not None:
+            # The result still reports the number of observed votes, in survey rows.
+            counts = _expect(
+                votes._states(),
+                votes.shown,
+                state.voter_memberships,
+                state.item_memberships,
+                self.response_model.log_probabilities(state.parameters),
+                profiles,
+            ).counts
         return MixedCoclustering(
             computation=computation,
             voters=votes.voters,
@@ -320,13 +360,11 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
             block_index=state.item_memberships.argmax(axis=1),
             group_memberships=state.voter_memberships,
             block_memberships=state.item_memberships,
-            coclusters=self.response_model.to_table(
-                state.parameters, expectation.counts, votes.scale
-            ),
+            coclusters=self.response_model.to_table(state.parameters, counts, votes.scale),
             objective=state.objective,
             history=history,
             role_by_block=expectation.role_by_block,
-            profiles=_profiles(self.n_groups, self.n_blocks),
+            profiles=profiles,
             profile_probabilities=expectation.profile_probabilities,
             log_likelihood=expectation.log_likelihood,
         )
@@ -341,6 +379,7 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
         parameters: Any,
     ) -> _MixedState:
         """Run the expectation step at these memberships and parameters, and score them."""
+        weights = votes._likelihood_weights
         expectation = _expect(
             votes._states(),
             votes.shown,
@@ -348,13 +387,14 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
             item_memberships,
             self.response_model.log_probabilities(parameters),
             _profiles(self.n_groups, self.n_blocks),
+            weights,
         )
         alpha, beta = float(self.voter_concentration), float(self.item_concentration)
         objective = expectation.log_likelihood
         if alpha != 1.0:
-            objective += (alpha - 1.0) * float(
-                np.log(np.maximum(voter_memberships, _MIN_PROBABILITY)).sum()
-            )
+            log_prior = np.log(np.maximum(voter_memberships, _MIN_PROBABILITY))
+            prior_sum = log_prior.sum() if weights is None else log_prior.sum(axis=1) @ weights
+            objective += (alpha - 1.0) * float(prior_sum)
         if beta != 1.0:
             objective += (beta - 1.0) * float(
                 np.log(np.maximum(item_memberships, _MIN_PROBABILITY)).sum()

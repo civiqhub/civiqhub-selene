@@ -13,8 +13,11 @@ Changes to a method, its parameters or its reference vectors are listed explicit
 - The documentation site publishes only the latest release and the development branch. Earlier releases are not built (Decision of 2026-11-24).
 - The development branch carries the version `0.1.0.dev0`, so that the provenance of a result computed from it (`engine_version`) cannot be mistaken for the published 0.0.1. The service scaffold under `services/api` stays at 0.0.1 until the next release.
 - Block models take a new setting, `initialization`, the object that gives the arrangement each start begins from. Its default, `RandomStart()`, draws exactly the former random starts: the values of `LatentBlockModel` and its reference vector are unchanged. The setting enters the provenance, so the fingerprint of a result computed before this change differs from the fingerprint of the same computation now.
+- The classified log-likelihood of `LatentBlockModel` and the observed log-likelihood of `MixedMembershipBlockModel` take mean-one survey weights as a weighted pseudo-likelihood (Skinner 1989, Pfeffermann 1993). The weighted ICL of the single-membership model is a Hypothesis. Reported co-cluster counts stay the raw number of survey rows.
 
 ### Added
+
+- Survey input through `VoteMatrix.from_responses`, `read_survey_csv` and `VoterCovariates`. `from_responses` keeps each item's original ranks and the direction of agreement; it refuses heterogeneous observation scales until SEL-8.2 (ItemScales). Optional mean-one voter weights enter both block models. `VoterCovariates` lives in `blocks.covariates` and is re-exported from `civiqhub_selene.blocks`.
 
 - Core contract shared by every method, on the standard library alone: the `SeleneError` hierarchy (`errors`), the provenance and result types `Method`, `Randomness`, `Provenance`, `Result`, `Unavailable`, `StandardError` and `Interval` (`types`), the `Estimator` base class whose `estimate` is written once (`estimator`), the `Registry` of estimators read from the `civiqhub_selene.estimators` entry points (`registry`), and the contract kit `EstimatorContract` (`testing`).
 - `ordinal.VoteCounts`, the five vote counts of an item on the agreement scale, with exact shares.

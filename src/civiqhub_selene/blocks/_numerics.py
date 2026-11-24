@@ -45,7 +45,12 @@ def one_hot(labels: IntArray, n: int) -> FloatArray:
 
 
 def count_states(
-    states: FloatArray, rows: IntArray, cols: IntArray, shape: tuple[int, int]
+    states: FloatArray,
+    rows: IntArray,
+    cols: IntArray,
+    shape: tuple[int, int],
+    *,
+    voter_weights: FloatArray | None = None,
 ) -> FloatArray:
     """Count the cells of each co-cluster in each state, for hard labels.
 
@@ -57,14 +62,16 @@ def count_states(
         rows: Label of each row, of shape (M,), in ``0..Q-1``.
         cols: Label of each column, of shape (P,), in ``0..L-1``.
         shape: ``(Q, L)``.
+        voter_weights: Optional multiplicative weight of each row.
 
     Returns:
         An array of shape (Q, L, S).
     """
     n_groups, n_blocks = shape
-    counts: FloatArray = np.einsum(
-        "iq,jl,ijs->qls", one_hot(rows, n_groups), one_hot(cols, n_blocks), states
-    )
+    groups = one_hot(rows, n_groups)
+    if voter_weights is not None:
+        groups *= voter_weights[:, np.newaxis]
+    counts: FloatArray = np.einsum("iq,jl,ijs->qls", groups, one_hot(cols, n_blocks), states)
     return counts
 
 

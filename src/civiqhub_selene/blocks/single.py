@@ -55,10 +55,18 @@ def _voter_scores(
 
 
 def _item_scores(
-    states: FloatArray, logs: FloatArray, group_index: IntArray, block_shares: FloatArray
+    states: FloatArray,
+    logs: FloatArray,
+    group_index: IntArray,
+    block_shares: FloatArray,
+    voter_weights: FloatArray | None = None,
 ) -> FloatArray:
     """Return the score of each item for each block, the groups being fixed. Shape (P, L)."""
-    by_cell = np.einsum("ijs,ils->jl", states, logs[group_index])
+    scored = logs[group_index]
+    if voter_weights is None:
+        by_cell = np.einsum("ijs,ils->jl", states, scored)
+    else:
+        by_cell = np.einsum("ijs,ils,i->jl", states, scored, voter_weights)
     scores: FloatArray = by_cell + np.log(np.maximum(block_shares, _MIN_SHARE))
     return scores
 
@@ -108,6 +116,18 @@ class LatentBlockModel(BlockModel[_HardState, SingleCoclustering]):
         objective = sum_ij sum_s S[i, j, s] * log p[R[i], C[j], s]
                     + sum_i log group_shares[R[i]] + sum_j log block_shares[C[j]]
 
+    With optional mean-one survey weights ``w[i]``, this becomes the weighted
+    pseudo-likelihood of Skinner (1989) and Pfeffermann (1993)::
+
+        objective = sum_i w[i] * (sum_j sum_s S[i, j, s] * log p[R[i], C[j], s]
+                                  + log group_shares[R[i]])
+                    + sum_j log block_shares[C[j]]
+
+    When every weight is 1 this is the unweighted objective. The block-share term is
+    not multiplied by ``w[i]``: with a single block it is zero, and the response
+    parameters then match those of a row duplication. The spectral start and the
+    reported ``group_memberships`` do not use the survey weights.
+
     Each start begins from the arrangement its ``initialization`` gives: random by
     default, or the one of regularised spectral co-clustering with ``SpectralStart()``.
     Each iteration updates the parameters of the response model and the shares from
@@ -121,6 +141,11 @@ class LatentBlockModel(BlockModel[_HardState, SingleCoclustering]):
         integrated_likelihood = objective - complexity_penalty of the response model
                                 - 0.5 * (Q - 1) * log(M) - 0.5 * (L - 1) * log(P)
 
+    Using that same penalty on the weighted objective is a Hypothesis: a weighted ICL
+    is not a settled model-selection criterion. A shown cell of item ``j`` has
+    ``K_j + 1`` modalities; this estimator currently reads one shared scale of ``K``
+    scores. Distinct observation scales per item are SEL-8.2 (ItemScales).
+
     The memberships of the value are soft readings of the final arrangement: the
     scores of each voter for each group, turned into shares that sum to 1.
 
@@ -128,7 +153,8 @@ class LatentBlockModel(BlockModel[_HardState, SingleCoclustering]):
     Pattern Recognition 36(2); Biernacki, Celeux and Govaert (2000), Assessing a
     mixture model for clustering with the integrated completed likelihood, IEEE
     Transactions on Pattern Analysis and Machine Intelligence 22(7); Corneli,
-    Bouveyron and Latouche (2020) for the ordinal response model.
+    Bouveyron and Latouche (2020) for the ordinal response model; Skinner (1989)
+    and Pfeffermann (1993) for the weighted pseudo-likelihood.
 
     The settings are those of :class:`~civiqhub_selene.blocks.base.BlockModel`.
     """
@@ -156,20 +182,32 @@ class LatentBlockModel(BlockModel[_HardState, SingleCoclustering]):
         states = votes._states()
         n_voters, n_items = votes.shape
         shape = (self.n_groups, self.n_blocks)
-        counts = count_states(states, state.group_index, state.block_index, shape)
+        weights = votes._likelihood_weights
+        counts = count_states(
+            states, state.group_index, state.block_index, shape, voter_weights=weights
+        )
         parameters = self.response_model.update(counts, state.parameters)
-        group_shares = np.bincount(state.group_index, minlength=self.n_groups) / n_voters
+        group_mass = np.bincount(state.group_index, weights=weights, minlength=self.n_groups)
+        group_shares = group_mass / n_voters
         block_shares = np.bincount(state.block_index, minlength=self.n_blocks) / n_items
         logs = self.response_model.log_probabilities(parameters)
         group_index = _sweep(
             state.group_index, _voter_scores(states, logs, state.block_index, group_shares)
         )
         block_index = _sweep(
-            state.block_index, _item_scores(states, logs, group_index, block_shares)
+            state.block_index, _item_scores(states, logs, group_index, block_shares, weights)
         )
+        cell_logs = logs[group_index][:, block_index, :]
+        group_logs = np.log(np.maximum(group_shares[group_index], _MIN_SHARE))
+        if weights is None:
+            response_score = float(np.einsum("ijs,ijs->", states, cell_logs))
+            group_score = float(group_logs.sum())
+        else:
+            response_score = float(np.einsum("ijs,ijs,i->", states, cell_logs, weights))
+            group_score = float(group_logs @ weights)
         objective = (
-            float(np.einsum("ijs,ijs->", states, logs[group_index][:, block_index, :]))
-            + float(np.log(np.maximum(group_shares[group_index], _MIN_SHARE)).sum())
+            response_score
+            + group_score
             + float(np.log(np.maximum(block_shares[block_index], _MIN_SHARE)).sum())
         )
         return _HardState(
@@ -184,7 +222,9 @@ class LatentBlockModel(BlockModel[_HardState, SingleCoclustering]):
         shape = (self.n_groups, self.n_blocks)
         logs = self.response_model.log_probabilities(state.parameters)
         voter_scores = _voter_scores(states, logs, state.block_index, state.group_shares)
-        item_scores = _item_scores(states, logs, state.group_index, state.block_shares)
+        item_scores = _item_scores(
+            states, logs, state.group_index, state.block_shares, votes._likelihood_weights
+        )
         counts = count_states(states, state.group_index, state.block_index, shape)
         integrated_likelihood = (
             state.objective

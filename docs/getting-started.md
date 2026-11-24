@@ -81,7 +81,76 @@ Three things to notice:
 - **The seed is explicit.** The same votes, the same settings and the same seed give the same result.
 - **The call is the same for every method.** {py:meth}`~civiqhub_selene.estimator.Estimator.estimate` is written once, for all estimators.
 
-To build a matrix from your own votes, see the constructors of {py:class}`~civiqhub_selene.blocks.data.VoteMatrix`: `from_records`, `from_table` and `from_arrays`.
+To build a matrix from your own votes, see the constructors of {py:class}`~civiqhub_selene.blocks.data.VoteMatrix`: `from_records`, `from_table`, `from_arrays` and `from_responses`.
+
+### Survey responses
+
+Use `VoteMatrix.from_responses` for a respondent-by-item table of ordinal scores.
+Supply a mapping from each item identifier to its `OrdinalScale`. The keys give
+the column order unless `items` supplies it explicitly. Pass unique voter
+identifiers in table order. Each cell holds an integer score on the source scale
+or a missing value (`None` or NaN). A boolean `shown` mask distinguishes an
+unshown question from an abstention. By default every question is shown. A score
+in a cell marked as not shown is refused.
+
+The model that SEL-8.2 (`ItemScales`) and SEL-8.3 aim at is a continuous Gaussian
+latent, of parameters μ and σ, for each co-cluster of
+{py:class}`~civiqhub_selene.blocks.responses.OrdinalProbit`. Each item `j` would
+then have its own observation scale, with `K_j` ranks and its own thresholds, so
+a shown cell has `K_j + 1` modalities. The CEM or EM loop would run on those
+latents. Today the thresholds of `OrdinalProbit` are fixed and common to every
+item. `from_responses` keeps the original ranks of each column and the direction
+of agreement; it does not recode them onto a common grid.
+
+The response models still use one shared `K`. Distinct observation scales are
+refused, naming the first item that differs, until SEL-8.2 (`ItemScales`). A
+homogeneous table matches `from_records` on the same scores, voters and items.
+
+Give the optional `voter_weights` in row order, using one finite positive weight
+per respondent. A survey row with zero weight can be removed before creating
+the matrix. Both block models rescale the weights to average 1. In the
+single-membership model they multiply each voter's response and group-membership
+log terms. In the mixed-membership model they multiply each voter's marginal
+log-likelihood and voter-specific regularisation term. Shared parameter updates
+use the corresponding weighted counts. Item membership regularisation and
+reported response counts keep their usual, unweighted definitions. The spectral
+start and the reported `group_memberships` of the single-membership model are
+not weighted. When the block-share term is neutral (a single block), the fitted
+response parameters match those of a row duplication.
+
+Build a `VoterCovariates` table with `VoterCovariates.from_records(votes, records)`.
+Give one record per voter identifier and the same fields in each record, using
+`None` for missing covariates. The constructor aligns the records to
+`votes.voters`. The covariate table is available for analysis beside the matrix.
+
+For a wide CSV with one row per voter, use `read_survey_csv` with the same
+per-item scales. The reader is part of the input contract of the library. It
+accepts an open text stream. A prepared semicolon CSV can specify ID, weight and
+covariate columns separately:
+
+```python
+from io import StringIO
+
+from civiqhub_selene.blocks import OrdinalScale, read_survey_csv
+
+records = StringIO("responseid;Q1;Q2;weight;mode\nA;2;5;1.25;web\nB;;2;0.75;phone\n")
+five = OrdinalScale((1, 2, 3, 4, 5))
+survey_votes, survey_covariates = read_survey_csv(
+    records,
+    item_scales={"Q1": five, "Q2": five},
+    weight_column="weight",
+    covariate_columns=("mode",),
+    delimiter=";",
+    unshown_label="",
+)
+```
+
+For a file, open it with `newline=""` and `encoding="utf-8-sig"` in place of
+`StringIO`. Declare the full scale of each question, even if some ranks are
+unobserved. The example uses `unshown_label=""` to exclude blank cells from
+the likelihood, as when the prepared data have no indication that the question
+was presented. By default, blank scores count as abstentions. Covariate values
+are read as text and an empty covariate is represented by `None`.
 
 ## Read the result
 
