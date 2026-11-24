@@ -13,7 +13,15 @@ requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "CiviqHub SAS", email = "contact@civiqhub.com" }]
-keywords = ["civiqhub", "selene", "collective decision", "deliberation"]
+keywords = [
+  "civiqhub",
+  "selene",
+  "collective decision",
+  "deliberation",
+  "co-clustering",
+  "latent block model",
+  "spectral clustering",
+]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Science/Research",
@@ -39,11 +47,15 @@ semantic = []
 landscape = []
 # Co-clustering (civiqhub_selene.blocks). NumPy is BSD-3-Clause.
 blocks = ["numpy>=2.0"]
+# Graphs and figures of co-clustering results (civiqhub_selene.viz). NetworkX is
+# BSD-3-Clause; Matplotlib uses the Matplotlib license, based on the PSF license.
+viz = ["civiqhub-selene[blocks]", "networkx>=3.4", "matplotlib>=3.9"]
 
 # Estimators the engine ships, by key "family.choice". A package adds its own under the
 # same group; reading the registry imports nothing.
 [project.entry-points."civiqhub_selene.estimators"]
 "coclustering.single" = "civiqhub_selene.blocks.single:LatentBlockModel"
+"coclustering.mixed" = "civiqhub_selene.blocks.mixed:MixedMembershipBlockModel"
 
 [project.urls]
 Homepage = "https://civiqhub.com"
@@ -55,9 +67,12 @@ Changelog = "https://github.com/civiqhub/civiqhub-selene/blob/main/CHANGELOG.md"
 [dependency-groups]
 # Hypothesis (MPL-2.0) is a test tool only: it is never a dependency of the package.
 test = ["pytest>=9.1", "hypothesis>=6.170"]
-# mypy also checks the tests, so it needs pytest.
-lint = [{ include-group = "test" }, "ruff==0.17.2", "mypy==2.4.0"]
+# mypy also checks the tests, so it needs pytest. The stubs of NetworkX are Apache-2.0.
+lint = [{ include-group = "test" }, "ruff==0.17.2", "mypy==2.4.0", "types-networkx"]
 dev = [{ include-group = "lint" }, "build>=1.6", "twine>=7.0"]
+# Running the notebooks of examples/ from the command line. nbclient, nbformat and
+# ipykernel are BSD-3-Clause.
+examples = ["nbclient>=0.10", "nbformat>=5.10", "ipykernel>=6.29"]
 # The documentation site (docs/). Sphinx 9 needs Python 3.13, so this group stays out of
 # dev. Sphinx and sphinxcontrib-mermaid are BSD-2-Clause; MyST-Parser and Furo are MIT;
 # sphinxext-opengraph is BSD-3-Clause.
@@ -88,7 +103,10 @@ testpaths = ["tests"]
 addopts = ["--import-mode=importlib", "--strict-config", "--strict-markers", "-ra"]
 xfail_strict = true
 filterwarnings = ["error"]
-markers = ["blocks: tests that need the blocks extra"]
+markers = [
+  "blocks: tests that need the blocks extra",
+  "viz: tests that need the viz extra",
+]
 
 [tool.ruff]
 target-version = "py311"

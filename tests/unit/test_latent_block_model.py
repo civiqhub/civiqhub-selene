@@ -82,6 +82,7 @@ def test_identity() -> None:
 
 def test_it_has_no_setting_of_its_own() -> None:
     assert [name for name, _ in settings_of(LatentBlockModel())] == [
+        "initialization",
         "max_iterations",
         "n_blocks",
         "n_groups",

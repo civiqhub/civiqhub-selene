@@ -62,7 +62,7 @@ napoleon_use_rtype = False
 # documentation of other packages: their names are declared here, by top-level package.
 nitpicky = True
 nitpick_ignore_regex = [
-    ("py:.*", r"(abc|collections|enum|fractions|numpy)\..*"),
+    ("py:.*", r"(abc|collections|enum|fractions|matplotlib|networkx|numpy)\..*"),
     # Private modules, private module-level names and type variables are not documented.
     ("py:.*", r"civiqhub_selene(\.[a-z]\w*)*\._\w+(\..*)?"),
     ("py:.*", r"civiqhub_selene\..+\.\w*T(_co|_contra)?"),

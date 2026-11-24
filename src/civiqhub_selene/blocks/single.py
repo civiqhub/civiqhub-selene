@@ -108,6 +108,8 @@ class LatentBlockModel(BlockModel[_HardState, SingleCoclustering]):
         objective = sum_ij sum_s S[i, j, s] * log p[R[i], C[j], s]
                     + sum_i log group_shares[R[i]] + sum_j log block_shares[C[j]]
 
+    Each start begins from the arrangement its ``initialization`` gives: random by
+    default, or the one of regularised spectral co-clustering with ``SpectralStart()``.
     Each iteration updates the parameters of the response model and the shares from
     the current arrangement, then moves the voters to their best group, the blocks
     being fixed, then the items to their best block. No group and no block ever
@@ -139,11 +141,8 @@ class LatentBlockModel(BlockModel[_HardState, SingleCoclustering]):
     default_criterion = "integrated_likelihood"
 
     def _start(self, votes: VoteMatrix, rng: np.random.Generator) -> _HardState:
-        n_voters, n_items = votes.shape
         shape = (self.n_groups, self.n_blocks)
-        # A permutation modulo the number of clusters leaves no cluster empty.
-        group_index = (rng.permutation(n_voters) % self.n_groups).astype(np.int64)
-        block_index = (rng.permutation(n_items) % self.n_blocks).astype(np.int64)
+        group_index, block_index = self.initialization.arrangement(votes, shape, rng)
         return _HardState(
             group_index,
             block_index,

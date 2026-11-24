@@ -10,7 +10,8 @@ A result describes a group and decides nothing. Every result carries its value o
 | --- | --- | --- |
 | [`civiqhub_selene`](reference/civiqhub_selene.md) | The contract every method shares: errors, results with their provenance, the base class of estimators, the registry, the contract kit | The standard library |
 | [`civiqhub_selene.ordinal`](reference/civiqhub_selene.ordinal.md) | The ordinal reading of the votes on one item | The standard library |
-| [`civiqhub_selene.blocks`](reference/civiqhub_selene.blocks.md) | Co-clustering: groups of voters and blocks of items that vote alike | NumPy, behind the `blocks` extra |
+| [`civiqhub_selene.blocks`](reference/civiqhub_selene.blocks.md) | Co-clustering: groups of voters and blocks of items that vote alike, with one group per voter or mixed memberships, from a random or a spectral start | NumPy, behind the `blocks` extra |
+| [`civiqhub_selene.viz`](reference/civiqhub_selene.viz.md) | Co-clustering results as NetworkX graphs, and their figures | NetworkX and Matplotlib, behind the `viz` extra |
 
 ## Démarrer
 
@@ -46,6 +47,16 @@ A result describes a group and decides nothing. Every result carries its value o
       <p>Comment le moteur est construit, et comment y ajouter une méthode.</p>
     </div>
   </a>
+  <a class="civiqhub-card" href="examples.html">
+    <div class="civiqhub-card-banner">
+      <img class="only-light" src="_static/civiqhub-logo-light.svg" alt="" width="152" height="41">
+      <img class="only-dark" src="_static/civiqhub-logo-dark.svg" alt="" width="152" height="41">
+    </div>
+    <div class="civiqhub-card-body">
+      <span class="civiqhub-card-title">Exemples</span>
+      <p>Des notebooks qui chargent des votes, lancent l'OLBM et le MM-OLBM et dessinent les résultats.</p>
+    </div>
+  </a>
   <a class="civiqhub-card" href="reference/index.html">
     <div class="civiqhub-card-banner">
       <img class="only-light" src="_static/civiqhub-logo-light.svg" alt="" width="152" height="41">
@@ -67,6 +78,7 @@ Accueil <self>
 Premiers pas <getting-started>
 Plan de la bibliothèque <library-map>
 Architecture <architecture>
+Exemples <examples>
 ```
 
 ```{toctree}

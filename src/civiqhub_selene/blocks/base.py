@@ -25,6 +25,7 @@ from typing import Any, ClassVar, Generic, Self
 from civiqhub_selene.blocks.data import VoteMatrix
 from civiqhub_selene.blocks.iterative import IterativeEstimator, StateT
 from civiqhub_selene.blocks.responses import OrdinalProbit, ResponseModel
+from civiqhub_selene.blocks.starts import Initialization, RandomStart
 from civiqhub_selene.errors import EstimatorDefinitionError, InvalidParameterError
 from civiqhub_selene.estimator import Estimator, ValueT_co
 from civiqhub_selene.registry import Registry, default_registry
@@ -49,6 +50,7 @@ _RESPONSE_MODEL_METHODS = (
     "complexity_penalty",
     "to_table",
 )
+_INITIALIZATION_METHODS = ("arrangement",)
 
 
 def availability(votes: VoteMatrix, n_groups: int = 1, n_blocks: int = 1) -> Unavailable | None:
@@ -169,7 +171,8 @@ class BlockModel(
 
     A block model is a latent structure (groups of voters, blocks of items) and a
     response model for its co-clusters. A concrete model declares its identity and
-    writes ``_start``, ``_step`` and ``_finish``.
+    writes ``_start``, ``_step`` and ``_finish``; its ``_start`` reads the arrangement
+    of the start from ``initialization``.
 
     Attributes:
         n_groups: Number of groups of voters, at least 1. Defaults to 2.
@@ -182,6 +185,9 @@ class BlockModel(
             Defaults to 200.
         tolerance: Gain of objective under which a start stops, at least 0.
             Defaults to 1e-6.
+        initialization: The object that gives the arrangement each start begins from.
+            Defaults to ``RandomStart()``; ``SpectralStart()`` starts from regularised
+            spectral co-clustering.
 
     Raises:
         InvalidParameterError: If a setting is outside its range.
@@ -193,6 +199,7 @@ class BlockModel(
     n_starts: int = 6
     max_iterations: int = 200
     tolerance: float = 1e-6
+    initialization: Initialization = field(default_factory=RandomStart)
 
     def __post_init__(self) -> None:
         for name in ("n_groups", "n_blocks", "n_starts", "max_iterations"):
@@ -217,6 +224,13 @@ class BlockModel(
             raise InvalidParameterError(
                 f"response_model is a response model such as OrdinalProbit() or Categorical(); "
                 f"{self.response_model!r} has no {', '.join(missing)}"
+            )
+        if not all(
+            callable(getattr(self.initialization, name, None)) for name in _INITIALIZATION_METHODS
+        ):
+            raise InvalidParameterError(
+                f"initialization is a start object such as RandomStart() or SpectralStart(); "
+                f"{self.initialization!r} has no arrangement"
             )
 
     def with_shape(self, n_groups: int, n_blocks: int) -> Self:
