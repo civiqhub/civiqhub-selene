@@ -284,6 +284,16 @@ class ClusterProfiler:
         dropped = (len(membership.ids) - len(common), len(metadata) - len(common))
 
         theta = weights.to_numpy()
+        empty = [
+            group
+            for group, mass in zip(weights.columns, theta.sum(axis=0), strict=True)
+            if mass == 0
+        ]
+        if empty:
+            raise ValueError(
+                f"groups without any member after joining memberships and metadata: {empty}; "
+                "drop them from the memberships"
+            )
         hard = membership.is_hard
         s = np.ones(len(common))
         if spec.weight_column is not None:
