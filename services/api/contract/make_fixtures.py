@@ -537,9 +537,12 @@ def rendered() -> dict[pathlib.Path, str]:
     return files
 
 
-# Metadata of the environment that computed a fixture, not of the computation: another
-# Python, NumPy or engine release writes other values for the same numbers.
-ENVIRONMENT_KEYS = frozenset({"dependencies", "engine_version"})
+# Fields that describe how a fixture was computed rather than what it is: the environment
+# (another Python, NumPy or engine release writes other values for the same numbers) and
+# the history of the iterations (from a start built on singular vectors, another
+# processor may follow another path to the same optimum). The reference never promises
+# them; it promises the partition, the optimum and the memberships.
+ENVIRONMENT_KEYS = frozenset({"dependencies", "engine_version", "history"})
 
 
 def canonical(document: object) -> object:
