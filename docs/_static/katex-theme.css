@@ -1,0 +1,12 @@
+/* Copyright 2026 CiviqHub SAS */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* Loaded after katex/katex.min.css, on the pages that hold a formula only
+   (docs/_ext/katex_local.py). */
+
+/* Sphinx numbers the equations, so that {eq} references and numbers agree. KaTeX also
+   numbers align, equation and gather by itself: those numbers are hidden. */
+.katex .eqn-num::before {
+  content: none;
+  counter-increment: none;
+}
