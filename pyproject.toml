@@ -128,5 +128,5 @@ files = [
   ".github/scripts/check-version.py",
   ".github/scripts/build-docs-site.py",
 ]
-mypy_path = ["src", "services/api/src", "services/api/contract"]
+mypy_path = ["src", "services/api/src", "services/api/contract", "services/api/tests"]
 explicit_package_bases = true
