@@ -10,6 +10,8 @@ the error schema and never echoes the request. Probes need no token and never re
 whether a computation runs.
 """
 
+import asyncio
+import contextlib
 import json
 import logging
 import re
@@ -31,8 +33,9 @@ from selene_api.adapters import ADAPTERS, adapter_for, kinds
 from selene_api.config import Settings
 from selene_api.errors import ApiError, FieldIssue
 from selene_api.jobs import BusyError, ConflictError, Job, JobManager, ShuttingDownError
+from selene_api.metrics import Metrics
 from selene_api.runner import Runner, RunOutcome
-from selene_api.security import TokenStore, bearer_token
+from selene_api.security import CertificateReloader, TokenStore, bearer_token
 from selene_api.versions import Versions
 
 __all__ = ["BUSY_RETRY_AFTER_SECONDS", "Service", "create_app"]
@@ -47,31 +50,63 @@ _STARTUP_TIMEOUT_SECONDS = 120.0
 Phase = Literal["starting", "ready", "shutting_down"]
 
 
+_CERTIFICATE_CHECK_SECONDS = 5.0
+
+
 @dataclass
 class Service:
-    """What the routes share: settings, tokens, jobs, runner and versions."""
+    """What the routes share: settings, tokens, jobs, runner, versions and metrics."""
 
     settings: Settings
     tokens: TokenStore
     runner: Runner
     versions: Versions
     manager: JobManager
+    metrics: Metrics
+    certificates: CertificateReloader | None = None
     phase: Phase = "starting"
     methods: dict[tuple[str, int], dict[str, str]] = field(default_factory=dict)
 
     @classmethod
     def build(
-        cls, settings: Settings, tokens: TokenStore, runner: Runner, versions: Versions
+        cls,
+        settings: Settings,
+        tokens: TokenStore,
+        runner: Runner,
+        versions: Versions,
+        *,
+        metrics: Metrics | None = None,
+        certificates: CertificateReloader | None = None,
     ) -> "Service":
-        """Assemble a service and its job manager from its parts."""
+        """Assemble a service, its job manager and its metrics from its parts."""
+        metrics = metrics or Metrics()
         manager = JobManager(
             runner,
             job_timeout_seconds=settings.job_timeout_seconds,
             result_ttl_seconds=settings.result_ttl_seconds,
             max_retained_jobs=settings.max_retained_jobs,
-            on_finish=_log_finish,
+            on_finish=lambda job, outcome: _finished(metrics, job, outcome),
         )
-        return cls(settings, tokens, runner, versions, manager)
+        service = cls(settings, tokens, runner, versions, manager, metrics, certificates)
+        service._describe_metrics()
+        return service
+
+    def _describe_metrics(self) -> None:
+        metrics = self.metrics
+        metrics.build.info(
+            {
+                "service_version": self.versions.service,
+                "contract_version": self.versions.contract,
+                "engine_version": self.versions.engine,
+                "environment": self.settings.environment or "",
+            }
+        )
+        metrics.slots.set(self.manager.slots)
+        metrics.worker_memory_limit.set(self.settings.worker_memory_bytes)
+        metrics.ready.set_function(lambda: 1.0 if self.phase == "ready" else 0.0)
+        metrics.busy.set_function(lambda: float(self.manager.running))
+        metrics.retained.set_function(lambda: float(self.manager.held))
+        metrics.token_usable.set_function(lambda: 1.0 if self.tokens.usable else 0.0)
 
     async def start(self) -> None:
         """Check that a computation process starts and serves every kind, then get ready.
@@ -83,6 +118,8 @@ class Service:
         description = await self.runner.describe(timeout=_STARTUP_TIMEOUT_SECONDS)
         if description.get("engine_version") != self.versions.engine:
             raise RuntimeError("the computation process runs another engine version")
+        if description.get("threads") not in (None, 1):
+            raise RuntimeError("the computation process runs more than one thread")
         methods = {
             (entry["kind"], entry["schema_version"]): entry["method"]
             for entry in description.get("kinds", [])
@@ -92,21 +129,51 @@ class Service:
         self.methods = methods
         self.phase = "ready"
 
+    def draining(self) -> None:
+        """Stop receiving computations at once, as soon as the shutdown is asked."""
+        if self.phase == "ready":
+            self.phase = "shutting_down"
+
     async def stop(self) -> None:
         """Refuse new jobs, stop the running computation and forget every job."""
         self.phase = "shutting_down"
         await self.manager.shutdown()
 
+    async def watch_certificates(self) -> None:
+        """Reload the server certificate when its files change, until cancelled."""
+        if self.certificates is None:
+            return
+        while True:
+            await asyncio.sleep(_CERTIFICATE_CHECK_SECONDS)
+            failures = self.certificates.failures
+            if self.certificates.refresh():
+                self.metrics.tls_reloads.inc()
+                logs.event("certificate_reloaded", reloads=self.certificates.reloads)
+            elif self.certificates.failures > failures:
+                self.metrics.tls_reload_failures.inc()
+                logs.event("certificate_reload_failed", logging.ERROR)
 
-def _log_finish(job: Job, outcome: RunOutcome | None) -> None:
+
+def _finished(metrics: Metrics, job: Job, outcome: RunOutcome | None) -> None:
     error = job.error or {}
+    if job.state == "succeeded":
+        reason = "value" if (job.result or {}).get("available") else "unavailable"
+    else:
+        reason = str(error.get("code", "unknown"))
+    metrics.finished.labels(job.kind, job.state, reason).inc()
+    if job.started_at is not None and job.finished_at is not None:
+        seconds = (job.finished_at - job.started_at).total_seconds()
+        metrics.duration.labels(job.kind, job.state).observe(seconds)
+    peak = None if outcome is None else outcome.peak_rss_bytes
+    if peak is not None:
+        metrics.worker_peak_rss.set(peak)
     logs.event(
         "job_finished",
         job_id=job.id,
         kind=job.kind,
         state=job.state,
         code=error.get("code"),
-        peak_rss_bytes=None if outcome is None else outcome.peak_rss_bytes,
+        peak_rss_bytes=peak,
     )
 
 
@@ -232,32 +299,46 @@ async def service_info(request: Request) -> Response:
 async def submit(request: Request) -> Response:
     service = _service(request)
     _authenticate(service, request)
+    counted = service.metrics.submissions
     if service.phase == "starting":
+        counted.labels("unknown", "not_ready").inc()
         raise ApiError.not_ready()
     if service.phase == "shutting_down":
+        counted.labels("unknown", "not_ready").inc()
         raise ApiError.shutting_down()
-    media = request.headers.get("content-type", "").split(";")[0].strip().lower()
-    if media != "application/json":
-        raise ApiError.media_type()
-    raw = await _body(request, service.settings.max_body_bytes)
-    adapter = _adapter(_decoded(raw))
-    task = adapter.prepare(raw, service.settings.limits)
+    kind = "unknown"
+    try:
+        media = request.headers.get("content-type", "").split(";")[0].strip().lower()
+        if media != "application/json":
+            raise ApiError.media_type()
+        raw = await _body(request, service.settings.max_body_bytes)
+        adapter = _adapter(_decoded(raw))
+        kind = adapter.kind
+        task = adapter.prepare(raw, service.settings.limits)
+    except ApiError:
+        counted.labels(kind, "refused").inc()
+        raise
     try:
         submitted = service.manager.submit(task)
     except ConflictError:
-        logs.event("job_conflict", kind=task.kind)
+        counted.labels(kind, "conflict").inc()
+        logs.event("job_conflict", kind=kind)
         raise ApiError.conflict() from None
     except BusyError:
-        logs.event("job_busy", kind=task.kind)
+        counted.labels(kind, "busy").inc()
+        logs.event("job_busy", kind=kind)
         raise ApiError.busy(BUSY_RETRY_AFTER_SECONDS) from None
     except ShuttingDownError:
+        counted.labels(kind, "not_ready").inc()
         raise ApiError.shutting_down() from None
     job = submitted.job
     document = job.document(service.versions.of_job())
     if submitted.replayed:
-        logs.event("job_replayed", job_id=job.id, kind=job.kind, state=job.state)
+        counted.labels(kind, "replayed").inc()
+        logs.event("job_replayed", job_id=job.id, kind=kind, state=job.state)
         return _json(document, 200)
-    logs.event("job_started", job_id=job.id, kind=job.kind, schema_version=job.schema_version)
+    counted.labels(kind, "accepted").inc()
+    logs.event("job_started", job_id=job.id, kind=kind, schema_version=job.schema_version)
     return _json(document, 202, {"Location": f"/v1/jobs/{job.id}"})
 
 
@@ -313,10 +394,11 @@ async def _unexpected(request: Request, error: Exception) -> Response:
 
 
 class AccessLog:
-    """Log each request by method, route template, status and duration; never its content."""
+    """Log and count each request by method, route template and status; never its content."""
 
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(self, app: ASGIApp, metrics: Metrics) -> None:
         self.app = app
+        self.metrics = metrics
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http" or scope.get("path") in _PROBES:
@@ -334,11 +416,15 @@ class AccessLog:
         try:
             await self.app(scope, receive, sending)
         finally:
-            route = scope.get("route")
+            route = getattr(scope.get("route"), "path", "unmatched")
+            method = str(scope.get("method"))
+            if method not in {"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}:
+                method = "other"
+            self.metrics.requests.labels(route, method, str(status)).inc()
             logs.event(
                 "request",
-                method=scope.get("method"),
-                route=getattr(route, "path", "unmatched"),
+                method=method,
+                route=route,
                 status=status,
                 duration_ms=round((time.perf_counter() - started) * 1000, 1),
             )
@@ -357,9 +443,13 @@ def create_app(service: Service) -> Starlette:
             engine_version=service.versions.engine,
             environment=service.settings.environment,
         )
+        watcher = asyncio.create_task(service.watch_certificates(), name="selene-certificates")
         try:
             yield
         finally:
+            watcher.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await watcher
             await service.stop()
             logs.event("service_stopped")
 
@@ -381,5 +471,5 @@ def create_app(service: Service) -> Starlette:
         lifespan=lifespan,
     )
     app.state.service = service
-    app.add_middleware(AccessLog)
+    app.add_middleware(AccessLog, metrics=service.metrics)
     return app

@@ -73,6 +73,12 @@ PLANTED_BLOCKS = (0, 0, 0, 1, 1, 1)
 SEED = 20261125
 
 
+def contract_version() -> str:
+    """Return ``info.version`` of openapi.yaml."""
+    version: str = yaml.safe_load(CONTRACT.read_text(encoding="utf-8"))["info"]["version"]
+    return version
+
+
 def contract_defaults() -> dict[str, Any]:
     """Return the parameter defaults that openapi.yaml declares."""
     document = yaml.safe_load(CONTRACT.read_text(encoding="utf-8"))
@@ -401,7 +407,7 @@ def example_jobs(reference: dict[str, Any], result: dict[str, Any]) -> dict[str,
     """Return examples of every job state, for the schema tests and the readers."""
     versions = {
         "service_version": "0.1.0",
-        "contract_version": "1.0.0",
+        "contract_version": contract_version(),
         "engine_version": result["provenance"]["engine_version"],
     }
     common = {

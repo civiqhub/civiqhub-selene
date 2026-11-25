@@ -15,7 +15,7 @@ Four versions move separately:
 
 | Version | Where it lives | Changes when |
 | --- | --- | --- |
-| Contract | `info.version` of `openapi.yaml`, `1.0.0`; the path prefix `/v1` is its major | the HTTP contract changes |
+| Contract | `info.version` of `openapi.yaml`, `1.1.0`; the path prefix `/v1` is its major | the HTTP contract changes |
 | Service | `version` of [`pyproject.toml`](pyproject.toml) (`selene-api`) | the server changes, for example a compatible fix |
 | Engine | `civiqhub_selene.__version__`, and the SHA-256 of the wheel the image installs | the scientific package changes |
 | Image | the digest of `ghcr.io/civiqhub/civiqhub-selene` | any of the above, or a dependency, changes |
@@ -89,8 +89,8 @@ GET    /readyz             readiness, no token
 - **Outcome.** `succeeded` carries `result`, which is either a value or an explained
   absence (`available: false` with `no_votes`, `not_enough_data` or
   `unsupported_input`): an absence is a nominal answer, not an error. `failed` carries
-  `error` with `timeout`, `worker_crashed`, `interrupted`, `result_too_large` or
-  `engine_error`, and `retryable`.
+  `error` with `timeout`, `worker_crashed`, `interrupted`, `result_too_large`,
+  `engine_error` or `memory_exceeded` (added in 1.1.0), and `retryable`.
 - **Errors.** Every error body is `{"error": {"code", "message", "retryable",
   "fields"?}}`. Messages and `fields` never echo a value of the request.
 
@@ -193,10 +193,9 @@ engine is never resolved from an index for the service.
 
 ## Interfaces for the image, the CI and the deployments
 
-The values below are the interface the deployments consume (SWK-11 to SWK-17). A setting
-marked *SWK-5/6/7* or *SWK-8* lands with that ticket; until then the server refuses it as
-unknown. Limits are technical values, measured on the engine and to be confirmed on the
-real image; they are not privacy thresholds nor a scientific calibration.
+The values below are the interface the deployments consume (SWK-11 to SWK-17). Limits are
+technical values, measured on the engine and to be confirmed on the real image (SWK-10);
+they are not privacy thresholds nor a scientific calibration.
 
 **Process.** One server process (Starlette on Uvicorn, no reload, no HTTP worker
 multiplication) started by `python -m selene_api`, configured by `SELENE_*` environment
@@ -214,7 +213,9 @@ stops the running computation and its process group, forgets every job and exits
   idempotency and bounded retention, over a `Runner` (`selene_api.runner`) that runs one
   computation in a child process, `python -m selene_api.worker`, with one numerical
   thread and its own process group, and ends that group on a timeout, a deletion or a
-  shutdown (memory limit and core dumps: *SWK-5*).
+  shutdown. The child limits its address space, makes no core dump, cannot be traced by
+  other processes of the user, and dies with the server (`PR_SET_PDEATHSIG`); the
+  start-up check refuses a computation process that runs more than one thread.
 - The engine adapters (`selene_api.adapters`), one per `(kind, schema_version)`: they
   validate and normalise a payload in the server process without importing the engine,
   run it in the child process by calling the engine, and map the engine result to the
@@ -236,8 +237,8 @@ token. Neither fails because a computation runs: busy is a metric and a field of
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `SELENE_TOKEN_FILE` | required | file of the machine token; one token per line, so that a rotation can list the old and the new; re-read when it changes |
-| `SELENE_TLS_CERT_FILE`, `SELENE_TLS_KEY_FILE` | required off loopback | server certificate and key; re-read when they change (*SWK-6*) |
-| `SELENE_HOST` / `SELENE_PORT` / `SELENE_METRICS_PORT` | `0.0.0.0` / `8443` / `9464` | listening addresses; the metrics server comes with *SWK-7* |
+| `SELENE_TLS_CERT_FILE`, `SELENE_TLS_KEY_FILE` | required off loopback | server certificate chain and key (PEM); TLS 1.2 at least; re-read within 5 s when they change, the previous certificate staying if the new files do not load |
+| `SELENE_HOST` / `SELENE_PORT` / `SELENE_METRICS_PORT` | `0.0.0.0` / `8443` / `9464` | listening addresses of the application (HTTPS) and of the metrics (HTTP) |
 | `SELENE_ENVIRONMENT` | unset | label reported by `GET /v1/service`, for example `dev` or `staging` |
 | `SELENE_JOB_TIMEOUT_SECONDS` | `120` | a computation still running is stopped and fails with `timeout` |
 | `SELENE_RESULT_TTL_SECONDS` | `900` | retention of a finished job |
@@ -246,10 +247,40 @@ token. Neither fails because a computation runs: busy is a metric and a field of
 | `SELENE_MAX_VOTERS` / `SELENE_MAX_ITEMS` / `SELENE_MAX_CELLS` | `2000` / `500` / `250000` | input size limits |
 | `SELENE_MAX_WORK` | `20000000000` | computation budget, see `Limits.max_work`; 250,000 cells at the default settings use 7.2e9 and ran in about 7 s on one thread |
 | `SELENE_MAX_RESULT_BYTES` | `16777216` | largest result |
-| `SELENE_WORKER_MEMORY_BYTES` | *SWK-5*, to measure | address-space limit of the computation process |
+| `SELENE_WORKER_MEMORY_BYTES` | `1073741824` | address-space limit of the computation process; beyond it a job fails with `memory_exceeded` and the pod is spared. Measured: 240,000 cells, 3 x 3, 200 iterations used 207 MiB of address space and 191 MiB resident in 48 s |
 | `SELENE_LOG_LEVEL` | `info` | `debug`, `info`, `warning` or `error`; logs are JSON lines on the standard output |
 | `SELENE_BUILD_INFO_FILE` | `/app/build-info.json` | commit and engine wheel hash written by the image build |
-| `SELENE_SHUTDOWN_GRACE_SECONDS` | `10` | on SIGTERM: refuse new jobs, stop the computation within this time, exit |
+| `SELENE_SHUTDOWN_GRACE_SECONDS` | `10` | on SIGTERM: `/readyz` answers 503 and new jobs are refused at once, open connections close within this time, then the computation is stopped (SIGTERM, SIGKILL 2 s later) and the process exits |
+
+A computation process also gets a CPU-time limit of `SELENE_JOB_TIMEOUT_SECONDS` + 30 s,
+a backstop behind the timeout. The server serves 64 connections at a time; beyond, it
+answers 503 at once.
+
+**Certificates.** The server certificate names the service host the backend calls (the
+`Service` DNS name) and is signed by the CA the backend and the acceptance job trust.
+Python 3.13 clients check RFC 5280 strictly: the certificate carries its authority key
+identifier (cert-manager certificates do). The client never turns verification off.
+
+**Metrics.** Prometheus text on `SELENE_METRICS_PORT`, `/metrics`; nothing on the
+application port. Labels only take closed values (kind, state, reason, outcome, route
+template, method, status): no job, project, voter, key or token. Signals for alerts:
+
+| Signal | Metric | Suggested alert |
+| --- | --- | --- |
+| Ready | `selene_ready` | 0 for 5 minutes |
+| Busy (healthy) | `selene_compute_busy` | 1 for longer than the job timeout means a stuck slot |
+| Refused because busy | `selene_submissions_total{outcome="busy"}` | rising while the backend has work: capacity |
+| Failures | `selene_jobs_finished_total{state="failed",reason=...}` | any `worker_crashed` or `memory_exceeded`; repeated `timeout` |
+| Stopped processes | `selene_worker_stops_total{reason=...}` | informational |
+| Memory | `selene_worker_peak_rss_bytes` / `selene_worker_memory_limit_bytes` | above 0.8 |
+| Token file | `selene_token_usable` | 0 |
+| Certificate | `selene_tls_reload_failures_total` | any increase |
+| Versions | `selene_build_info{service_version,contract_version,engine_version,environment}` | dashboards |
+
+**Resources.** One server process at about 45 MiB resident (measured: 43 MiB) plus one computation process
+bounded by `SELENE_WORKER_MEMORY_BYTES`. Suggested start for nonprod: memory request
+512 MiB and limit 1536 MiB, CPU request 1 without limit (one numerical thread), to
+confirm on the image (SWK-10).
 
 **Container.** Non-root user `10001`, read-only root file system, every capability
 dropped, no privilege escalation, no Kubernetes token, no persistent volume; a small

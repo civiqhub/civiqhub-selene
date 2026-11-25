@@ -36,6 +36,7 @@ CONTRACT_BOUNDS = {
     "result_ttl_seconds": (1, 86_400),
     "max_retained_jobs": (1, 1000),
     "shutdown_grace_seconds": (1, 300),
+    "worker_memory_bytes": (64 * 1024 * 1024, 64 * 1024 * 1024 * 1024),
     "port": (1, 65_535),
     "metrics_port": (1, 65_535),
 }
@@ -63,6 +64,7 @@ class Settings:
     max_work: int = 20_000_000_000
     max_result_bytes: int = 16 * 1024 * 1024
     shutdown_grace_seconds: int = 10
+    worker_memory_bytes: int = 1024 * 1024 * 1024
     build_info_file: pathlib.Path = pathlib.Path("/app/build-info.json")
     log_level: str = "info"
 
@@ -75,6 +77,11 @@ class Settings:
             max_cells=self.max_cells,
             max_work=self.max_work,
         )
+
+    @property
+    def worker_cpu_seconds(self) -> int:
+        """CPU-time limit of a computation process: a backstop behind the timeout."""
+        return self.job_timeout_seconds + 30
 
     @property
     def tls(self) -> bool:

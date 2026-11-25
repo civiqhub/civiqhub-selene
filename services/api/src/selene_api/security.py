@@ -1,7 +1,9 @@
 # Copyright 2026 CiviqHub SAS
 # SPDX-License-Identifier: Apache-2.0
 
-"""Machine tokens: read from a mounted file, compared in constant time, reloaded on change.
+"""Machine tokens and the server certificate, read from mounted files and reloaded.
+
+Machine tokens: read from a mounted file, compared in constant time, reloaded on change.
 
 The token file holds one token per line, so that a rotation can list the old and the
 new token for a while; empty lines and lines that start with ``#`` are ignored. A token
@@ -12,11 +14,18 @@ call is refused until it is fixed: the service fails closed. A token is never lo
 
 import hmac
 import pathlib
+import ssl
 import threading
 import time
 from collections.abc import Callable
 
-__all__ = ["MIN_TOKEN_LENGTH", "TokenFileError", "TokenStore", "bearer_token"]
+__all__ = [
+    "MIN_TOKEN_LENGTH",
+    "CertificateReloader",
+    "TokenFileError",
+    "TokenStore",
+    "bearer_token",
+]
 
 MIN_TOKEN_LENGTH = 32
 
@@ -126,3 +135,64 @@ class TokenStore:
         for token in self._tokens:
             matched |= hmac.compare_digest(candidate, token)
         return matched
+
+
+class CertificateReloader:
+    """Reload the server certificate into the live TLS context when its files change.
+
+    ``ssl.SSLContext.load_cert_chain`` on the context Uvicorn serves with applies to
+    the next handshakes: a renewed certificate is served without a restart, and open
+    connections keep theirs. If the new files cannot be loaded (half written, key and
+    certificate that do not match), the previous certificate stays and the failure is
+    counted; TLS is never turned off.
+
+    Args:
+        certificate: The PEM certificate chain file.
+        key: The PEM private key file.
+        context: The server TLS context; attached later with :meth:`attach`.
+    """
+
+    def __init__(
+        self,
+        certificate: pathlib.Path,
+        key: pathlib.Path,
+        context: "ssl.SSLContext | None" = None,
+    ) -> None:
+        self.certificate = certificate
+        self.key = key
+        self.context = context
+        self.reloads = 0
+        self.failures = 0
+        self._signature = self._stat()
+
+    def attach(self, context: "ssl.SSLContext") -> None:
+        """Use ``context``, already loaded with the current files."""
+        self.context = context
+        self._signature = self._stat()
+
+    def _stat(self) -> tuple[tuple[int, int, int] | None, ...]:
+        signatures: list[tuple[int, int, int] | None] = []
+        for path in (self.certificate, self.key):
+            try:
+                status = path.stat()
+            except OSError:
+                signatures.append(None)
+            else:
+                signatures.append((status.st_ino, status.st_size, status.st_mtime_ns))
+        return tuple(signatures)
+
+    def refresh(self) -> bool:
+        """Reload the files if they changed; return whether a new certificate is served."""
+        if self.context is None:
+            return False
+        signature = self._stat()
+        if signature == self._signature or None in signature:
+            return False
+        self._signature = signature
+        try:
+            self.context.load_cert_chain(str(self.certificate), str(self.key))
+        except (OSError, ssl.SSLError):
+            self.failures += 1
+            return False
+        self.reloads += 1
+        return True

@@ -42,6 +42,7 @@ _MESSAGES = {
     "interrupted": "The instance was shutting down; the computation was stopped.",
     "result_too_large": "The outcome of the computation is larger than the limit.",
     "engine_error": "The engine refused the input.",
+    "memory_exceeded": "The computation needed more memory than the limit of this instance.",
 }
 
 
@@ -167,6 +168,11 @@ class JobManager:
     def accepting(self) -> bool:
         """Whether a new submission would start now."""
         return self._accepting and self._running is None
+
+    @property
+    def held(self) -> int:
+        """Jobs held in memory now, without expiring any: safe to read from another thread."""
+        return len(self._jobs)
 
     @property
     def retained(self) -> int:

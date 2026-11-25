@@ -20,7 +20,7 @@ import json
 import os
 import signal
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -46,7 +46,8 @@ class RunOutcome:
         result: The contract result, when the engine answered (a value or an
             explained absence); ``None`` otherwise.
         error_code: ``timeout``, ``worker_crashed``, ``result_too_large``,
-            ``engine_error`` or ``interrupted`` when there is no result.
+            ``engine_error``, ``memory_exceeded`` or ``interrupted`` when there is no
+            result.
         retryable: Whether the same content may succeed on a new submission.
         peak_rss_bytes: The peak resident memory the process reported, if any.
     """
@@ -87,6 +88,9 @@ class ProcessRunner:
 
     Args:
         max_result_bytes: Largest output read from the process.
+        memory_bytes: Address-space limit of the process, or ``None`` for none.
+        cpu_seconds: CPU-time limit of the process, a backstop behind the timeout, or
+            ``None`` for none.
         kill_grace_seconds: Time between SIGTERM and SIGKILL when the process is stopped.
         command: The command that starts the process; defaults to this interpreter.
         environment: The environment the process starts from; defaults to this one.
@@ -96,6 +100,8 @@ class ProcessRunner:
         self,
         *,
         max_result_bytes: int,
+        memory_bytes: int | None = None,
+        cpu_seconds: int | None = None,
         kill_grace_seconds: float = 2.0,
         command: Sequence[str] = (sys.executable, "-m", "selene_api.worker"),
         environment: Mapping[str, str] | None = None,
@@ -104,6 +110,13 @@ class ProcessRunner:
         self.kill_grace_seconds = kill_grace_seconds
         self.command = tuple(command)
         self.environment = worker_environment(os.environ if environment is None else environment)
+        self.environment["SELENE_WORKER_PARENT"] = str(os.getpid())
+        if memory_bytes is not None:
+            self.environment["SELENE_WORKER_MEMORY_BYTES"] = str(memory_bytes)
+        if cpu_seconds is not None:
+            self.environment["SELENE_WORKER_CPU_SECONDS"] = str(cpu_seconds)
+        # Called with timeout, result_too_large or cancelled when a process is stopped.
+        self.on_stop: Callable[[str], None] | None = None
 
     async def _start(self, *arguments: str) -> asyncio.subprocess.Process:
         return await asyncio.create_subprocess_exec(
@@ -161,12 +174,21 @@ class ProcessRunner:
         try:
             output = await asyncio.wait_for(self._exchange(process, data), timeout)
         except TimeoutError:
+            self._stopped("timeout")
             return RunOutcome(error_code="timeout", retryable=False)
         except _TooLargeError:
+            self._stopped("result_too_large")
             return RunOutcome(error_code="result_too_large", retryable=False)
+        except asyncio.CancelledError:
+            self._stopped("cancelled")
+            raise
         finally:
             await asyncio.shield(self._stop(process))
         return self._outcome(process.returncode, output)
+
+    def _stopped(self, reason: str) -> None:
+        if self.on_stop is not None:
+            self.on_stop(reason)
 
     def _outcome(self, returncode: int | None, output: bytes) -> RunOutcome:
         if returncode != 0:
@@ -182,8 +204,11 @@ class ProcessRunner:
             return RunOutcome(
                 result=answer["result"], peak_rss_bytes=peak if isinstance(peak, int) else None
             )
-        if answer.get("outcome") == "error" and answer.get("code") == "engine_error":
-            return RunOutcome(error_code="engine_error", retryable=False)
+        if answer.get("outcome") == "error" and answer.get("code") in {
+            "engine_error",
+            "memory_exceeded",
+        }:
+            return RunOutcome(error_code=answer["code"], retryable=False)
         return RunOutcome(error_code="worker_crashed", retryable=True)
 
     async def describe(self, *, timeout: float) -> dict[str, Any]:

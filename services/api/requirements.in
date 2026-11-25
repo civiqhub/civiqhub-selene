@@ -8,6 +8,7 @@
 # dependency of its `blocks` extra (NumPy) is locked here. A test keeps this list equal to
 # the dependencies of services/api/pyproject.toml and of the extra.
 numpy>=2.0
+prometheus-client>=0.26
 pydantic>=2.14
 starlette>=1.10
 uvicorn>=0.54
