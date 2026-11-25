@@ -23,6 +23,8 @@ This builds the documentation of the code you have, as one site without versions
 | --- | --- |
 | `conf.py` | The configuration of Sphinx |
 | `_ext/selene_docs.py` | A local Sphinx extension; its docstring says what it does |
+| `_ext/katex_local.py`, `_static/katex-render.js`, `_static/katex-theme.css` | The rendering of the formulas with KaTeX: see [Write formulas and diagrams](#write-formulas-and-diagrams) |
+| `_static/katex/` | KaTeX (MIT, fonts OFL 1.1), copied unmodified; its `README.md` gives the provenance |
 | `_templates/sidebar/version-switcher.html`, `_static/version-switcher.js`, `_static/version-switcher.css` | The version selector of the sidebar |
 | `_templates/sidebar/brand.html`, `_templates/sidebar/search.html`, `_templates/page.html` | The mark of the site, the search field, and the theme-migration script |
 | `_static/civiqhub.css`, `_static/theme-migrate.js`, `_static/sidebar-wrap.js`, `_static/search-shortcut.js` | The CiviqHub theme (light and dark), the one-time theme migration, wrapping of sidebar module names, and the Ctrl K shortcut |
@@ -98,6 +100,7 @@ cp ofl/bricolagegrotesque/OFL.txt OFL.txt
 | `_static/home.svg` | Glyphe de maison du H1 d'accueil |
 | `_static/github.svg` | Icône GitHub du pied de page |
 | `_static/fonts/` | Les trois `woff2` et `OFL.txt` |
+| `_static/katex-theme.css` | Règles de KaTeX propres au site, chargées avec KaTeX : numéros d'équation |
 | `_static/screenshots/` | Captures de relecture du thème. Le build les retire de `_static/` du site publié |
 | `_static/version-switcher.js`, `_static/version-switcher.css` | Sélecteur de version de la publication, natif à ce dépôt, au style du thème |
 | `_templates/page.html` | Charge `theme-migrate.js` dans le `<head>` ; favicon sombre ; fil d'Ariane ; enveloppe d'accueil |
@@ -155,7 +158,7 @@ Les diagrammes mermaid sont colorés avec les tokens du thème. `sphinxcontrib-m
 
 ### Extensions et dépendances
 
-Groupe `docs` de `pyproject.toml` : `sphinx==9.2.0` (BSD-2-Clause), `myst-parser==5.2.0` (MIT), `furo==2025.12.19` (MIT), `sphinxcontrib-mermaid==2.1.1` (BSD-2-Clause), `sphinxext-opengraph==0.13.0` (BSD-3-Clause). `sphinxext-opengraph` pose `ogp_site_url` d'après `html_baseurl` ; les cartes sociales PNG sont désactivées (`ogp_social_cards.enable = False`) parce que le build n'a pas de réseau. Matplotlib est installé par l'extra `viz`, que la référence importe ; il ne sert pas aux cartes. L'origine publique est `https://selene.civiqhub.com/`. Si le script de publication passe encore `https://civiqhub.github.io/civiqhub-selene/`, `conf.py` la réécrit, chemin de version compris. Extension locale : `docs/_ext/selene_docs.py`, inchangée.
+Groupe `docs` de `pyproject.toml` : `sphinx==9.2.0` (BSD-2-Clause), `myst-parser==5.2.0` (MIT), `furo==2025.12.19` (MIT), `sphinxcontrib-mermaid==2.1.1` (BSD-2-Clause), `sphinxext-opengraph==0.13.0` (BSD-3-Clause). `sphinxext-opengraph` pose `ogp_site_url` d'après `html_baseurl` ; les cartes sociales PNG sont désactivées (`ogp_social_cards.enable = False`) parce que le build n'a pas de réseau. Matplotlib est installé par l'extra `viz`, que la référence importe ; il ne sert pas aux cartes. L'origine publique est `https://selene.civiqhub.com/`. Si le script de publication passe encore `https://civiqhub.github.io/civiqhub-selene/`, `conf.py` la réécrit, chemin de version compris. Extensions locales : `docs/_ext/selene_docs.py`, inchangée, et `docs/_ext/katex_local.py`, le rendu des formules par la copie locale de KaTeX (aucune dépendance Python ajoutée).
 
 ### Build local
 
@@ -254,9 +257,29 @@ print(VoteCounts.from_scores([2, 2, -1]).total)
 
 ## Write formulas and diagrams
 
-A formula is written between dollar signs, inline (`$a + b$`) or on its own lines between `$$`. A diagram is a block fenced with `mermaid`; GitHub draws it as well.
+A formula is TeX between dollar signs: inline (`$a + b$`), or on its own lines between `$$`. GitHub renders the same dollar signs with its own engine.
 
-The site loads MathJax and Mermaid from the jsDelivr network, on the pages that hold a formula or a diagram only.
+The site renders the formulas with [KaTeX](https://katex.org), in the browser, from the copy under `_static/katex/`: no formula reads anything from another server. A page without a formula loads nothing of KaTeX. The extension `_ext/katex_local.py` writes each formula into the page; `_static/katex-render.js` renders it.
+
+````markdown
+Each vote $x_{ij}$ takes a level among $1, \dots, K$.
+
+$$
+\sum_{k=1}^{K} p_k = 1
+$$ (eq-levels-sum-to-one)
+
+Equation {eq}`eq-levels-sum-to-one` says that the probabilities sum to one.
+````
+
+- **Numbers and references.** A label in parentheses after the closing `$$` numbers the equation, and `{eq}` refers to it. The build fails on a reference to a label that does not exist. Only Sphinx numbers the equations: KaTeX's own numbers of `align`, `equation` and `gather` are hidden, and a numbered environment shows the number Sphinx gives it.
+- **Several equations.** Inside `$$`, an empty line separates equations, which are aligned on their `&`. An amsmath environment, such as `\begin{align*} ... \end{align*}`, may also stand on its own lines without `$$`.
+- **Docstrings.** The role `:math:` and the directive `.. math::` of reStructuredText take the same way.
+- **Macros.** `katex_macros` in `conf.py` holds the macros shared by every formula, such as `{"\\RR": r"\mathbb{R}"}`. A macro may not link to or load a resource (`\href`, `\url`, `\includegraphics`): the build refuses it. KaTeX refuses these commands in a formula too.
+- **What KaTeX reads.** KaTeX supports a large part of LaTeX, not all of it: see [its list](https://katex.org/docs/supported.html). Among what it does not read: `multline`, `flalign`, `eqnarray` and `\label` (put the label after the closing `$$`).
+- **Checks.** KaTeX reads the formulas in the browser: the build does not check their TeX. A formula that KaTeX cannot read shows in place as an error, and the rest of the page still renders. Look at the page after writing a formula.
+- **A dollar sign** that is not a formula is written `\$`.
+
+A diagram is a block fenced with `mermaid`; GitHub draws it as well. The site loads Mermaid from the jsDelivr network, on the pages that hold a diagram only. It is the one script the site reads from another server (decision of Yanis of 25/11/2026).
 
 ## The reference
 
