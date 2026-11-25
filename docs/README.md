@@ -33,6 +33,7 @@ This builds the documentation of the code you have, as one site without versions
 | `_static/logo.svg`, `_static/favicon.ico` | Former glyph and ICO, unused until NOTICE is updated |
 | `index.md` | The home page and the table of contents of the site |
 | `getting-started.md`, `library-map.md`, `architecture.md`, `examples.md` | The guide: pages written by hand. `examples.md` presents the notebooks of `examples/`, which live outside the site |
+| `model/` | The mathematical model: the formulas the code computes, in one notation (`model/notation.md`); see [Write a page of the mathematical model](#write-a-page-of-the-mathematical-model) |
 | `reference/` | The reference: one page per public module, generated from the docstrings |
 | `changelog.md` | Includes `CHANGELOG.md` from the root of the repository |
 | `_build/` | The output of the build. Not committed |
@@ -290,6 +291,51 @@ Equation {eq}`eq-levels-sum-to-one` says that the probabilities sum to one.
 - **A dollar sign** that is not a formula is written `\$`.
 
 A diagram is a block fenced with `mermaid`; GitHub draws it as well. The site loads Mermaid from the jsDelivr network, on the pages that hold a diagram only. It is the one script the site reads from another server (decision of Yanis of 25/11/2026); the CI checks that no other resource comes from another server (see [How the site is published](#how-the-site-is-published)).
+
+## Write a page of the mathematical model
+
+The section `model/` writes down the mathematics of the engine as the code computes it. `model/index.md` presents it; `model/notation.md` fixes its letters. A page of the section follows these rules:
+
+- **One notation.** Every symbol is defined in `model/notation.md` and keeps that meaning everywhere. A new symbol is added there first. `tests/unit/test_docs_model.py` checks that no symbol is defined twice, and that every Greek or calligraphic letter a page writes is defined.
+- **The name of the code.** At its first appearance on a page, a symbol is followed by the name the code gives it, with a role (`{py:attr}`, `{py:class}`, `{py:meth}`), so that the build checks that the name exists. A private name is cited without a role and said to be internal.
+- **The code is the authority.** Each formula is checked against the code. The page states the commit; the pull request cites the file and the lines of each formula. A difference between a page and the code is reported as an issue, never fixed in silence.
+- **Only what the code holds.** A page never presents as available a method, a class or an option the code does not have. What no source supports is labelled a Hypothesis in the pull request, and is not written on the site.
+- **Synthetic data.** Examples use `make_votes`, `single_memberships` or values written by hand; their Python blocks run in the tests like those of every page.
+
+A page uses this outline; a section that does not apply is left out:
+
+````markdown
+# Title
+
+Checked against the code of `develop` at commit `abcdef1`.
+
+## In plain words
+
+What the page is about, without formulas.
+
+## Model
+
+The definitions, with their symbols and the names of the code.
+
+## Estimation
+
+How the code computes the quantities of the model.
+
+## What the code does exactly
+
+The file and the lines of each formula, and what the code does that the formulas do not
+say: bounds, floors, the order of the operations.
+
+## Limits
+
+What the model and the code do not do.
+
+## References
+
+The articles the page draws on.
+````
+
+Add the page to the `toctree` of the caption "Mathematical model" in `index.md`, and replace its line "(not written yet)" in `model/index.md` by a link.
 
 ## The reference
 

@@ -57,6 +57,16 @@ A result describes a group and decides nothing. Every result carries its value o
       <p>Des notebooks qui chargent des votes, lancent l'OLBM et le MM-OLBM et dessinent les résultats.</p>
     </div>
   </a>
+  <a class="civiqhub-card" href="model/index.html">
+    <div class="civiqhub-card-banner">
+      <img class="only-light" src="_static/civiqhub-logo-light.svg" alt="" width="152" height="41">
+      <img class="only-dark" src="_static/civiqhub-logo-dark.svg" alt="" width="152" height="41">
+    </div>
+    <div class="civiqhub-card-body">
+      <span class="civiqhub-card-title">Modèle mathématique</span>
+      <p>Les formules que le code calcule, leur notation, et les lignes du code qui les calculent.</p>
+    </div>
+  </a>
   <a class="civiqhub-card" href="reference/index.html">
     <div class="civiqhub-card-banner">
       <img class="only-light" src="_static/civiqhub-logo-light.svg" alt="" width="152" height="41">
@@ -79,6 +89,14 @@ Premiers pas <getting-started>
 Plan de la bibliothèque <library-map>
 Architecture <architecture>
 Exemples <examples>
+```
+
+```{toctree}
+:hidden:
+:caption: Mathematical model
+
+Overview <model/index>
+Notation <model/notation>
 ```
 
 ```{toctree}
