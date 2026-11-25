@@ -102,6 +102,7 @@ The response models <model/response-models>
 The latent block model <model/latent-block-model>
 The mixed-membership model <model/mixed-membership>
 The estimation <model/estimation>
+The starts <model/initialization>
 ```
 
 ```{toctree}

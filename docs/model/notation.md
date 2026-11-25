@@ -84,6 +84,15 @@ A cell has three states that the notation keeps apart: not shown ($(i, j) \notin
 | --- | --- | --- | --- |
 | $\tau$ | The regulariser of the spectral start, as a multiple of the average degree of each side | {py:attr}`~civiqhub_selene.blocks.SpectralStart.regularization` | |
 | $\gamma$ | The leverage threshold of thresholded spectral clustering | {py:attr}`~civiqhub_selene.blocks.SpectralStart.leverage_threshold` | |
+| $\psi$ | The random permutation of a random start | | |
+| $\mathbf{X}$ | The matrix the spectral start decomposes: the states, one column per (item, state), or the centred levels | `spectral._decomposition` (internal) | $(M, P(K + 1))$ or $(M, P)$ |
+| $\mathbf{D}_{\mathrm{r}}$, $\mathbf{D}_{\mathrm{c}}$ | The diagonal matrices of the degrees of the rows and of the columns of $\mathbf{X}$ | `spectral._laplacian` (internal) | |
+| $\bar{d}_{\mathrm{r}}$, $\bar{d}_{\mathrm{c}}$ | The average degree of the rows, of the columns | | |
+| $\tau_{\mathrm{r}}$, $\tau_{\mathrm{c}}$ | The regularisers of the rows and of the columns, $\tau \bar{d}_{\mathrm{r}}$ and $\tau \bar{d}_{\mathrm{c}}$ | | |
+| $\mathbf{I}$ | The identity matrix | | |
+| $\mathbf{X}_\tau$ | The regularised Laplacian of $\mathbf{X}$ | `spectral._laplacian` (internal) | |
+| $\mathbf{U}$, $\mathbf{V}$ | The leading singular vectors on the side of the voters and of the items; $\mathbf{U}_{i\cdot}$ is the row of the voter $i$ | {py:attr}`~civiqhub_selene.blocks.spectral.SpectralEmbedding.voter_vectors`, {py:attr}`~civiqhub_selene.blocks.spectral.SpectralEmbedding.item_vectors` | $(M, d)$, $(P, d')$ |
+| $\delta_k$ | The singular values of $\mathbf{X}_\tau$, in decreasing order | {py:attr}`~civiqhub_selene.blocks.spectral.SpectralEmbedding.voter_singular_values`, {py:attr}`~civiqhub_selene.blocks.spectral.SpectralEmbedding.item_singular_values` | |
 
 ## The quantities a result reports
 
