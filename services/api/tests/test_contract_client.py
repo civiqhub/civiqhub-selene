@@ -71,7 +71,40 @@ class TestReferenceComparison:
         job = self.job(read_fixture)
         job["result"]["value"]["group_index"][0] = 1 - job["result"]["value"]["group_index"][0]
         problems = selene_contract.compare_with_reference(job, self.reference(read_fixture))
-        assert problems == ["group_index differs"]
+        assert problems[0] == "group_index differs"
+
+    def test_the_same_partition_under_other_names_matches(self, read_fixture: Reader) -> None:
+        job = self.job(read_fixture)
+        value = job["result"]["value"]
+        value["group_index"] = [1 - group for group in value["group_index"]]
+        value["block_index"] = [1 - block for block in value["block_index"]]
+        value["group_memberships"] = [row[::-1] for row in value["group_memberships"]]
+        value["block_memberships"] = [row[::-1] for row in value["block_memberships"]]
+        tables = value["coclusters"]
+        for name in ("vote_rate", "vote_shares", "n_votes", "latent_mean", "latent_spread"):
+            tables[name] = [row[::-1] for row in tables[name][::-1]]
+        assert selene_contract.compare_with_reference(job, self.reference(read_fixture)) == []
+
+    def test_renaming_follows_the_order_of_first_appearance(self) -> None:
+        value = {
+            "group_index": [2, 0, 2, 1],
+            "block_index": [1, 0],
+            "group_memberships": [
+                [0.1, 0.2, 0.7],
+                [0.8, 0.1, 0.1],
+                [0.0, 0.0, 1.0],
+                [0.2, 0.6, 0.2],
+            ],
+            "block_memberships": [[0.3, 0.7], [0.9, 0.1]],
+            "coclusters": {"n_votes": [[1, 2], [3, 4], [5, 6]], "scores": [-2, -1, 0, 1, 2]},
+        }
+        renamed = selene_contract.canonical_value(value)
+        assert renamed["group_index"] == [0, 1, 0, 2]
+        assert renamed["block_index"] == [0, 1]
+        assert renamed["group_memberships"][0] == [0.7, 0.1, 0.2]
+        assert renamed["block_memberships"][0] == [0.7, 0.3]
+        assert renamed["coclusters"]["n_votes"] == [[6, 5], [2, 1], [4, 3]]
+        assert renamed["coclusters"]["scores"] == [-2, -1, 0, 1, 2]
 
     def test_a_number_outside_the_tolerance_is_reported(self, read_fixture: Reader) -> None:
         job = self.job(read_fixture)

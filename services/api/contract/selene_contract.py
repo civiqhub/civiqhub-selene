@@ -47,6 +47,7 @@ __all__ = [
     "ContractError",
     "HTTPResult",
     "SeleneClient",
+    "canonical_value",
     "compare_with_reference",
     "load_reference",
     "run_check",
@@ -321,8 +322,68 @@ def _close(found: object, wanted: object, relative: float, absolute: float) -> b
     return found == wanted
 
 
+_GROUP_BY_BLOCK_TABLES = ("vote_rate", "vote_shares", "n_votes", "latent_mean", "latent_spread")
+
+
+def _naming(index: list[int], size: int) -> list[int]:
+    """Return the old names in their new order: by first appearance, then the unseen ones."""
+    order: list[int] = []
+    for label in index:
+        if label not in order:
+            order.append(label)
+    return order + [label for label in range(size) if label not in order]
+
+
+def canonical_value(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a co-clustering value whose groups and blocks are renamed canonically.
+
+    The names of groups and blocks carry no meaning, and two machines may give the same
+    partition different names: a start from singular vectors depends on their signs,
+    which depend on the processor and the linear algebra library. Groups (and blocks)
+    are renamed by their first appearance in ``group_index`` (``block_index``), and the
+    membership columns and co-cluster tables follow. Contract v1 does not promise stable
+    names between computations; it promises the same partition.
+    """
+    renamed = dict(value)
+    group_order: list[int] = []
+    block_order: list[int] = []
+    if "group_index" in value:
+        width = len(value["group_memberships"][0]) if value.get("group_memberships") else 0
+        group_order = _naming(list(value["group_index"]), width)
+        names = {old: new for new, old in enumerate(group_order)}
+        renamed["group_index"] = [names[label] for label in value["group_index"]]
+        if value.get("group_memberships"):
+            renamed["group_memberships"] = [
+                [row[old] for old in group_order] for row in value["group_memberships"]
+            ]
+    if "block_index" in value:
+        width = len(value["block_memberships"][0]) if value.get("block_memberships") else 0
+        block_order = _naming(list(value["block_index"]), width)
+        names = {old: new for new, old in enumerate(block_order)}
+        renamed["block_index"] = [names[label] for label in value["block_index"]]
+        if value.get("block_memberships"):
+            renamed["block_memberships"] = [
+                [row[old] for old in block_order] for row in value["block_memberships"]
+            ]
+    coclusters = value.get("coclusters")
+    if isinstance(coclusters, Mapping) and group_order and block_order:
+        tables = dict(coclusters)
+        for name in _GROUP_BY_BLOCK_TABLES:
+            table = coclusters.get(name)
+            if isinstance(table, list):
+                tables[name] = [
+                    [table[group][block] for block in block_order] for group in group_order
+                ]
+        renamed["coclusters"] = tables
+    return renamed
+
+
 def compare_with_reference(job: Mapping[str, Any], reference: Mapping[str, Any]) -> list[str]:
-    """Return the differences between a finished job and its reference; empty if none."""
+    """Return the differences between a finished job and its reference; empty if none.
+
+    Partitions are compared up to the names of their groups and blocks (see
+    :func:`canonical_value`), numbers within the tolerance of the reference.
+    """
     problems: list[str] = []
     if job["content_fingerprint"] != reference["content_fingerprint"]:
         problems.append("content_fingerprint differs")
@@ -347,7 +408,8 @@ def compare_with_reference(job: Mapping[str, Any], reference: Mapping[str, Any])
         return problems
     relative = reference["tolerance"]["relative"]
     absolute = reference["tolerance"]["absolute"]
-    value = result["value"]
+    value = canonical_value(result["value"])
+    expected = canonical_value(expected)
     for name in ("group_index", "block_index"):
         if value[name] != expected[name]:
             problems.append(f"{name} differs")
