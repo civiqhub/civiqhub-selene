@@ -130,7 +130,11 @@ project, and the settings of a latent block model (`LatentBlockModel` of the eng
 
 - `coclustering-single-1/reference`: twelve invented voters and six items, two planted
   groups and blocks, neutral votes, cells shown without a vote and cells not shown. Its
-  `.expected.json` is the result computed locally with the engine.
+  `.expected.json` is the result computed locally with the engine. A computation with the
+  same engine wheel reproduces it on any machine: the same partition, up to the names of
+  groups and blocks (another processor may name them the other way round), and numbers
+  within 1e-6 relative or 1e-9 absolute (another processor rounds the last bits
+  differently, and iterative fits carry it to about 1e-9).
 - `coclustering-single-1/no-votes`: an explained absence.
 - `coclustering-single-1/invalid/*`: each refusal the contract requires, with its status
   and code, and whether the JSON schema alone refuses it.
