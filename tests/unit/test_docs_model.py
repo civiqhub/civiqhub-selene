@@ -5,9 +5,13 @@
 
 ``docs/model/notation.md`` defines every symbol of the section in its tables. These
 tests read them: a symbol is defined once, and the Greek and calligraphic letters that
-the other pages of the section write are all defined there.
+the other pages of the section write are all defined there. ``docs/model/api-to-formulas.md``
+links each public name to its formulas: every exported name it must list is on it, and
+every numbered equation of the section is cited there. The tests read the files only and
+do not import the engine.
 """
 
+import ast
 import re
 from pathlib import Path
 
@@ -16,6 +20,8 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 MODEL = ROOT / "docs" / "model"
 NOTATION = MODEL / "notation.md"
+API = MODEL / "api-to-formulas.md"
+PACKAGE = ROOT / "src" / "civiqhub_selene"
 
 # The source distribution ships the tests without the pages of the site.
 pytestmark = pytest.mark.skipif(not NOTATION.is_file(), reason="this checkout has no docs")
@@ -75,3 +81,80 @@ def test_each_role_of_the_section_names_one_object() -> None:
             assert re.fullmatch(r"~?[A-Za-z_][\w.]*", target), (
                 f"{page.name}: the role {{py:{kind}}} has the target {target!r}"
             )
+
+
+def _exports(module: str) -> list[str]:
+    """Return the ``__all__`` of a module of the engine, read from its file."""
+    path = PACKAGE.parent.joinpath(*module.split("."))
+    path = path / "__init__.py" if path.is_dir() else path.with_suffix(".py")
+    for node in ast.parse(path.read_text(encoding="utf-8")).body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == "__all__" for target in node.targets
+        ):
+            names = ast.literal_eval(node.value)
+            assert isinstance(names, list)
+            return [str(name) for name in names]
+    raise AssertionError(f"{module} has no __all__")
+
+
+def _listed(module: str) -> set[str]:
+    """Return the names of ``module`` that a role of the page of the API names."""
+    found: set[str] = set()
+    for _, target in _ROLE.findall(API.read_text(encoding="utf-8")):
+        dotted = target.lstrip("~")
+        if dotted.startswith(f"{module}."):
+            found.add(dotted.rsplit(".", 1)[1])
+    return found
+
+
+# Each name these modules export has a row; of the others, the names that carry a formula.
+_LISTED_IN_FULL = [
+    "civiqhub_selene.blocks",
+    "civiqhub_selene.blocks.responses",
+    "civiqhub_selene.blocks.results",
+    "civiqhub_selene.blocks.spectral",
+    "civiqhub_selene.blocks.synthetic",
+    "civiqhub_selene.ordinal",
+]
+_LISTED_IN_PART = {
+    "civiqhub_selene.viz": {"group_graph", "plot_mixedness"},
+    "civiqhub_selene.blocks.results": {
+        "objective",
+        "integrated_likelihood",
+        "log_likelihood",
+        "group_memberships",
+        "block_memberships",
+        "role_by_block",
+        "profile_probabilities",
+        "mixedness",
+    },
+}
+
+
+def test_the_exports_are_read_from_the_code() -> None:
+    assert "LatentBlockModel" in _exports("civiqhub_selene.blocks")
+    assert _exports("civiqhub_selene.ordinal") == ["SCORES", "VoteCounts"]
+
+
+@pytest.mark.parametrize("module", _LISTED_IN_FULL)
+def test_each_exported_name_has_a_row_on_the_page_of_the_api(module: str) -> None:
+    missing = sorted(set(_exports(module)) - _listed(module))
+    assert missing == [], f"docs/model/api-to-formulas.md has no row for {missing}"
+
+
+@pytest.mark.parametrize("module", sorted(_LISTED_IN_PART))
+def test_the_names_that_carry_a_formula_have_a_row(module: str) -> None:
+    missing = sorted(_LISTED_IN_PART[module] - _listed(module))
+    assert missing == [], f"docs/model/api-to-formulas.md has no row for {missing}"
+
+
+def test_each_numbered_equation_of_the_section_is_cited_on_the_page_of_the_api() -> None:
+    labels: set[str] = set()
+    for page in sorted(MODEL.glob("*.md")):
+        if page.name != "formula-test.md":
+            labels.update(
+                re.findall(r"^\$\$ \((eq-[\w-]+)\)", page.read_text(encoding="utf-8"), re.M)
+            )
+    assert len(labels) > 20
+    cited = set(re.findall(r"\{eq\}`(eq-[\w-]+)`", API.read_text(encoding="utf-8")))
+    assert sorted(labels - cited) == []

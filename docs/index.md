@@ -106,6 +106,7 @@ The starts <model/initialization>
 Choosing the shape <model/choosing-the-shape>
 Reading the results <model/reading-results>
 Cost and numerical safeguards <model/complexity>
+From the API to the formulas <model/api-to-formulas>
 ```
 
 ```{toctree}
