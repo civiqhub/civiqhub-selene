@@ -105,5 +105,11 @@ A cell has three states that the notation keeps apart: not shown ($(i, j) \notin
 | $\operatorname{pen}_F$ | The penalty of the parameters of the response model in the ICL | {py:meth}`~civiqhub_selene.blocks.responses.ResponseModel.complexity_penalty` |
 | $\Omega_{\mathrm{in}}$, $\Omega_{\mathrm{out}}$ | The shown cells kept for the estimation, and those held out | {py:meth}`~civiqhub_selene.blocks.VoteMatrix.hold_out` |
 | $\mathcal{L}_{\mathrm{out}}$ | The log-likelihood of the held-out cells under a result estimated on the others | {py:meth}`~civiqhub_selene.blocks.results.PredictsVotes.log_probability`, summed over $\Omega_{\mathrm{out}}$ |
+| $\bar{\rho}_l$ | The share of the block $l$ in a result: of the items whose block is $l$, or the mean of $\phi_{jl}$, normalised | {py:attr}`~civiqhub_selene.blocks.partition.Cluster.share` of {py:attr}`~civiqhub_selene.blocks.results.Coclustering.blocks` |
+| $\operatorname{agree}(q, r)$ | How much two groups agree: one minus the total variation distance of their votes, averaged over the blocks | {py:func}`~civiqhub_selene.viz.graphs.group_graph` |
+| $\mathcal{I}$ | The identifiers two partitions cover | {py:attr}`~civiqhub_selene.blocks.Partition.ids` |
+| $T_{qr}$ | The number of identifiers in the cluster $q$ of one partition and $r$ of the other | Inside {py:meth}`~civiqhub_selene.blocks.Partition.agreement_with` |
+| $\chi$ | A renumbering of the clusters of a partition | |
+| $\operatorname{match}$ | The share of identifiers two partitions arrange in the same way, after the best renumbering | {py:meth}`~civiqhub_selene.blocks.Partition.agreement_with` |
 
 The pages that define these quantities give their formulas and the lines of the code that compute them.
