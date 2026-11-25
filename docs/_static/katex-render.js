@@ -26,8 +26,10 @@
         ],
         // A copy per formula: a definition made in one formula does not reach the next.
         macros: { ...macros },
-        // A formula KaTeX cannot read shows as an error in place; the rest still renders.
+        // A formula KaTeX cannot read shows as an error in place, in the destructive color
+        // of the theme (katex-theme.css); the rest of the page still renders.
         throwOnError: false,
+        errorColor: "var(--civiqhub-destructive)",
         // No command may link to or load a resource (\href, \url, \includegraphics).
         trust: false,
         strict: "warn",

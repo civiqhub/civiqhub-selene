@@ -100,7 +100,7 @@ cp ofl/bricolagegrotesque/OFL.txt OFL.txt
 | `_static/home.svg` | Glyphe de maison du H1 d'accueil |
 | `_static/github.svg` | Icône GitHub du pied de page |
 | `_static/fonts/` | Les trois `woff2` et `OFL.txt` |
-| `_static/katex-theme.css` | Règles de KaTeX propres au site, chargées avec KaTeX : numéros d'équation |
+| `_static/katex-theme.css` | Règles de KaTeX propres au site, chargées avec KaTeX : couleur du texte en clair et en sombre, erreurs en `--civiqhub-destructive`, défilement des formules larges, numéros d'équation (sur leur ligne sous 48 em), lien d'équation atteignable au clavier |
 | `_static/screenshots/` | Captures de relecture du thème. Le build les retire de `_static/` du site publié |
 | `_static/version-switcher.js`, `_static/version-switcher.css` | Sélecteur de version de la publication, natif à ce dépôt, au style du thème |
 | `_templates/page.html` | Charge `theme-migrate.js` dans le `<head>` ; favicon sombre ; fil d'Ariane ; enveloppe d'accueil |
@@ -275,6 +275,7 @@ Equation {eq}`eq-levels-sum-to-one` says that the probabilities sum to one.
 - **Several equations.** Inside `$$`, an empty line separates equations, which are aligned on their `&`. An amsmath environment, such as `\begin{align*} ... \end{align*}`, may also stand on its own lines without `$$`.
 - **Docstrings.** The role `:math:` and the directive `.. math::` of reStructuredText take the same way.
 - **Macros.** `katex_macros` in `conf.py` holds the macros shared by every formula, such as `{"\\RR": r"\mathbb{R}"}`. A macro may not link to or load a resource (`\href`, `\url`, `\includegraphics`): the build refuses it. KaTeX refuses these commands in a formula too.
+- **Colors.** A formula takes the color of the text around it, in light and dark modes. `\color`, `\textcolor`, `\colorbox` and `\fcolorbox` keep their content and drop their color, and `katex_macros` cannot redefine them. An error shows in the destructive color of the theme.
 - **What KaTeX reads.** KaTeX supports a large part of LaTeX, not all of it: see [its list](https://katex.org/docs/supported.html). Among what it does not read: `multline`, `flalign`, `eqnarray` and `\label` (put the label after the closing `$$`).
 - **Checks.** KaTeX reads the formulas in the browser: the build does not check their TeX. A formula that KaTeX cannot read shows in place as an error, and the rest of the page still renders. Look at the page after writing a formula.
 - **A dollar sign** that is not a formula is written `\$`.

@@ -19,6 +19,10 @@ KaTeX numbers some environments by itself (``align``, ``equation``, ``gather``);
 ``_static/katex-theme.css`` hides those numbers, and a numbered environment shows the
 number Sphinx gives it.
 
+Formulas take the colors of the theme. The commands that would color a formula
+(``\color``, ``\textcolor``, ``\colorbox``, ``\fcolorbox``) are macros that keep the
+content and drop the color, and ``_static/katex-theme.css`` sets the rest.
+
 KaTeX reads the formulas in the browser: a formula that KaTeX cannot parse does not fail
 the build, it shows as an error in the page.
 """
@@ -48,6 +52,16 @@ UNTRUSTED_COMMANDS = (
     r"\htmlStyle",
     r"\htmlData",
 )
+
+#: The commands that color a formula, made to keep their content and drop the color, so
+#: that every formula takes the colors of the theme in light and dark modes. They come
+#: after the macros of ``katex_macros``, which may not redefine them.
+COLOR_MACROS = {
+    r"\color": r"\@firstoftwo{}{#1}",
+    r"\textcolor": r"\@secondoftwo{#1}{#2}",
+    r"\colorbox": r"\@secondoftwo{#1}{\text{#2}}",
+    r"\fcolorbox": r"\@secondoftwo{#1#2}{\fbox{#3}}",
+}
 
 
 def visit_inline_math(self: HTML5Translator, node: nodes.math) -> None:
@@ -87,13 +101,15 @@ def visit_display_math(self: HTML5Translator, node: nodes.math_block) -> None:
 
 
 def check_macros(app: Sphinx, config: Config) -> None:
-    """Refuse a macro that is not a TeX command, or that would link to a resource."""
+    """Refuse a macro that is not a TeX command, that links to a resource or colors."""
     macros = config.katex_macros
     for name, body in macros.items():
         if not (isinstance(name, str) and name.startswith("\\") and isinstance(body, str)):
             raise ConfigError(f"katex_macros: {name!r} must map a TeX command to a string")
         if any(command in body for command in UNTRUSTED_COMMANDS):
             raise ConfigError(f"katex_macros: {name} links to a resource: {body!r}")
+        if name in COLOR_MACROS:
+            raise ConfigError(f"katex_macros: {name} is turned off: formulas take no color")
 
 
 def macros_document(macros: dict[str, str]) -> str:
@@ -118,7 +134,7 @@ def add_katex(
         "",
         type="application/json",
         id="selene-katex-macros",
-        body=macros_document(app.config.katex_macros),
+        body=macros_document({**app.config.katex_macros, **COLOR_MACROS}),
     )
     builder.add_js_file("katex/katex.min.js", defer="defer")
     builder.add_js_file("katex/contrib/auto-render.min.js", defer="defer")
