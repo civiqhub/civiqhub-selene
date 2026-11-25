@@ -37,6 +37,7 @@ from civiqhub_selene.blocks import (
     VoteMatrix,
 )
 from civiqhub_selene.blocks.responses import Categorical, OrdinalProbit
+from selene_contract import canonical_value
 
 HERE = pathlib.Path(__file__).resolve().parent
 CONTRACT = HERE.parent / "openapi.yaml"
@@ -539,29 +540,57 @@ def rendered() -> dict[pathlib.Path, str]:
 ENVIRONMENT_KEYS = frozenset({"dependencies", "engine_version"})
 
 
+def canonical(document: object) -> object:
+    """Rename the groups and blocks of every co-clustering value of a fixture canonically.
+
+    Another processor may find the same partition under other names (see
+    ``selene_contract.canonical_value``): fixtures compare partitions, not names.
+    """
+    if isinstance(document, dict):
+        if "group_index" in document and "block_index" in document:
+            document = canonical_value(document)
+        return {key: canonical(value) for key, value in document.items()}
+    if isinstance(document, list):
+        return [canonical(value) for value in document]
+    return document
+
+
 def equivalent(found: object, stored: object) -> bool:
     """Whether a fixture computed here matches the stored one.
 
-    Integers, texts, booleans and structure match exactly; numbers with a fraction match
-    within ``TOLERANCE``, since another processor may round the last bits differently;
+    Partitions match up to the names of their groups and blocks; integers, texts,
+    booleans and structure match exactly; numbers with a fraction match within
+    ``TOLERANCE``, since another processor may round the last bits differently;
     ``ENVIRONMENT_KEYS`` are not compared.
     """
+    return first_difference(found, stored) is None
+
+
+def first_difference(found: object, stored: object) -> str | None:
+    """Return where two fixtures first differ once canonical, with both values, or ``None``."""
+    return _difference(canonical(found), canonical(stored), "$")
+
+
+def _difference(found: object, stored: object, path: str) -> str | None:
     if isinstance(stored, dict):
-        return (
-            isinstance(found, dict)
-            and found.keys() == stored.keys()
-            and all(
-                key in ENVIRONMENT_KEYS or equivalent(found[key], stored[key]) for key in stored
-            )
-        )
+        if not isinstance(found, dict) or found.keys() != stored.keys():
+            return f"{path}: other fields"
+        for key in stored:
+            if key not in ENVIRONMENT_KEYS:
+                difference = _difference(found[key], stored[key], f"{path}.{key}")
+                if difference:
+                    return difference
+        return None
     if isinstance(stored, list):
-        return (
-            isinstance(found, list)
-            and len(found) == len(stored)
-            and all(equivalent(f, s) for f, s in zip(found, stored, strict=True))
-        )
+        if not isinstance(found, list) or len(found) != len(stored):
+            return f"{path}: other length"
+        for index, (one, other) in enumerate(zip(found, stored, strict=True)):
+            difference = _difference(one, other, f"{path}[{index}]")
+            if difference:
+                return difference
+        return None
     if isinstance(stored, float) or isinstance(found, float):
-        return (
+        same = (
             isinstance(found, (int, float))
             and isinstance(stored, (int, float))
             and not isinstance(found, bool)
@@ -570,27 +599,9 @@ def equivalent(found: object, stored: object) -> bool:
                 found, stored, rel_tol=TOLERANCE["relative"], abs_tol=TOLERANCE["absolute"]
             )
         )
-    return type(found) is type(stored) and found == stored
-
-
-def first_difference(found: object, stored: object, path: str = "$") -> str | None:
-    """Return where two fixtures first differ, with both values, or ``None``."""
-    if isinstance(stored, dict) and isinstance(found, dict):
-        if found.keys() != stored.keys():
-            return f"{path}: keys {sorted(found)} instead of {sorted(stored)}"
-        for key in stored:
-            if key not in ENVIRONMENT_KEYS:
-                difference = first_difference(found[key], stored[key], f"{path}.{key}")
-                if difference:
-                    return difference
-        return None
-    if isinstance(stored, list) and isinstance(found, list) and len(found) == len(stored):
-        for index, (f, s) in enumerate(zip(found, stored, strict=True)):
-            difference = first_difference(f, s, f"{path}[{index}]")
-            if difference:
-                return difference
-        return None
-    return None if equivalent(found, stored) else f"{path}: computed {found!r}, stored {stored!r}"
+    else:
+        same = type(found) is type(stored) and found == stored
+    return None if same else f"{path}: computed {found!r}, stored {stored!r}"
 
 
 def stale_fixtures() -> tuple[list[pathlib.Path], list[pathlib.Path]]:
