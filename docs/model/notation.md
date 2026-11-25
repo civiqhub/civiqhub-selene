@@ -39,6 +39,7 @@ A cell has three states that the notation keeps apart: not shown ($(i, j) \notin
 | $q$, $l$ | A group, from $1$ to $Q$; a block, from $1$ to $L$; $(q, l)$ is a co-cluster | | |
 | $R_i$ | The group of the voter $i$, when each voter belongs to one group | {py:attr}`~civiqhub_selene.blocks.results.Coclustering.group_index` | $(M,)$ |
 | $C_j$ | The block of the item $j$, when each item belongs to one block | {py:attr}`~civiqhub_selene.blocks.results.Coclustering.block_index` | $(P,)$ |
+| $N_{qls}$ | Count of the co-cluster $(q, l)$ in the state $s$: the shown cells of its voters and items in that state, each weighted by $w_i$; an expected, fractional count in the mixed-membership model | {py:meth}`~civiqhub_selene.blocks.GroupedVotes.counts` (without weights); `_numerics.count_states` (internal) | $(Q, L, K + 1)$ |
 | $\pi_q$ | Share of the voters in the group $q$ | `group_shares` of `single._HardState` (internal) | $(Q,)$ |
 | $\rho_l$ | Share of the items in the block $l$ | `block_shares` of `single._HardState` (internal) | $(L,)$ |
 | $\theta_{iq}$ | Degree of membership of the voter $i$ in the group $q$; $\sum_q \theta_{iq} = 1$ | {py:attr}`~civiqhub_selene.blocks.results.Coclustering.group_memberships` of a {py:class}`~civiqhub_selene.blocks.results.MixedCoclustering` | $(M, Q)$ |
