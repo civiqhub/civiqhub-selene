@@ -91,7 +91,7 @@ They are a soft reading of the final arrangement, each computed with the other s
 
 ### Beside the classified likelihood
 
-The likelihood of the votes alone, where the groups and the blocks are summed out, has no exact expectation step for a block model: given the votes, the group of a voter and the block of an item are not independent, so the posterior of $(R, C)$ does not factor into one law per voter and one per item. The literature approximates it, with variational methods among others. The engine does not: {py:class}`~civiqhub_selene.blocks.LatentBlockModel` maximises the classified likelihood, and the mixed-membership model, where each voter has a profile, computes its expectation step exactly (its page is not written yet).
+The likelihood of the votes alone, where the groups and the blocks are summed out, has no exact expectation step for a block model: given the votes, the group of a voter and the block of an item are not independent, so the posterior of $(R, C)$ does not factor into one law per voter and one per item. The literature approximates it, with variational methods among others. The engine does not: {py:class}`~civiqhub_selene.blocks.LatentBlockModel` maximises the classified likelihood, and the mixed-membership model, where each voter has a profile, computes its expectation step exactly ([The mixed-membership model](mixed-membership.md)).
 
 ## An example
 

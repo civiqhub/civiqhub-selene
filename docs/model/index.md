@@ -29,7 +29,7 @@ The pages build on one another, in this order. Those that are not written yet ar
 2. [The data](data.md): the matrix of votes, its three states per cell, the scale, and the counts the models read.
 3. [The response models](response-models.md): what a co-cluster says about the cells it holds.
 4. [The latent block model](latent-block-model.md): one group per voter, one block per item.
-5. The mixed-membership model: a voter follows different groups on different blocks (not written yet).
+5. [The mixed-membership model](mixed-membership.md): a voter follows different groups on different blocks.
 6. The estimation: the loop every block model shares, its convergence, its starts and its determinism (not written yet).
 7. The starts: random, spectral and fixed (not written yet).
 8. Choosing the shape: the integrated completed likelihood and the likelihood of held-out votes (not written yet).
