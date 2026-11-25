@@ -102,5 +102,8 @@ A cell has three states that the notation keeps apart: not shown ($(i, j) \notin
 | $\mathcal{L}$ | The observed log-likelihood of the mixed-membership model | {py:attr}`~civiqhub_selene.blocks.results.MixedCoclustering.log_likelihood` |
 | $\mathcal{J}$ | The objective of the mixed-membership model: $\mathcal{L}$ plus the log-densities of the Dirichlet priors on the memberships, up to a constant, the prior of each voter weighted by $w_i$ | {py:attr}`~civiqhub_selene.blocks.results.Coclustering.objective` of a {py:class}`~civiqhub_selene.blocks.results.MixedCoclustering` |
 | $\mathrm{ICL}$ | The integrated completed likelihood, which compares shapes | {py:attr}`~civiqhub_selene.blocks.results.SingleCoclustering.integrated_likelihood` |
+| $\operatorname{pen}_F$ | The penalty of the parameters of the response model in the ICL | {py:meth}`~civiqhub_selene.blocks.responses.ResponseModel.complexity_penalty` |
+| $\Omega_{\mathrm{in}}$, $\Omega_{\mathrm{out}}$ | The shown cells kept for the estimation, and those held out | {py:meth}`~civiqhub_selene.blocks.VoteMatrix.hold_out` |
+| $\mathcal{L}_{\mathrm{out}}$ | The log-likelihood of the held-out cells under a result estimated on the others | {py:meth}`~civiqhub_selene.blocks.results.PredictsVotes.log_probability`, summed over $\Omega_{\mathrm{out}}$ |
 
 The pages that define these quantities give their formulas and the lines of the code that compute them.
