@@ -100,6 +100,7 @@ Notation <model/notation>
 The data <model/data>
 The response models <model/response-models>
 The latent block model <model/latent-block-model>
+The mixed-membership model <model/mixed-membership>
 ```
 
 ```{toctree}
