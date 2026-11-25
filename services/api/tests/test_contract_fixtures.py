@@ -47,6 +47,19 @@ class TestFixtureComparison:
         assert not make_fixtures.equivalent(True, 1)
         assert not make_fixtures.equivalent({"a": 1}, {"a": 1, "b": 2})
 
+    def test_the_same_partition_under_other_names_matches(self) -> None:
+        stored = {"group_index": [0, 0, 1], "block_index": [0, 1], "objective": -1.5}
+        found = {"group_index": [1, 1, 0], "block_index": [1, 0], "objective": -1.5}
+        assert make_fixtures.equivalent({"expected": found}, {"expected": stored})
+
+    def test_another_partition_differs(self) -> None:
+        stored = {"group_index": [0, 0, 1], "block_index": [0, 1]}
+        found = {"group_index": [0, 1, 1], "block_index": [0, 1]}
+        assert not make_fixtures.equivalent(found, stored)
+        assert make_fixtures.first_difference(found, stored) == (
+            "$.group_index[1]: computed 1, stored 0"
+        )
+
     def test_the_environment_of_the_computation_is_not_compared(self) -> None:
         found = {"engine_version": "0.2.0", "dependencies": {"numpy": "2.6.0"}, "x": 1}
         stored = {"engine_version": "0.1.0", "dependencies": {"numpy": "2.5.5"}, "x": 1}
