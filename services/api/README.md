@@ -133,7 +133,9 @@ project, and the settings of a latent block model (`LatentBlockModel` of the eng
   same engine wheel reproduces it on any machine: the same partition, up to the names of
   groups and blocks (another processor may name them the other way round), and numbers
   within 1e-6 relative or 1e-9 absolute (another processor rounds the last bits
-  differently, and iterative fits carry it to about 1e-9).
+  differently, and iterative fits carry it to about 1e-9). The history of the
+  iterations is not promised: another processor may reach the same optimum by another
+  path.
 - `coclustering-single-1/no-votes`: an explained absence.
 - `coclustering-single-1/invalid/*`: each refusal the contract requires, with its status
   and code, and whether the JSON schema alone refuses it.
