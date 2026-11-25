@@ -193,6 +193,15 @@ python -m http.server --directory _site
 
 The version selector of the sidebar reads `versions.json`, a file the script writes next to the folders. It only appears on the published site, or behind a web server as above: a page opened from the disk has no selector. The `documentation` job of the CI runs the same script on the commit of the pull request alone, and keeps the result as the artifact `docs-html`.
 
+The `documentation` job also keeps the site self-contained:
+
+- It passes `--offline` to the script: Sphinx then runs without network, in a namespace of its own (`unshare`), once the package and the tools are installed. Where the system refuses a user namespace, the script warns and Sphinx runs with network.
+- It then runs `.github/scripts/check-no-external-resources.py` on the site. The job fails when an HTML page or a style sheet loads a script, a style sheet, a font, an image or a frame from another server, and the message names the file and the address. Links a reader follows are allowed, and so are the canonical address and the Open Graph tags on `https://selene.civiqhub.com/`. The one exception, listed in the script, is Mermaid (decision of Yanis of 25/11/2026).
+
+```bash
+python .github/scripts/check-no-external-resources.py _site
+```
+
 A release needs nothing more for its documentation: when `main` receives the release, the site gains its folder. To change the address of the site, change `SITE_URL` in the workflow and the `Documentation` address in `pyproject.toml`.
 
 ## Five rules
@@ -280,7 +289,7 @@ Equation {eq}`eq-levels-sum-to-one` says that the probabilities sum to one.
 - **Checks.** KaTeX reads the formulas in the browser: the build does not check their TeX. A formula that KaTeX cannot read shows in place as an error, and the rest of the page still renders. Look at the page after writing a formula.
 - **A dollar sign** that is not a formula is written `\$`.
 
-A diagram is a block fenced with `mermaid`; GitHub draws it as well. The site loads Mermaid from the jsDelivr network, on the pages that hold a diagram only. It is the one script the site reads from another server (decision of Yanis of 25/11/2026).
+A diagram is a block fenced with `mermaid`; GitHub draws it as well. The site loads Mermaid from the jsDelivr network, on the pages that hold a diagram only. It is the one script the site reads from another server (decision of Yanis of 25/11/2026); the CI checks that no other resource comes from another server (see [How the site is published](#how-the-site-is-published)).
 
 ## The reference
 
