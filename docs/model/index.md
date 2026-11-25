@@ -26,7 +26,7 @@ The section describes what the code holds, and nothing else. As of the commit ea
 The pages build on one another, in this order. Those that are not written yet are listed without a link.
 
 1. [Notation](notation.md): the letters of the section, the names of the code they stand for, and the conventions.
-2. The data: the matrix of votes, its three states per cell, the scale, and the counts the models read (not written yet).
+2. [The data](data.md): the matrix of votes, its three states per cell, the scale, and the counts the models read.
 3. The response models: what a co-cluster says about the cells it holds (not written yet).
 4. The latent block model: one group per voter, one block per item (not written yet).
 5. The mixed-membership model: a voter follows different groups on different blocks (not written yet).
