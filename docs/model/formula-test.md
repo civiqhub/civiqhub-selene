@@ -59,7 +59,7 @@ $$
 ## Operators and fonts
 
 $$
-\hat{u} = \operatorname*{arg\,max}_{u \in \mathbb{R}} \; \mathbb{E}\left[\log g(\boldsymbol{y} \mid u)\right]
+\hat{v} = \operatorname*{arg\,max}_{v \in \mathbb{R}} \; \mathbb{E}\left[\log g(\boldsymbol{x} \mid v)\right]
 $$
 
 ## A long formula
@@ -67,7 +67,7 @@ $$
 On a narrow screen this formula scrolls on its own line; the page does not widen.
 
 $$
-h(x) = \sum_{n=0}^{20} \frac{x^{n}}{n!} - \prod_{m=1}^{12} \left(1 + \frac{x}{m^{2}}\right) + \int_{0}^{x} \frac{\sin u}{u} \, du + \log\left(1 + e^{x}\right) - \frac{1}{2} \log\left(1 + x^{2}\right) + \sqrt{1 + x^{2} + x^{4} + x^{6} + x^{8} + x^{10} + x^{12} + x^{14} + x^{16} + x^{18} + x^{20}}
+h(x) = \sum_{n=0}^{20} \frac{x^{n}}{n!} - \prod_{m=1}^{12} \left(1 + \frac{x}{m^{2}}\right) + \int_{0}^{x} \frac{\sin v}{v} \, dv + \log\left(1 + e^{x}\right) - \frac{1}{2} \log\left(1 + x^{2}\right) + \sqrt{1 + x^{2} + x^{4} + x^{6} + x^{8} + x^{10} + x^{12} + x^{14} + x^{16} + x^{18} + x^{20}}
 $$
 
 ## In a table
