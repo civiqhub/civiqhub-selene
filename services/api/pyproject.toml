@@ -17,5 +17,12 @@ classifiers = ["Private :: Do Not Upload"]
 # Server dependencies are added with the first implementation, and locked.
 dependencies = ["civiqhub-selene==0.0.1"]
 
+[dependency-groups]
+# Contract tests: the OpenAPI document, the fixtures and the contract client agree.
+# PyYAML and jsonschema are MIT; openapi-spec-validator is Apache-2.0. Test tools only.
+test = ["pytest>=9.1", "pyyaml>=6.0", "jsonschema>=4.23", "openapi-spec-validator>=0.7"]
+# Stubs for mypy, which the root lint group installs. Both are Apache-2.0.
+lint = [{ include-group = "test" }, "types-PyYAML", "types-jsonschema"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/selene_api"]
