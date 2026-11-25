@@ -284,14 +284,77 @@ confirm on the image (SWK-10).
 
 **Container.** Non-root user `10001`, read-only root file system, every capability
 dropped, no privilege escalation, no Kubernetes token, no persistent volume; a small
-`emptyDir` on `/tmp`. `Recreate` strategy, one replica; `terminationGracePeriodSeconds`
-above `SELENE_SHUTDOWN_GRACE_SECONDS`. The token and the certificate are mounted files.
+`emptyDir` on `/tmp` (64 MiB is enough). `Recreate` strategy, one replica;
+`terminationGracePeriodSeconds` above `SELENE_SHUTDOWN_GRACE_SECONDS` (20 s for the
+default 10 s). The token and the certificate are mounted files that user `10001` can
+read (for example `defaultMode: 0440` with `fsGroup: 10001`). Measured on the image
+under these restrictions: 214 MiB and one CPU while computing 240,000 cells, three
+processes, a stop in under a second.
+
+## The image
+
+[`Dockerfile`](Dockerfile) and [`image/build.sh`](image/build.sh) build the image once,
+from the wheels of the commit, without any index:
+
+```bash
+services/api/image/build.sh selene-api:candidate
+SELENE_IMAGE=selene-api:candidate pytest services/api/image_tests
+```
+
+`build.sh` builds the engine wheel and the service wheel of the checkout, downloads the
+locked runtime wheels (checked by their hashes), and builds the image offline: the
+Dockerfile installs exactly these wheels, checks the engine wheel against its SHA-256 and
+version, and fails on a missing, extra or different wheel. Then it saves the image as an
+OCI archive, `dist/selene-image.oci.tar`, checks that the archive holds the image that
+was built, and writes `dist/image-metadata.json`:
+
+```json
+{
+  "tag": "selene-api:candidate",
+  "image_digest": "sha256:<index digest of the image>",
+  "archive": {"path": "dist/selene-image.oci.tar", "sha256": "<hash of the archive>"},
+  "commit": "<40 hexadecimal characters>",
+  "engine": {"version": "<engine version>", "wheel_sha256": "<hash of the engine wheel>"},
+  "service": {"version": "<service version>", "wheel_sha256": "<hash of the service wheel>"},
+  "contract": {"version": "<info.version>"},
+  "python_image": null
+}
+```
+
+It needs the containerd image store of Docker (the default of Docker 29; the CI turns it
+on), where a built image is the digest of its index, so that the digest the tests ran is
+the digest the archive and the registry hold.
+
+**Image tests** (`services/api/image_tests`) run hardened containers of that image
+(read-only, no capability, no privilege escalation, 1.5 GiB, 128 processes, 64 MiB of
+`/tmp`) with synthetic certificates and tokens: the artifact is the archived one; labels,
+build information and the exact engine wheel; non-root, no `pip`, no secret and no data;
+a wrong or missing wheel fails the build; the same image serves a `dev` and a `staging`
+configuration, each refusing the token and the CA of the other; the computation matches
+the local reference; the contract client inside the image runs the acceptance; logs
+without secret or data; busy, effective timeout without orphan, crash, memory limit
+without OOM kill of the container, restart that forgets the jobs, and a bounded stop.
+Measurements go to `dist/image-report/`.
+
+**Scan.** Trivy scans the archive; a HIGH or CRITICAL vulnerability with a fix fails the
+job, unless [`image/trivyignore.yaml`](image/trivyignore.yaml) holds a reviewed,
+justified and expiring exception for it. The job also writes a CycloneDX inventory.
+
+**Publication (SWK-11).** The `image` job of the CI uploads the artifact `selene-image`:
+`selene-image.oci.tar`, `image-metadata.json`, `selene-image.cdx.json` and the reports.
+The publication pushes that archive, never a rebuild, and checks that the registry
+digest equals `image_digest`. With the containerd image store,
+`docker load --input selene-image.oci.tar` then `docker push` of its tag keeps the
+digest (checked against a local registry); `crane push` or `skopeo copy oci-archive:`
+do too. Signature, provenance and the dispatch to the infrastructure apply to that
+digest. Before it publishes, the workflow checks that the `service`,
+`contract compatibility` and `image` checks passed on the same commit.
 
 **Image metadata.** OCI labels `org.opencontainers.image.source`, `.revision` (commit),
-`.version` (service version), `.licenses`, and `io.civiqhub.selene.contract-version`,
-`.engine-version`, `.engine-wheel-sha256`. The CI keeps the tested image as an OCI
-archive with a metadata file (manifest digest, commit, versions, wheel hash, test
-results) that the publication reuses without rebuilding.
+`.version` (service version), `.licenses`, `.base.name`, and
+`io.civiqhub.selene.contract-version`, `.engine-version`, `.engine-wheel-sha256`; the
+same values, with the service wheel hash, in `/app/build-info.json`, which
+`GET /v1/service` reports.
 
 **Acceptance job.** The same image holds the contract client:
 `python /app/contract/selene_contract.py check --url ... --ca-file ... --token-file ...`

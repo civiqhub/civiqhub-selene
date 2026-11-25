@@ -111,7 +111,7 @@ markers = [
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-src = ["src", "services/api/src", "services/api/contract", "tests"]
+src = ["src", "services/api/src", "services/api/contract", "services/api/tests", "services/api/image_tests", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "UP", "SIM", "N", "PT", "RUF"]
@@ -124,9 +124,18 @@ files = [
   "services/api/src",
   "services/api/contract",
   "services/api/tests",
+  "services/api/image_tests",
   "tests",
   ".github/scripts/check-version.py",
   ".github/scripts/build-docs-site.py",
 ]
-mypy_path = ["src", "services/api/src", "services/api/contract", "services/api/tests"]
+mypy_path = [
+  "src",
+  "services/api/src",
+  "services/api/contract",
+  "services/api/tests",
+  "services/api/image_tests",
+]
 explicit_package_bases = true
+# Both test suites of the service need a conftest.py; this one only sets the import path.
+exclude = ["^services/api/image_tests/conftest\\.py$"]

@@ -1,0 +1,10 @@
+# The image of the service reads only these files of the repository (services/api/Dockerfile).
+*
+!dist/civiqhub_selene-*.whl
+!dist/selene_api-*.whl
+!dist/wheelhouse/*.whl
+!services/api/requirements.lock
+!services/api/openapi.yaml
+!services/api/contract/selene_contract.py
+!services/api/contract/fixtures/
+**/__pycache__

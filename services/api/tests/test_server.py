@@ -10,6 +10,9 @@ import sys
 import time
 
 import pytest
+
+import make_fixtures
+import selene_contract
 from servicetest import (
     STOPPED_BY_SIGTERM,
     TOKEN,
@@ -17,9 +20,6 @@ from servicetest import (
     running_server,
     slow_submission,
 )
-
-import make_fixtures
-import selene_contract
 
 EX_CONFIG = 78
 

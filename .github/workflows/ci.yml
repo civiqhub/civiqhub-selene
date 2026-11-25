@@ -76,6 +76,132 @@ jobs:
         run: python services/api/contract/make_fixtures.py --check
       - run: pytest services/api/tests
 
+  # The contract only grows (SWK-9). The reference comes from the approved base: the
+  # base branch of a pull request, or the commit before a push, never from the candidate.
+  # Its OpenAPI document is compared with the new one, and its contract client and
+  # fixtures, the consumer that was supported, run against the new server.
+  contract-compatibility:
+    name: contract compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --upgrade pip
+      - name: Install the locked runtime, then the engine and the service of this commit
+        run: |
+          python -m pip install --require-hashes --no-deps -r services/api/requirements.lock
+          python -m pip install --no-deps -e . -e services/api
+          python -m pip install --group services/api/pyproject.toml:test
+      - name: Fetch the contract of the approved base
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE" ] || [ -z "${BASE//0/}" ] \
+             || ! git cat-file -e "$BASE:services/api/openapi.yaml" 2>/dev/null; then
+            echo "::notice::No base contract to compare with."
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/base"
+          git archive "$BASE" services/api | tar -x -C "$RUNNER_TEMP/base"
+          echo "BASE_SERVICE=$RUNNER_TEMP/base/services/api" >> "$GITHUB_ENV"
+      - name: Check that the OpenAPI document only grows
+        if: env.BASE_SERVICE != ''
+        run: |
+          checker="$BASE_SERVICE/contract/check_compatibility.py"
+          if [ ! -f "$checker" ]; then
+            echo "::notice::The base has no compatibility check yet; using the one of this commit."
+            checker=services/api/contract/check_compatibility.py
+          fi
+          python "$checker" "$BASE_SERVICE/openapi.yaml" services/api/openapi.yaml
+      - name: Run the consumer suite of the base against this server
+        if: env.BASE_SERVICE != ''
+        run: |
+          client="$BASE_SERVICE/contract/selene_contract.py"
+          if [ ! -f "$client" ]; then
+            echo "::notice::The base has no contract client yet."
+            exit 0
+          fi
+          python -c "import secrets; print(secrets.token_urlsafe(32))" > "$RUNNER_TEMP/token"
+          SELENE_TOKEN_FILE="$RUNNER_TEMP/token" SELENE_HOST=127.0.0.1 \
+            python -m selene_api > "$RUNNER_TEMP/server.log" 2>&1 &
+          server=$!
+          for _ in $(seq 1 120); do
+            curl -sf http://127.0.0.1:8443/readyz > /dev/null && break
+            sleep 0.5
+          done
+          status=0
+          python "$client" check --url http://127.0.0.1:8443 --allow-insecure-http \
+            --token-file "$RUNNER_TEMP/token" || status=$?
+          kill -TERM "$server"
+          wait "$server" || true
+          exit "$status"
+
+  # The final image (SWK-8, SWK-10): built once from the wheels of this commit, tested as
+  # a hardened container, scanned, then kept as an OCI archive whose digest is the one the
+  # tests ran. The publication pushes that archive; it never rebuilds the image.
+  image:
+    name: image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: Use the containerd image store, where a built image is its index digest
+        run: |
+          sudo python3 - <<'PYTHON'
+          import json, pathlib
+          path = pathlib.Path("/etc/docker/daemon.json")
+          config = json.loads(path.read_text()) if path.exists() else {}
+          config.setdefault("features", {})["containerd-snapshotter"] = True
+          path.write_text(json.dumps(config, indent=2))
+          PYTHON
+          sudo systemctl restart docker
+          docker info --format '{{ .DriverStatus }}'
+      - run: python -m pip install --upgrade pip build
+      - name: Install the locked runtime, the engine, the service and the test tools
+        run: |
+          python -m pip install --require-hashes --no-deps -r services/api/requirements.lock
+          python -m pip install --no-deps -e . -e services/api
+          python -m pip install --group services/api/pyproject.toml:test
+      - name: Build the image from the wheels of this commit
+        run: services/api/image/build.sh selene-api:candidate
+      - name: Test the image
+        env:
+          SELENE_IMAGE: selene-api:candidate
+        run: pytest services/api/image_tests
+      - name: Scan the image (HIGH and CRITICAL with a fix fail, except reviewed exceptions)
+        run: |
+          docker run --rm --volume "$PWD:/work:ro" "$TRIVY" image --quiet \
+            --input /work/dist/selene-image.oci.tar --scanners vuln \
+            --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
+            --ignorefile /work/services/api/image/trivyignore.yaml --format table
+        env:
+          TRIVY: ghcr.io/aquasecurity/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+      - name: Write the software bill of materials
+        run: |
+          docker run --rm --volume "$PWD:/work" "$TRIVY" image --quiet \
+            --input /work/dist/selene-image.oci.tar --format cyclonedx \
+            --output /work/dist/selene-image.cdx.json
+        env:
+          TRIVY: ghcr.io/aquasecurity/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: selene-image
+          path: |
+            dist/selene-image.oci.tar
+            dist/image-metadata.json
+            dist/selene-image.cdx.json
+            dist/image-report/
+          retention-days: 7
+
   # The core and the ordinal family must live without NumPy.
   test-core:
     name: test without extras
