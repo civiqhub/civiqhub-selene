@@ -99,6 +99,7 @@ Overview <model/index>
 Notation <model/notation>
 The data <model/data>
 The response models <model/response-models>
+The latent block model <model/latent-block-model>
 ```
 
 ```{toctree}
