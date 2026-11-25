@@ -13,6 +13,24 @@ from a CSV file, starts a block model, runs a full inference and draws the resul
 The notebooks are saved with their outputs, so they can be read on GitHub without
 running them.
 
+## Scripts
+
+One command-line script describes the groups of a co-clustering with the metadata of
+the respondents. It needs pandas, SciPy and Matplotlib. With `--demo`, it runs on
+synthetic data drawn by the script itself.
+
+| Script | What it does |
+| --- | --- |
+| [`profile_clusters.py`](profile_clusters.py) | Describe the groups of a co-clustering with the metadata of the respondents, for single or mixed memberships, with optional survey weights: test values of Lebart, Morineau and Piron, identity cards, heatmap, stacked bars, quantile boxes, association ranking, correspondence analysis |
+
+```bash
+python examples/profile_clusters.py --demo --soft --out demo_profile
+```
+
+To build the vote matrix of a survey, use `read_survey_csv` and
+`VoteMatrix.from_responses`. Run `--help` on the script for its options. Keep real
+survey files outside the repository and pass their path on the command line.
+
 ## Run them
 
 From the root of the repository:
