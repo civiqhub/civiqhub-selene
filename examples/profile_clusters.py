@@ -237,11 +237,20 @@ class ProfileSpec:
         )
 
     @staticmethod
-    def suggest(metadata: pd.DataFrame, id_column: str, max_levels: int = 12) -> dict[str, str]:
+    def suggest(
+        metadata: pd.DataFrame,
+        id_column: str,
+        max_levels: int = 12,
+        *,
+        weight_column: str | None = None,
+    ) -> dict[str, str]:
         """A first guess of the kinds, to check and correct by hand before use."""
         guess = {}
+        skip = {id_column}
+        if weight_column is not None:
+            skip.add(weight_column)
         for column in metadata.columns:
-            if column == id_column or column in ("poids", "weight"):
+            if column in skip:
                 continue
             values = metadata[column].dropna()
             numeric = pd.api.types.is_numeric_dtype(values)
@@ -1094,7 +1103,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             raw = json.loads(Path(args.spec).read_text()) if args.spec else {}
             id_column = args.id or raw.get("id", "row_number")
             table = pd.read_csv(args.metadata, dtype={id_column: str})
-            print(json.dumps(ProfileSpec.suggest(table, id_column), indent=2))
+            print(
+                json.dumps(
+                    ProfileSpec.suggest(table, id_column, weight_column=raw.get("weight")),
+                    indent=2,
+                )
+            )
             return 0
         if not (args.membership and args.spec):
             parser.error("give --membership and --spec")
