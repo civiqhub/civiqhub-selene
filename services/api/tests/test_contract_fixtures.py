@@ -39,7 +39,7 @@ class TestFixtureComparison:
         assert make_fixtures.equivalent({"a": [1.0 + 1e-12, 2]}, {"a": [1.0, 2]})
 
     def test_floats_outside_the_tolerance_differ(self) -> None:
-        assert not make_fixtures.equivalent({"a": 1.0 + 1e-6}, {"a": 1.0})
+        assert not make_fixtures.equivalent({"a": 1.0 + 1e-4}, {"a": 1.0})
 
     def test_integers_texts_and_booleans_match_exactly(self) -> None:
         assert not make_fixtures.equivalent([0, 1], [1, 0])

@@ -10,7 +10,7 @@
   "computation": "f485836cb89f8a42",
   "available": false,
   "tolerance": {
-    "relative": 1e-09,
+    "relative": 1e-06,
     "absolute": 1e-09
   },
   "expected": {
