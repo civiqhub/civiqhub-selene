@@ -33,7 +33,7 @@ A block model writes three hooks: a start, an iteration and a finish. The loop t
 | {py:class}`~civiqhub_selene.blocks.LatentBlockModel` | Classification expectation-maximisation: parameters, then voters, then items | $\mathcal{L}_{\mathrm{c}}$, the classified log-likelihood ([The latent block model](latent-block-model.md)) |
 | {py:class}`~civiqhub_selene.blocks.MixedMembershipBlockModel` | Exact expectation-maximisation, regularised by Dirichlet priors | $\mathcal{J}$, the log-likelihood plus the log-densities of the priors ([The mixed-membership model](mixed-membership.md)) |
 
-Both report their objective as {py:attr}`~civiqhub_selene.blocks.results.Coclustering.objective`. The two are different quantities: $\mathcal{L}_{\mathrm{c}}$ scores one arrangement with the shares of its groups and blocks, $\mathcal{J}$ sums over every profile and adds the priors. An objective only compares computations of the same method on the same votes; it never compares a latent block model with a mixed-membership model, nor two matrices of votes. Comparing shapes is the subject of the page on choosing the shape, not written yet.
+Both report their objective as {py:attr}`~civiqhub_selene.blocks.results.Coclustering.objective`. The two are different quantities: $\mathcal{L}_{\mathrm{c}}$ scores one arrangement with the shares of its groups and blocks, $\mathcal{J}$ sums over every profile and adds the priors. An objective only compares computations of the same method on the same votes; it never compares a latent block model with a mixed-membership model, nor two matrices of votes. Comparing shapes is the subject of [Choosing the shape](choosing-the-shape.md).
 
 ## Estimation
 

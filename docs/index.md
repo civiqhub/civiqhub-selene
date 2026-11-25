@@ -103,6 +103,7 @@ The latent block model <model/latent-block-model>
 The mixed-membership model <model/mixed-membership>
 The estimation <model/estimation>
 The starts <model/initialization>
+Choosing the shape <model/choosing-the-shape>
 ```
 
 ```{toctree}
