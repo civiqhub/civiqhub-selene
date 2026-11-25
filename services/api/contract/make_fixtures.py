@@ -47,7 +47,9 @@ KIND = "coclustering.single"
 SCHEMA_VERSION = 1
 RESULT_SCHEMA = "selene.coclustering.single.result/1"
 PRODUCT_SCORES = (-2, -1, 0, 1, 2)
-TOLERANCE = {"relative": 1e-9, "absolute": 1e-9}
+# Another processor rounds the last bits differently, and the iterative fits of the
+# response model carry that through to about 1e-9 relative; partitions must not move.
+TOLERANCE = {"relative": 1e-6, "absolute": 1e-9}
 
 # The planted collective: two groups of six voters, two blocks of three items. Group A
 # agrees with block X and disagrees with block Y, group B does the opposite. A number is

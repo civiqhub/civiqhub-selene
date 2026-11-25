@@ -108,7 +108,7 @@ class TestReferenceComparison:
 
     def test_a_number_outside_the_tolerance_is_reported(self, read_fixture: Reader) -> None:
         job = self.job(read_fixture)
-        job["result"]["value"]["objective"] *= 1 + 1e-6
+        job["result"]["value"]["objective"] *= 1 + 1e-4
         problems = selene_contract.compare_with_reference(job, self.reference(read_fixture))
         assert problems == ["objective outside the tolerance"]
 
