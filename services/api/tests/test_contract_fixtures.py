@@ -27,15 +27,30 @@ INVALID = sorted(
 
 def test_the_fixtures_are_up_to_date() -> None:
     """Regenerate them with ``python services/api/contract/make_fixtures.py``."""
-    files = make_fixtures.rendered()
-    stale = [
-        path.name
-        for path, content in files.items()
-        if not path.exists() or path.read_text(encoding="utf-8") != content
-    ]
-    extra = [path.name for path in make_fixtures.FIXTURES.rglob("*.json") if path not in files]
-    assert not stale, stale
-    assert not extra, extra
+    stale, extra = make_fixtures.stale_fixtures()
+    assert not stale, [path.name for path in stale]
+    assert not extra, [path.name for path in extra]
+
+
+class TestFixtureComparison:
+    """The staleness check tolerates the last bits of a float, nothing else."""
+
+    def test_floats_within_the_tolerance_match(self) -> None:
+        assert make_fixtures.equivalent({"a": [1.0 + 1e-12, 2]}, {"a": [1.0, 2]})
+
+    def test_floats_outside_the_tolerance_differ(self) -> None:
+        assert not make_fixtures.equivalent({"a": 1.0 + 1e-6}, {"a": 1.0})
+
+    def test_integers_texts_and_booleans_match_exactly(self) -> None:
+        assert not make_fixtures.equivalent([0, 1], [1, 0])
+        assert not make_fixtures.equivalent("a", "b")
+        assert not make_fixtures.equivalent(True, 1)
+        assert not make_fixtures.equivalent({"a": 1}, {"a": 1, "b": 2})
+
+    def test_the_environment_of_the_computation_is_not_compared(self) -> None:
+        found = {"engine_version": "0.2.0", "dependencies": {"numpy": "2.6.0"}, "x": 1}
+        stored = {"engine_version": "0.1.0", "dependencies": {"numpy": "2.5.5"}, "x": 1}
+        assert make_fixtures.equivalent(found, stored)
 
 
 @pytest.mark.parametrize("name", ["reference", "no-votes"])

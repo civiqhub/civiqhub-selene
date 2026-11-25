@@ -22,6 +22,7 @@ import argparse
 import copy
 import hashlib
 import json
+import math
 import pathlib
 import sys
 from typing import Any
@@ -527,24 +528,96 @@ def rendered() -> dict[pathlib.Path, str]:
     return files
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--check", action="store_true", help="fail if a fixture is stale")
-    arguments = parser.parse_args()
+# Metadata of the environment that computed a fixture, not of the computation: another
+# Python, NumPy or engine release writes other values for the same numbers.
+ENVIRONMENT_KEYS = frozenset({"dependencies", "engine_version"})
+
+
+def equivalent(found: object, stored: object) -> bool:
+    """Whether a fixture computed here matches the stored one.
+
+    Integers, texts, booleans and structure match exactly; numbers with a fraction match
+    within ``TOLERANCE``, since another processor may round the last bits differently;
+    ``ENVIRONMENT_KEYS`` are not compared.
+    """
+    if isinstance(stored, dict):
+        return (
+            isinstance(found, dict)
+            and found.keys() == stored.keys()
+            and all(
+                key in ENVIRONMENT_KEYS or equivalent(found[key], stored[key]) for key in stored
+            )
+        )
+    if isinstance(stored, list):
+        return (
+            isinstance(found, list)
+            and len(found) == len(stored)
+            and all(equivalent(f, s) for f, s in zip(found, stored, strict=True))
+        )
+    if isinstance(stored, float) or isinstance(found, float):
+        return (
+            isinstance(found, (int, float))
+            and isinstance(stored, (int, float))
+            and not isinstance(found, bool)
+            and not isinstance(stored, bool)
+            and math.isclose(
+                found, stored, rel_tol=TOLERANCE["relative"], abs_tol=TOLERANCE["absolute"]
+            )
+        )
+    return type(found) is type(stored) and found == stored
+
+
+def first_difference(found: object, stored: object, path: str = "$") -> str | None:
+    """Return where two fixtures first differ, with both values, or ``None``."""
+    if isinstance(stored, dict) and isinstance(found, dict):
+        if found.keys() != stored.keys():
+            return f"{path}: keys {sorted(found)} instead of {sorted(stored)}"
+        for key in stored:
+            if key not in ENVIRONMENT_KEYS:
+                difference = first_difference(found[key], stored[key], f"{path}.{key}")
+                if difference:
+                    return difference
+        return None
+    if isinstance(stored, list) and isinstance(found, list) and len(found) == len(stored):
+        for index, (f, s) in enumerate(zip(found, stored, strict=True)):
+            difference = first_difference(f, s, f"{path}[{index}]")
+            if difference:
+                return difference
+        return None
+    return None if equivalent(found, stored) else f"{path}: computed {found!r}, stored {stored!r}"
+
+
+def stale_fixtures() -> tuple[list[pathlib.Path], list[pathlib.Path]]:
+    """Return the fixtures that differ from what the engine computes now, and the extra ones."""
     files = rendered()
     stale = [
         path
         for path, content in files.items()
-        if not path.exists() or path.read_text(encoding="utf-8") != content
+        if not path.exists()
+        or not equivalent(json.loads(content), json.loads(path.read_text(encoding="utf-8")))
     ]
-    known = set(files)
-    extra = sorted(path for path in FIXTURES.rglob("*.json") if path not in known)
+    extra = sorted(path for path in FIXTURES.rglob("*.json") if path not in files)
+    return stale, extra
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--check", action="store_true", help="fail if a fixture is stale")
+    arguments = parser.parse_args()
     if arguments.check:
-        for path in [*stale, *extra]:
-            print(f"stale fixture: {path.relative_to(HERE)}")
+        stale, extra = stale_fixtures()
+        files = rendered()
+        for path in stale:
+            stored = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+            where = first_difference(json.loads(files[path]), stored)
+            print(f"stale fixture: {path.relative_to(HERE)}: {where}")
+        for path in extra:
+            print(f"extra fixture: {path.relative_to(HERE)}")
         sys.exit(1 if stale or extra else 0)
-    for path in extra:
-        path.unlink()
+    files = rendered()
+    for path in FIXTURES.rglob("*.json"):
+        if path not in files:
+            path.unlink()
     for path, content in files.items():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
