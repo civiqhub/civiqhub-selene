@@ -61,6 +61,16 @@ A cell has three states that the notation keeps apart: not shown ($(i, j) \notin
 | $\sigma_{ql}$ | Standard deviation of the hidden opinion in the co-cluster $(q, l)$ | {py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbitParameters.latent_spread` | $(Q, L)$ |
 | $t_k$ | The thresholds that cut the hidden opinion into levels, $t_1 < \dots < t_{K-1}$, with $t_0 = -\infty$ and $t_K = +\infty$ | {py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbit.thresholds`, {py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbitParameters.thresholds` | $(K - 1,)$ |
 | $\Phi$ | The standard normal distribution function | `_numerics.norm_cdf` (internal) | |
+| $\Phi'$ | The standard normal density | `_numerics.norm_pdf` (internal) | |
+| $y_{ij}$ | The hidden opinion behind the vote of the cell $(i, j)$, in the ordinal probit | | |
+| $z_{qlk}$ | A standardised threshold, $(t_k - \mu_{ql}) / \sigma_{ql}$ | `_numerics._standardised_bounds` (internal) | $(Q, L, K + 1)$ |
+| $r_{qlk}$, $u_{qlk}$ | The ratios of densities over $p_{qlk}$ that give the truncated moments | `truncated_moments` in `_numerics` (internal) | $(Q, L, K)$ |
+| $m^{(1)}_{qlk}$, $m^{(2)}_{qlk}$ | First and second moments of the hidden opinion of a vote at the level $k$ in the co-cluster $(q, l)$ | `truncated_moments` in `_numerics` (internal) | $(Q, L, K)$ |
+| $n_{ql}$ | Number of votes of the co-cluster $(q, l)$, $\sum_{k \geq 1} N_{qlk}$ | | $(Q, L)$ |
+| $\lambda$ | The pseudo-count of the categorical model | {py:attr}`~civiqhub_selene.blocks.responses.Categorical.smoothing` | |
+| $\varepsilon$ | The bound that keeps a vote rate away from $0$ and $1$ | {py:attr}`~civiqhub_selene.blocks.responses.Categorical.min_probability`, {py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbit.min_probability` | |
+| $\sigma_{\min}$ | The floor of $\sigma_{ql}$ | {py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbit.min_spread` | |
+| $n_{\text{votes}}$, $n_{\text{shown}}$ | The numbers of votes and of shown cells of the matrix | {py:attr}`~civiqhub_selene.blocks.VoteMatrix.n_votes`, {py:attr}`~civiqhub_selene.blocks.VoteMatrix.n_shown` | |
 
 ## The start
 
