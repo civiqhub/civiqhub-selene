@@ -31,7 +31,7 @@ The pages build on one another, in this order. Those that are not written yet ar
 4. [The latent block model](latent-block-model.md): one group per voter, one block per item.
 5. [The mixed-membership model](mixed-membership.md): a voter follows different groups on different blocks.
 6. [The estimation](estimation.md): the loop every block model shares, its convergence, its starts and its determinism.
-7. The starts: random, spectral and fixed (not written yet).
+7. [The starts](initialization.md): random, spectral and fixed.
 8. Choosing the shape: the integrated completed likelihood and the likelihood of held-out votes (not written yet).
 9. Reading the results: memberships, roles, agreement between two results, what is identifiable (not written yet).
 10. Cost and numerical safeguards (not written yet).
