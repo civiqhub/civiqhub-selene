@@ -726,9 +726,6 @@ def _phrase(row: Any, short: bool = False) -> str:
 
 
 def _pyplot() -> Any:
-    import matplotlib
-
-    matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     return plt
@@ -1111,6 +1108,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     out = profile.save(args.out)
     print(profile.identity_cards())
     if not args.no_figures:
+        import matplotlib
+
+        matplotlib.use("Agg")
         paths = write_figures(profile, out)
         print(f"{len(paths)} figures in {out / 'figures'}/")
     print(f"tables in {out}/")
