@@ -132,6 +132,16 @@ The code sums over the levels first, then over the scales, so that one scale giv
 
 **Scales of two levels.** A vote on a scale of two levels only says on which side of one threshold the opinion lies: $p_{qlg2} = \Phi((\mu_{ql} - t_{g1}) / \sigma_{ql})$ fixes the ratio $(\mu_{ql} - t_{g1}) / \sigma_{ql}$, and not the mean and the standard deviation apart. When every vote of a co-cluster is on a scale of two levels, the code therefore holds $\sigma_{ql} = \sigma_{\mathrm{u}}$ and estimates $\mu_{ql}$ alone, by the first half of {eq}`eq-response-opinion-by-scale`; the table of the result marks these co-clusters ({py:attr}`~civiqhub_selene.blocks.CoclusterTable.has_fixed_spread`). One vote on a scale of three levels or more is enough to estimate the spread. The same holds on a matrix of one scale of two levels.
 
+### Estimated thresholds
+
+The grids are fixed by default. {py:class}`~civiqhub_selene.blocks.responses.Thresholds` with `mode="estimated"` estimates the inner thresholds of each scale, $t_{g2}, \dots, t_{g,K_g-2}$, and holds its first and its last, $t_{g1}$ and $t_{g,K_g-1}$, where the grid puts them: they anchor the scale on the axis, and fix the location and the unit that the opinions would otherwise share with the thresholds. A scale of $K_g$ levels has $\max(K_g - 3, 0)$ inner thresholds: a scale of fewer than four levels stays fixed. At the opinions $\mu_{ql}$ and $\sigma_{ql}$ of an update, the inner thresholds of the scale $g$ raise
+
+$$
+\sum_{q=1}^{Q} \sum_{l=1}^{L} \sum_{k=1}^{K_g} N_{qlgk} \log p_{qlgk},
+$$ (eq-response-thresholds-estimated)
+
+with $p_{qlgk}$ of {eq}`eq-response-probit-by-scale`, under the order $t_{g1} < \dots < t_{g,K_g-1}$. This sum is concave in the thresholds (Pratt 1981): each update takes, after the opinions, Newton steps on the inner thresholds, each halved until it keeps the order and does not lower {eq}`eq-response-thresholds-estimated`, and kept only then. It is a generalised expectation-maximisation: the objective of the block model never decreases. Each inner threshold adds $\tfrac{1}{2} \log n_{\text{votes}}$ to the penalty {eq}`eq-response-penalty`, a Hypothesis, since every co-cluster shares the thresholds of a scale. The estimate tests the convention of the axis: on answers that are not regular, the inner thresholds move away from the regular grid, and the integrated likelihood says whether the move is worth its parameters.
+
 ### The penalty of the parameters
 
 The integrated likelihood of a single-membership arrangement subtracts half a logarithm of the sample size per free parameter of the response model. The code counts the parameters of the votes with the number of votes $n_{\text{votes}}$ ({py:attr}`~civiqhub_selene.blocks.VoteMatrix.n_votes`), and the vote rates with the number of shown cells $n_{\text{shown}}$ ({py:attr}`~civiqhub_selene.blocks.VoteMatrix.n_shown`), each at least $1$:
@@ -244,6 +254,7 @@ print(round(float(pooled.latent_mean[0, 0]), 4), round(float(pooled.latent_sprea
 | {eq}`eq-response-probit-by-scale`, grid of each scale | `OrdinalProbit._vote_shares`, `level_probabilities_by_scale` and `scale_bounds` in `blocks/_numerics.py` |
 | {eq}`eq-response-axes`, `"auto"` | `Thresholds.grid_of` and `Thresholds.axis_for`, `blocks/responses.py` |
 | {eq}`eq-response-opinion-by-scale`, spread held on two levels | `fit_latent_normal_by_scale`, `blocks/_numerics.py`; `OrdinalProbit.update` |
+| {eq}`eq-response-thresholds-estimated`, ends held, Newton steps kept when they keep the order and raise the sum | `fit_thresholds` and `threshold_objective`, `blocks/_numerics.py`; `OrdinalProbit.update`, `OrdinalProbit.complexity_penalty` |
 
 The code also does what the formulas do not say:
 
@@ -260,4 +271,5 @@ The code also does what the formulas do not say:
 ## References
 
 - Corneli, M., Bouveyron, C. and Latouche, P. (2020). Co-clustering of ordinal data via latent continuous random variables and not missing at random entries. *Journal of Computational and Graphical Statistics*, 29(4), 771–785. doi:10.1080/10618600.2020.1739533. The code takes from it the hidden normal opinion cut by thresholds.
+- Pratt, J. W. (1981). Concavity of the log likelihood. *Journal of the American Statistical Association*, 76(373), 103–106. doi:10.1080/01621459.1981.10477614. The concavity of the likelihood of an ordered probit in its thresholds, which makes the Newton steps on the inner thresholds safe.
 - Dempster, A. P., Laird, N. M. and Rubin, D. B. (1977). Maximum likelihood from incomplete data via the EM algorithm. *Journal of the Royal Statistical Society, Series B*, 39(1), 1–22. doi:10.1111/j.2517-6161.1977.tb01600.x

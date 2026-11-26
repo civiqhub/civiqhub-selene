@@ -158,12 +158,27 @@ print([grid.tolist() for grid in again.value.coclusters.thresholds])
 ```
 
 ```text
-Thresholds(axis='levels', grids=())
-Thresholds(axis='auto', grids=((OrdinalScale(scores=(1, 2, 3, 4)), (0.2, 0.5, 0.8)),))
+Thresholds(axis='levels', grids=(), mode='fixed')
+Thresholds(axis='auto', grids=((OrdinalScale(scores=(1, 2, 3, 4)), (0.2, 0.5, 0.8)),), mode='fixed')
 [[0.5], [0.2, 0.5, 0.8], [0.2, 0.4, 0.6, 0.8]]
 ```
 
 The unit axis assumes that two answers that cut the axis at the same place mean the same position: that "rather agree" on four answers sits where "agree" sits on five. It is a convention, not a measurement. Grids given by hand change that convention for the scales they name.
+
+The data can test it: `mode="estimated"` estimates the inner thresholds of each scale of four answers or more, its first and its last held ([The response models: estimated thresholds](model/response-models.md#estimated-thresholds)). On answers that follow the regular grid, the estimate stays near it; on answers that do not, it moves, and the integrated likelihood of the result says whether the move is worth its parameters:
+
+```python
+estimated = OrdinalProbit(thresholds=Thresholds(mode="estimated"))
+fitted = LatentBlockModel(n_groups=2, n_blocks=2, response_model=estimated).estimate(survey, seed=0)
+grids = fitted.value.coclusters.thresholds
+print([[round(threshold, 2) for threshold in grid.tolist()] for grid in grids])
+```
+
+```text
+[[0.5], [0.25, 0.51, 0.75], [0.2, 0.41, 0.58, 0.8]]
+```
+
+The votes of the survey above were drawn on the regular grids: the inner threshold of the scale of four answers stays near $\tfrac{1}{2}$, and those of the scale of five near $0.4$ and $0.6$; yes or no has none.
 
 ## What does not change
 
@@ -172,5 +187,5 @@ A matrix whose items share one scale is computed as before: same fingerprint, sa
 ## Limits
 
 - Each item has one scale, declared with the votes; the engine does not infer it.
-- The grids are fixed. Estimating the inner thresholds of each scale, its ends held, is planned as an option (SEL-8.8).
+- The grids are fixed by default, and estimated only inside each scale: its ends are held, and a scale of fewer than four answers has no inner threshold to estimate.
 - An item whose answers are not ordered, or a number to be cut into classes, is prepared before it enters the matrix.

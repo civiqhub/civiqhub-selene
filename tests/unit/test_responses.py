@@ -513,3 +513,39 @@ def test_one_scale_counts_are_read_with_or_without_the_axis_of_scales() -> None:
     )
     with pytest.raises(InvalidInputError, match="groups, blocks, scales, states"):
         model.update(COUNTS[0], params)
+
+
+def test_estimated_thresholds_move_the_inner_thresholds_only() -> None:
+    six = OrdinalScale(tuple(range(1, 7)))
+    planted = np.array([1 / 6, 0.25, 0.45, 0.7, 5 / 6])
+    mean, spread = np.array([[0.3, 0.7]]), np.array([[0.2, 0.2]])
+    counts = np.zeros((1, 2, 1, 7))
+    counts[..., 0, 1:] = 500 * level_probabilities(mean, spread, planted)
+    start = OrdinalProbitParameters(
+        np.full((1, 2), 0.9),
+        mean,
+        spread,
+        (np.array([1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6]),),
+        spread_unit=1 / 6,
+    )
+    model = OrdinalProbit(thresholds=Thresholds(mode="estimated"), max_inner_iterations=50)
+    # Each update moves the opinions, then the grid at those opinions: a few updates
+    # reach the joint maximum, which the planted grid gives on these exact counts.
+    updated = start
+    for _ in range(20):
+        updated = model.update(counts, updated)
+    grid = updated.thresholds_by_scale[0]
+    assert grid[0] == 1 / 6
+    assert grid[-1] == 5 / 6
+    assert grid == pytest.approx(planted, abs=0.02)
+    fixed = OrdinalProbit(max_inner_iterations=50).update(counts, start)
+    assert np.array_equal(fixed.thresholds_by_scale[0], start.thresholds_by_scale[0])
+    votes = VoteMatrix.from_arrays([[1, 6, 3], [2, 4, 5]], scale=six)
+    plain = OrdinalProbit().complexity_penalty((2, 2), votes)
+    assert model.complexity_penalty((2, 2), votes) == pytest.approx(
+        plain + 0.5 * 3 * math.log(votes.n_votes)
+    )
+    with pytest.raises(InvalidParameterError, match="'fixed' or 'estimated'"):
+        Thresholds(mode="free")  # type: ignore[arg-type]
+    assert Thresholds(mode="estimated").is_estimated
+    assert not Thresholds().is_estimated

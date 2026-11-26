@@ -471,3 +471,43 @@ def test_survey_weights_enter_a_computation_on_several_scales() -> None:
     value = LatentBlockModel(n_groups=3, n_blocks=2).estimate(weighted, seed=0).value
     assert value.objective != plain.objective
     assert value.coclusters.n_votes.sum() == pytest.approx(votes.n_votes)
+
+
+SIX_ANSWERS = OrdinalScale(tuple(range(1, 7)))
+PLANTED_GRID = (1 / 6, 0.25, 0.45, 0.7, 5 / 6)
+
+
+def uneven(seed: int) -> VoteMatrix:
+    """Items of six answers whose inner thresholds are not regular, and items of two."""
+    votes, _ = make_votes(
+        single_memberships((80, 80)),
+        single_memberships((10, 10)),
+        vote_rate=[[0.9, 0.9], [0.9, 0.9]],
+        latent_mean=[[0.75, 0.35], [0.3, 0.65]],
+        latent_spread=[[0.2, 0.2], [0.2, 0.2]],
+        item_scales=[SIX_ANSWERS, TWO] * 10,
+        thresholds={SIX_ANSWERS: PLANTED_GRID},
+        seed=seed,
+    )
+    return votes
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_estimated_thresholds_find_a_planted_grid(seed: int) -> None:
+    votes = uneven(seed)
+    estimated = OrdinalProbit(thresholds=Thresholds(mode="estimated"))
+    value = (
+        LatentBlockModel(n_groups=2, n_blocks=2, response_model=estimated)
+        .estimate(votes, seed=0)
+        .value
+    )
+    assert value.coclusters.thresholds is not None
+    grid = value.coclusters.thresholds[value.coclusters.scales.index(SIX_ANSWERS)]
+    assert grid == pytest.approx(PLANTED_GRID, abs=0.03)
+    assert (np.diff(grid) > 0).all()
+    assert (np.diff(value.history.objectives) >= -1e-9).all()
+    fixed = LatentBlockModel(n_groups=2, n_blocks=2).estimate(votes, seed=0).value
+    # The regular grid misreads these answers: the estimate explains them better, even
+    # after the penalty of its three inner thresholds.
+    assert value.objective > fixed.objective
+    assert value.integrated_likelihood > fixed.integrated_likelihood

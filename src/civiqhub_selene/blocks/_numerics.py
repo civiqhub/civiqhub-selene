@@ -23,6 +23,7 @@ __all__ = [
     "count_states_by_scale",
     "fit_latent_normal",
     "fit_latent_normal_by_scale",
+    "fit_thresholds",
     "interval_mass",
     "iterate",
     "level_probabilities",
@@ -32,6 +33,7 @@ __all__ = [
     "norm_pdf",
     "one_hot",
     "scale_bounds",
+    "threshold_objective",
     "truncated_moments",
     "truncated_moments_by_scale",
 ]
@@ -494,3 +496,125 @@ def fit_latent_normal_by_scale(
         max_iterations=max_iterations,
     )
     return fitted_mean, fitted_spread
+
+
+_ORDER_MARGIN = 1e-9
+
+
+def threshold_objective(
+    counts: FloatArray, mean: FloatArray, spread: FloatArray, grid: ArrayLike
+) -> float:
+    """Return the expected log-likelihood of the votes of one scale under a grid.
+
+    ``sum_ql sum_k counts[q, l, k] * log(p_qlk)``, with ``p_qlk`` the normal mass of the
+    level ``k`` of the grid under the opinion of the co-cluster ``(q, l)``, floored at
+    1e-300 before its logarithm.
+
+    Args:
+        counts: Shape (Q, L, K): the votes of each co-cluster at each level of the scale.
+        mean: Shape (Q, L).
+        spread: Shape (Q, L).
+        grid: The K - 1 thresholds of the scale.
+    """
+    masses = level_probabilities(mean, spread, grid)
+    return float((counts * np.log(np.maximum(masses, _MIN_MASS))).sum())
+
+
+def fit_thresholds(
+    counts: FloatArray,
+    mean: FloatArray,
+    spread: FloatArray,
+    grid: FloatArray,
+    *,
+    max_steps: int,
+    tolerance: float = 1e-10,
+) -> FloatArray:
+    """Raise the expected log-likelihood of one scale by moving its inner thresholds.
+
+    The first and the last thresholds of the grid are held: they anchor the scale on its
+    axis, and fix the location and the unit that the means and the spreads would
+    otherwise share with the thresholds. The others, ``t_2 < ... < t_{K-2}``, move.
+
+    At the opinions given, the expected log-likelihood :func:`threshold_objective` is
+    concave in the thresholds (Pratt 1981: the logarithm of a normal mass between two
+    bounds is concave in the bounds). Each step is a Newton step on the inner
+    thresholds, halved until it keeps the thresholds in strict order and does not
+    lower the objective; a step that cannot is not taken. The loop stops after
+    ``max_steps`` steps, or when a step moves no threshold by more than ``tolerance``.
+    It is a generalised expectation-maximisation step: the objective never decreases.
+
+    Args:
+        counts: Shape (Q, L, K): the votes of each co-cluster at each level of the scale.
+        mean: Shape (Q, L): the means of the opinions, held.
+        spread: Shape (Q, L): their spreads, held.
+        grid: The K - 1 thresholds, strictly increasing; at least 3 to have one inner
+            threshold.
+        max_steps: Largest number of Newton steps.
+        tolerance: Size of a step under which the loop stops.
+
+    Returns:
+        The new grid. With fewer than three thresholds, the grid given.
+    """
+    thresholds = np.array(grid, dtype=np.float64)
+    if thresholds.shape[0] < 3:
+        return thresholds
+    means = np.asarray(mean, dtype=np.float64)[..., np.newaxis]
+    spreads = np.asarray(spread, dtype=np.float64)[..., np.newaxis]
+    inner = slice(1, thresholds.shape[0] - 1)
+    current = threshold_objective(counts, mean, spread, thresholds)
+    for _ in range(max_steps):
+        bounds = np.concatenate([[-np.inf], thresholds, [np.inf]])
+        z = (bounds - means) / spreads
+        density = norm_pdf(z)
+        mass = np.maximum(interval_mass(z), _MIN_MASS)
+        # Derivatives of each mass with respect to its upper and its lower threshold.
+        upper = density[..., 1:] / spreads
+        lower = -density[..., :-1] / spreads
+        upper_second = -np.where(np.isfinite(z[..., 1:]), z[..., 1:], 0.0) * upper / spreads
+        lower_second = np.where(np.isfinite(z[..., :-1]), z[..., :-1], 0.0) * density[..., :-1]
+        lower_second = lower_second / spreads**2
+        # The threshold t_m (m = 1..K-1) is the upper bound of the level m and the lower
+        # bound of the level m + 1 (levels counted from 1).
+        weight = counts / mass
+        gradient = (weight[..., :-1] * upper[..., :-1] + weight[..., 1:] * lower[..., 1:]).sum(
+            axis=(0, 1)
+        )
+        square = counts / mass**2
+        diagonal = (
+            weight[..., :-1] * upper_second[..., :-1]
+            - square[..., :-1] * upper[..., :-1] ** 2
+            + weight[..., 1:] * lower_second[..., 1:]
+            - square[..., 1:] * lower[..., 1:] ** 2
+        ).sum(axis=(0, 1))
+        # Two neighbouring thresholds bound the same level, the one between them.
+        off = (-square[..., 1:-1] * upper[..., 1:-1] * lower[..., 1:-1]).sum(axis=(0, 1))
+        hessian = np.diag(diagonal) + np.diag(off, 1) + np.diag(off, -1)
+        free_hessian = hessian[inner, inner]
+        free_gradient = gradient[inner]
+        try:
+            step = -np.linalg.solve(
+                free_hessian - 1e-12 * np.eye(free_hessian.shape[0]), free_gradient
+            )
+        except np.linalg.LinAlgError:
+            break
+        if not np.isfinite(step).all():
+            break
+        scale = 1.0
+        accepted = False
+        for _ in range(40):
+            candidate = thresholds.copy()
+            candidate[inner] += scale * step
+            ordered = bool((np.diff(candidate) > _ORDER_MARGIN).all())
+            if ordered:
+                value = threshold_objective(counts, mean, spread, candidate)
+                if value >= current:
+                    accepted = True
+                    break
+            scale /= 2.0
+        if not accepted:
+            break
+        moved = float(np.abs(candidate - thresholds).max())
+        thresholds, current = candidate, value
+        if moved < tolerance:
+            break
+    return thresholds
