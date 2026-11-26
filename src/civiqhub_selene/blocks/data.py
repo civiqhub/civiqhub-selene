@@ -139,15 +139,17 @@ class ItemScales(Displayable):
     The questions of a survey use different scales: two answers, four, seven. This
     object says which scale each item uses. Its ``scales`` are the distinct scales, in
     the order in which the items first use them, and ``scale_index[j]`` is the position
-    in ``scales`` of the scale of the item ``j``. Two scales with the same scores are
-    the same scale: response models give each scale its own grid of thresholds, and
-    the items of one scale share it.
+    in ``scales`` of the scale of the item ``j``, the scale ``g_j`` of the mathematical
+    model. Two scales with the same scores are the same scale: response models give
+    each scale its own grid of thresholds, and the items of one scale share it.
 
     Build it with :meth:`from_scales`, from the scale of each item in the order of the
     columns, or with :meth:`uniform` when every item uses one scale. It reads by
     position, like the columns of a matrix: ``len(item_scales)`` is the number of
     items, ``item_scales[j]`` the scale of the item ``j``, and iteration yields the
     scale of each item in turn. Two values with the same content are equal.
+
+    See the mathematical model: :doc:`/model/data`.
 
     Attributes:
         scales: The distinct scales, at least one, in the order of their first item.
@@ -1253,7 +1255,11 @@ class GroupedVotes(Displayable):
         of the scale ``c`` in the co-cluster ``(q, l)`` in the state ``s``: 0 for no
         vote, ``k`` for a vote at rank ``k`` of that scale. The states past the levels
         of a scale are 0. With one scale, ``counts_by_scale()[:, :, 0]`` is
-        :meth:`counts`.
+        :meth:`counts`. Without survey weights, this is ``N[q, l, g, s]``, ``g`` the
+        scale at the position ``c``.
+
+        See the mathematical model: :doc:`/model/data`, equation
+        :eq:`eq-data-counts-by-scale`.
         """
         scales = self.votes.item_scales
         return count_states_by_scale(

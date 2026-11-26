@@ -458,7 +458,11 @@ class CoclusterTable(Displayable):
         an item of the scale ``c`` in the co-cluster ``(q, l)`` is in the state ``s``.
         The states past the levels of a scale have the probability 0, floored at
         1e-300 before the logarithm. With one scale, ``[:, :, 0]`` is
-        :meth:`log_probabilities`.
+        :meth:`log_probabilities`. This is ``log F[q, l, g, s]``, ``g`` the scale at
+        the position ``c``.
+
+        See the mathematical model: :doc:`/model/response-models`, equation
+        :eq:`eq-response-states`.
         """
         return state_log_probabilities(self.vote_rate, self._padded_shares)
 

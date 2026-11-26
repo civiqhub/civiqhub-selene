@@ -478,9 +478,10 @@ class SingleCoclustering(Coclustering):
 
         Shape (M, P). The state of a cell is its vote or its absence of vote, read
         without ``shown``; its probability is the one of the co-cluster of its voter
-        and of its item, from the table of co-clusters::
+        and of its item, from the table of co-clusters, on the scale ``g_j`` of the
+        item::
 
-            log F[R[i], C[j], s[i, j]]
+            log F[R[i], C[j], g_j, s[i, j]]
 
         See the mathematical model: :doc:`/model/choosing-the-shape`, equation
         :eq:`eq-shape-held-out-single`.
@@ -594,11 +595,12 @@ class MixedCoclustering(Coclustering):
         Shape (M, P). For the cell of the voter ``i`` and the item ``j``, in the state
         ``s`` (its vote or its absence of vote, read without ``shown``)::
 
-            log( sum_c eta[i, c] * sum_l phi[j, l] * F[c_l, l, s] )
+            log( sum_c eta[i, c] * sum_l phi[j, l] * F[c_l, l, g_j, s] )
 
         where ``c`` runs over the profiles, ``c_l`` is the group of the profile on the
         block ``l``, ``eta`` is ``profile_probabilities``, ``phi`` is
-        ``block_memberships`` and ``F`` the probabilities of the table of co-clusters.
+        ``block_memberships``, ``g_j`` is the scale of the item ``j`` and ``F`` the
+        probabilities of the table of co-clusters.
         The probability is floored at 1e-300 before the logarithm.
 
         See the mathematical model: :doc:`/model/choosing-the-shape`, equation
