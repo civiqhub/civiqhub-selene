@@ -39,7 +39,7 @@ __all__ = [
     "UnknownExposure",
 ]
 
-CONTRACT_VERSION = "1.0.0"
+CONTRACT_VERSION = "1.1.0"
 """``info.version`` of ``openapi.yaml``; the contract tests keep them equal."""
 
 PRODUCT_SCORES = (-2, -1, 0, 1, 2)

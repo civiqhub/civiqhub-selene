@@ -176,6 +176,6 @@ class TestBuildInfo:
 
     def test_the_versions_stay_apart(self) -> None:
         versions = Versions.current(BuildInfo())
-        assert versions.contract == "1.0.0"
+        assert versions.contract == CONTRACT_VERSION
         assert versions.service == "0.1.0"
         assert set(versions.of_job()) == {"service_version", "contract_version", "engine_version"}

@@ -17,7 +17,7 @@
 openapi: 3.1.1
 info:
   title: SELENE service API
-  version: 1.0.0
+  version: 1.1.0
   summary: Internal HTTP contract of the SELENE computation service.
   description: |
     The SELENE service runs computations of the open-source engine `civiqhub-selene` on a
@@ -418,7 +418,9 @@ components:
             stopped. `worker_crashed`: the computation process ended abnormally.
             `interrupted`: the instance was shutting down. `result_too_large`: the
             outcome exceeded `limits.max_result_bytes`. `engine_error`: the engine
-            refused the input. Codes may be added; a client reads `retryable`.
+            refused the input. `memory_exceeded` (since 1.1.0): the computation needed
+            more memory than the limit of the instance. Codes may be added; a client
+            reads `retryable`.
           type: string
         message:
           description: One English sentence. It never echoes the input.

@@ -17,6 +17,7 @@ from servicetest import AUTH, TOKEN, FakeRunner, asgi_client, service_for, setti
 import make_fixtures
 import selene_contract
 from selene_api.app import BUSY_RETRY_AFTER_SECONDS
+from selene_api.schemas import CONTRACT_VERSION
 
 Validator = Callable[[str], Draft202012Validator]
 Reader = Callable[[str], Any]
@@ -157,7 +158,7 @@ def test_the_service_describes_itself(tmp_path: pathlib.Path, schema_validator: 
         assert answer.status_code == 200
         info = answer.json()
         schema_validator("ServiceInfo").validate(info)
-        assert info["contract"]["version"] == "1.0.0"
+        assert info["contract"]["version"] == CONTRACT_VERSION
         assert info["deployment"]["environment"] == "dev"
         assert info["kinds"] == [
             {
@@ -190,7 +191,7 @@ def test_a_real_computation_from_submission_to_result(
         schema_validator("Job").validate(done)
         selene_contract.check_job(done)
         assert selene_contract.compare_with_reference(done, expected) == []
-        assert done["service"]["contract_version"] == "1.0.0"
+        assert done["service"]["contract_version"] == CONTRACT_VERSION
         assert done["expires_at"] is not None
 
         replay = await client.post("/v1/jobs", headers=AUTH, json=submission())

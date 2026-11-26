@@ -124,6 +124,7 @@ class SeleneClient:
             raise ValueError("base_url starts with https://")
         self.base_url = base_url.rstrip("/")
         self.token = token
+        self.ca_file = ca_file
         self.timeout = timeout
         self._context: ssl.SSLContext | None = None
         if base_url.startswith("https://"):
