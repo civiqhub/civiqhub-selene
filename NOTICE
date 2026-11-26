@@ -19,6 +19,17 @@ copyright The Bricolage Grotesque Project Authors, licensed under the SIL Open
 Font License 1.1. The license is in docs/_static/fonts/OFL.txt. The files were
 rebuilt from google/fonts at commit 06bfe0d62a98375cb09c942fa18e68bd32cff057.
 
+docs/_static/katex/ contains KaTeX 0.19.1 (https://katex.org), copied unmodified
+from the npm package katex-0.19.1.tgz (SHA-256
+24da5a599eb2fcede2e270b99a6ff48bca816beecc95feeb84e8cccbd1bb34fd). Its code
+(katex.min.css, katex.min.js, contrib/auto-render.min.js) is Copyright (c)
+2013-2020 Khan Academy and other contributors, MIT License; the license text is in
+docs/_static/katex/LICENSE. Its fonts (docs/_static/katex/fonts/*.woff2) are
+Copyright (c) 2009-2010 Design Science, Inc. and Copyright (c) 2014-2018 Khan
+Academy, with the Reserved Font Names KaTeX_*, licensed under the SIL Open Font
+License 1.1; the license is in docs/_static/katex/fonts/OFL.txt. Provenance and
+checksums: docs/_static/katex/README.md.
+
 The CiviqHub glyph (docs/_static/logo.svg) comes from civiqhub-web,
 public/images/logo.svg, SHA 22756d33636bb8b341e7c41ec8846c421867dc10.
 The favicon (docs/_static/favicon.ico) is derived from the CiviqHub application

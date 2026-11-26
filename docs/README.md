@@ -23,6 +23,8 @@ This builds the documentation of the code you have, as one site without versions
 | --- | --- |
 | `conf.py` | The configuration of Sphinx |
 | `_ext/selene_docs.py` | A local Sphinx extension; its docstring says what it does |
+| `_ext/katex_local.py`, `_static/katex-render.js`, `_static/katex-theme.css` | The rendering of the formulas with KaTeX: see [Write formulas and diagrams](#write-formulas-and-diagrams) |
+| `_static/katex/` | KaTeX (MIT, fonts OFL 1.1), copied unmodified; its `README.md` gives the provenance |
 | `_templates/sidebar/version-switcher.html`, `_static/version-switcher.js`, `_static/version-switcher.css` | The version selector of the sidebar |
 | `_templates/sidebar/brand.html`, `_templates/sidebar/search.html`, `_templates/page.html` | The mark of the site, the search field, and the theme-migration script |
 | `_static/civiqhub.css`, `_static/theme-migrate.js`, `_static/sidebar-wrap.js`, `_static/search-shortcut.js` | The CiviqHub theme (light and dark), the one-time theme migration, wrapping of sidebar module names, and the Ctrl K shortcut |
@@ -31,6 +33,7 @@ This builds the documentation of the code you have, as one site without versions
 | `_static/logo.svg`, `_static/favicon.ico` | Former glyph and ICO, unused until NOTICE is updated |
 | `index.md` | The home page and the table of contents of the site |
 | `getting-started.md`, `library-map.md`, `architecture.md`, `examples.md` | The guide: pages written by hand. `examples.md` presents the notebooks of `examples/`, which live outside the site |
+| `model/` | The mathematical model: the formulas the code computes, in one notation (`model/notation.md`); see [Write a page of the mathematical model](#write-a-page-of-the-mathematical-model) |
 | `reference/` | The reference: one page per public module, generated from the docstrings |
 | `changelog.md` | Includes `CHANGELOG.md` from the root of the repository |
 | `_build/` | The output of the build. Not committed |
@@ -98,6 +101,7 @@ cp ofl/bricolagegrotesque/OFL.txt OFL.txt
 | `_static/home.svg` | Glyphe de maison du H1 d'accueil |
 | `_static/github.svg` | Icône GitHub du pied de page |
 | `_static/fonts/` | Les trois `woff2` et `OFL.txt` |
+| `_static/katex-theme.css` | Règles de KaTeX propres au site, chargées avec KaTeX : couleur du texte en clair et en sombre, erreurs en `--civiqhub-destructive`, défilement des formules larges, numéros d'équation (sur leur ligne sous 48 em), lien d'équation atteignable au clavier |
 | `_static/screenshots/` | Captures de relecture du thème. Le build les retire de `_static/` du site publié |
 | `_static/version-switcher.js`, `_static/version-switcher.css` | Sélecteur de version de la publication, natif à ce dépôt, au style du thème |
 | `_templates/page.html` | Charge `theme-migrate.js` dans le `<head>` ; favicon sombre ; fil d'Ariane ; enveloppe d'accueil |
@@ -155,7 +159,7 @@ Les diagrammes mermaid sont colorés avec les tokens du thème. `sphinxcontrib-m
 
 ### Extensions et dépendances
 
-Groupe `docs` de `pyproject.toml` : `sphinx==9.2.0` (BSD-2-Clause), `myst-parser==5.2.0` (MIT), `furo==2025.12.19` (MIT), `sphinxcontrib-mermaid==2.1.1` (BSD-2-Clause), `sphinxext-opengraph==0.13.0` (BSD-3-Clause). `sphinxext-opengraph` pose `ogp_site_url` d'après `html_baseurl` ; les cartes sociales PNG sont désactivées (`ogp_social_cards.enable = False`) parce que le build n'a pas de réseau. Matplotlib est installé par l'extra `viz`, que la référence importe ; il ne sert pas aux cartes. L'origine publique est `https://selene.civiqhub.com/`. Si le script de publication passe encore `https://civiqhub.github.io/civiqhub-selene/`, `conf.py` la réécrit, chemin de version compris. Extension locale : `docs/_ext/selene_docs.py`, inchangée.
+Groupe `docs` de `pyproject.toml` : `sphinx==9.2.0` (BSD-2-Clause), `myst-parser==5.2.0` (MIT), `furo==2025.12.19` (MIT), `sphinxcontrib-mermaid==2.1.1` (BSD-2-Clause), `sphinxext-opengraph==0.13.0` (BSD-3-Clause). `sphinxext-opengraph` pose `ogp_site_url` d'après `html_baseurl` ; les cartes sociales PNG sont désactivées (`ogp_social_cards.enable = False`) parce que le build n'a pas de réseau. Matplotlib est installé par l'extra `viz`, que la référence importe ; il ne sert pas aux cartes. L'origine publique est `https://selene.civiqhub.com/`. Si le script de publication passe encore `https://civiqhub.github.io/civiqhub-selene/`, `conf.py` la réécrit, chemin de version compris. Extensions locales : `docs/_ext/selene_docs.py`, inchangée, et `docs/_ext/katex_local.py`, le rendu des formules par la copie locale de KaTeX (aucune dépendance Python ajoutée).
 
 ### Build local
 
@@ -189,6 +193,15 @@ python -m http.server --directory _site
 ```
 
 The version selector of the sidebar reads `versions.json`, a file the script writes next to the folders. It only appears on the published site, or behind a web server as above: a page opened from the disk has no selector. The `documentation` job of the CI runs the same script on the commit of the pull request alone, and keeps the result as the artifact `docs-html`.
+
+The `documentation` job also keeps the site self-contained:
+
+- It passes `--offline` to the script: Sphinx then runs without network, in a namespace of its own (`unshare`), once the package and the tools are installed. Where the system refuses a user namespace, the script warns and Sphinx runs with network.
+- It then runs `.github/scripts/check-no-external-resources.py` on the site. The job fails when an HTML page or a style sheet loads a script, a style sheet, a font, an image or a frame from another server, and the message names the file and the address. Links a reader follows are allowed, and so are the canonical address and the Open Graph tags on `https://selene.civiqhub.com/`. The one exception, listed in the script, is Mermaid (decision of Yanis of 25/11/2026).
+
+```bash
+python .github/scripts/check-no-external-resources.py _site
+```
 
 A release needs nothing more for its documentation: when `main` receives the release, the site gains its folder. To change the address of the site, change `SITE_URL` in the workflow and the `Documentation` address in `pyproject.toml`.
 
@@ -254,9 +267,75 @@ print(VoteCounts.from_scores([2, 2, -1]).total)
 
 ## Write formulas and diagrams
 
-A formula is written between dollar signs, inline (`$a + b$`) or on its own lines between `$$`. A diagram is a block fenced with `mermaid`; GitHub draws it as well.
+A formula is TeX between dollar signs: inline (`$a + b$`), or on its own lines between `$$`. GitHub renders the same dollar signs with its own engine.
 
-The site loads MathJax and Mermaid from the jsDelivr network, on the pages that hold a formula or a diagram only.
+The site renders the formulas with [KaTeX](https://katex.org), in the browser, from the copy under `_static/katex/`: no formula reads anything from another server. A page without a formula loads nothing of KaTeX. The extension `_ext/katex_local.py` writes each formula into the page; `_static/katex-render.js` renders it.
+
+````markdown
+Each vote $x_{ij}$ takes a level among $1, \dots, K$.
+
+$$
+\sum_{k=1}^{K} p_k = 1
+$$ (eq-levels-sum-to-one)
+
+Equation {eq}`eq-levels-sum-to-one` says that the probabilities sum to one.
+````
+
+- **Numbers and references.** A label in parentheses after the closing `$$` numbers the equation, and `{eq}` refers to it. The build fails on a reference to a label that does not exist. Only Sphinx numbers the equations: KaTeX's own numbers of `align`, `equation` and `gather` are hidden, and a numbered environment shows the number Sphinx gives it.
+- **Several equations.** Inside `$$`, an empty line separates equations, which are aligned on their `&`. An amsmath environment, such as `\begin{align*} ... \end{align*}`, may also stand on its own lines without `$$`.
+- **Docstrings.** The role `:math:` and the directive `.. math::` of reStructuredText take the same way.
+- **Macros.** `katex_macros` in `conf.py` holds the macros shared by every formula, such as `{"\\RR": r"\mathbb{R}"}`. A macro may not link to or load a resource (`\href`, `\url`, `\includegraphics`): the build refuses it. KaTeX refuses these commands in a formula too.
+- **Colors.** A formula takes the color of the text around it, in light and dark modes. `\color`, `\textcolor`, `\colorbox` and `\fcolorbox` keep their content and drop their color, and `katex_macros` cannot redefine them. An error shows in the destructive color of the theme.
+- **What KaTeX reads.** KaTeX supports a large part of LaTeX, not all of it: see [its list](https://katex.org/docs/supported.html). Among what it does not read: `multline`, `flalign`, `eqnarray` and `\label` (put the label after the closing `$$`).
+- **Checks.** KaTeX reads the formulas in the browser: the build does not check their TeX. A formula that KaTeX cannot read shows in place as an error, and the rest of the page still renders. Look at the page after writing a formula.
+- **A dollar sign** that is not a formula is written `\$`.
+
+A diagram is a block fenced with `mermaid`; GitHub draws it as well. The site loads Mermaid from the jsDelivr network, on the pages that hold a diagram only. It is the one script the site reads from another server (decision of Yanis of 25/11/2026); the CI checks that no other resource comes from another server (see [How the site is published](#how-the-site-is-published)).
+
+## Write a page of the mathematical model
+
+The section `model/` writes down the mathematics of the engine as the code computes it. `model/index.md` presents it; `model/notation.md` fixes its letters. A page of the section follows these rules:
+
+- **One notation.** Every symbol is defined in `model/notation.md` and keeps that meaning everywhere. A new symbol is added there first. `tests/unit/test_docs_model.py` checks that no symbol is defined twice, and that every Greek or calligraphic letter a page writes is defined.
+- **The name of the code.** At its first appearance on a page, a symbol is followed by the name the code gives it, with a role (`{py:attr}`, `{py:class}`, `{py:meth}`), so that the build checks that the name exists. A private name is cited without a role and said to be internal.
+- **The code is the authority.** Each formula is checked against the code. The page states the commit; the pull request cites the file and the lines of each formula. A difference between a page and the code is reported as an issue, never fixed in silence.
+- **Only what the code holds.** A page never presents as available a method, a class or an option the code does not have. What no source supports is labelled a Hypothesis in the pull request, and is not written on the site.
+- **Synthetic data.** Examples use `make_votes`, `single_memberships` or values written by hand; their Python blocks run in the tests like those of every page.
+
+A page uses this outline; a section that does not apply is left out:
+
+````markdown
+# Title
+
+Checked against the code of `develop` at commit `abcdef1`.
+
+## In plain words
+
+What the page is about, without formulas.
+
+## Model
+
+The definitions, with their symbols and the names of the code.
+
+## Estimation
+
+How the code computes the quantities of the model.
+
+## What the code does exactly
+
+The file and the lines of each formula, and what the code does that the formulas do not
+say: bounds, floors, the order of the operations.
+
+## Limits
+
+What the model and the code do not do.
+
+## References
+
+The articles the page draws on.
+````
+
+Add the page to the `toctree` of the caption "Mathematical model" in `index.md`, and replace its line "(not written yet)" in `model/index.md` by a link.
 
 ## The reference
 
