@@ -9,11 +9,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
-from servicetest import FakeRunner, settle
 
 from selene_api.adapters import PreparedTask
 from selene_api.jobs import BusyError, ConflictError, JobManager, ShuttingDownError
 from selene_api.runner import RunOutcome
+from servicetest import FakeRunner, settle
 
 
 def task(key: str = "test-only:key:0001", fingerprint: str = "sha256:" + "a" * 64) -> PreparedTask:

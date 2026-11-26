@@ -14,13 +14,13 @@ import time
 from typing import Any
 
 import pytest
-from servicetest import FakeRunner, service_for, settings_for
 
 import make_fixtures
 from selene_api.adapters import InstanceLimits
 from selene_api.adapters.coclustering_single import CoclusteringSingleV1
 from selene_api.runner import ProcessRunner, worker_environment
 from selene_api.worker import EX_ORPHANED
+from servicetest import FakeRunner, service_for, settings_for
 
 pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="Linux process controls")
 

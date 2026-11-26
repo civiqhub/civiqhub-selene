@@ -12,12 +12,12 @@ from typing import Any
 import httpx
 import pytest
 from jsonschema import Draft202012Validator
-from servicetest import AUTH, TOKEN, FakeRunner, asgi_client, service_for, settings_for, settle
 
 import make_fixtures
 import selene_contract
 from selene_api.app import BUSY_RETRY_AFTER_SECONDS
 from selene_api.schemas import CONTRACT_VERSION
+from servicetest import AUTH, TOKEN, FakeRunner, asgi_client, service_for, settings_for, settle
 
 Validator = Callable[[str], Draft202012Validator]
 Reader = Callable[[str], Any]

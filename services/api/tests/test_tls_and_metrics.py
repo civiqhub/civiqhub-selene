@@ -15,6 +15,8 @@ import urllib.error
 import warnings
 
 import pytest
+
+import selene_contract
 from servicetest import (
     AUTH,
     TOKEN,
@@ -26,8 +28,6 @@ from servicetest import (
     settings_for,
     slow_submission,
 )
-
-import selene_contract
 
 OTHER_TOKEN = "test-only-rotated-token-" + "0f1e2d3c4b5a6978" * 2
 

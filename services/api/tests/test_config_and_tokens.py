@@ -9,12 +9,12 @@ from typing import Any
 
 import pytest
 import yaml
-from servicetest import TOKEN
 
 from selene_api.config import CONTRACT_BOUNDS, ConfigError, Settings
 from selene_api.schemas import CONTRACT_VERSION
 from selene_api.security import TokenFileError, TokenStore, bearer_token
 from selene_api.versions import BuildInfo, Versions
+from servicetest import TOKEN
 
 OTHER = "test-only-next-token-" + "fedcba9876543210" * 2
 
