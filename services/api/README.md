@@ -73,9 +73,9 @@ GET    /readyz             readiness, no token
   key, capacity.
 - **Content fingerprint.** `content_fingerprint` is `sha256:` and the SHA-256 of the
   canonical JSON (sorted keys, no spaces, UTF-8) of the kind, the schema version and the
-  payload with every parameter at its effective value, the votes sorted by cell and the
-  listed cells sorted, and the tolerance written as a number with a fraction (`0` and
-  `0.0` are the same content). The key and `caller_reference` are not content. The service
+  payload with every parameter at its effective value, the votes sorted by cell, the
+  listed cells sorted, the scales of schema 2 in the order of their first item, and the
+  tolerance written as a number with a fraction (`0` and `0.0` are the same content). The key and `caller_reference` are not content. The service
   computes it; the caller stores it.
 - **Volatile memory.** A finished job is kept until `expires_at` (at most
   `result_ttl_seconds`), or less when `max_retained_jobs` is reached (the oldest finished
@@ -137,9 +137,12 @@ the same job and the same result as before.
   `[row, column, score]` gives a score of the scale of its item. The service refuses a
   scale that no item uses, two scales with the same identifier or the same scores, an
   item on a scale not declared and a score that is not one of its item's scale (`422
-  invalid_request`, with the path of the faulty field). Scales are content, not names:
-  the order of their declaration and their identifiers are not part of the computation,
-  and two submissions that differ only there have the same `content_fingerprint`.
+  invalid_request`, with the path of the faulty field). The service lists the scales in
+  the order in which the items first use them: two submissions that differ only by the
+  order of declaration of their scales have the same `content_fingerprint` and the same
+  computation. The identifiers of the scales are content: another identifier gives
+  another `content_fingerprint`, and comes back in the result, but it does not change the
+  computation, whose input fingerprint and computation fingerprint stay the same.
 - **Settings.** The settings of schema 1, and `thresholds`: where the ordinal probit
   cuts the opinion of a co-cluster into the answers of each scale. `axis` is `auto` (the
   axis of levels with one scale, so that one scale is computed exactly as schema 1; the
