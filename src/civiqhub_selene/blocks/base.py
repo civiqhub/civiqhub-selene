@@ -58,6 +58,8 @@ def availability(votes: VoteMatrix, n_groups: int = 1, n_blocks: int = 1) -> Una
 
     A co-clustering needs at least one vote, at least ``max(2, n_groups)`` voters with
     a vote and at least ``max(2, n_blocks)`` items with a vote.
+
+    See the mathematical model: :doc:`/model/data`.
     """
     if votes.n_votes == 0:
         return Unavailable(UnavailableReason.NO_VOTES, "the matrix holds no vote")
@@ -173,6 +175,8 @@ class BlockModel(
     response model for its co-clusters. A concrete model declares its identity and
     writes ``_start``, ``_step`` and ``_finish``; its ``_start`` reads the arrangement
     of the start from ``initialization``.
+
+    See the mathematical model: :doc:`/model/estimation`.
 
     Attributes:
         n_groups: Number of groups of voters, at least 1. Defaults to 2.

@@ -47,6 +47,15 @@ class ResponseModel(Protocol[ParametersT]):
     """What a block model asks of the response model of its co-clusters.
 
     ``ParametersT`` is the type of the parameters of the model, for Q x L co-clusters.
+    Every response model writes the probability of the state ``s`` of a shown cell of
+    the co-cluster ``(q, l)`` with a vote rate ``nu[q, l]`` and shares of the votes
+    ``p[q, l, k]`` that sum to 1 over the ranks::
+
+        F[q, l, 0] = 1 - nu[q, l]                (shown without a vote)
+        F[q, l, k] = nu[q, l] * p[q, l, k]       (vote at rank k, from 1 to K)
+
+    See the mathematical model: :doc:`/model/response-models`, equations
+    :eq:`eq-response-states`, :eq:`eq-response-expected` and :eq:`eq-response-penalty`.
     """
 
     def initial_parameters(
@@ -56,14 +65,15 @@ class ResponseModel(Protocol[ParametersT]):
         ...
 
     def log_probabilities(self, params: ParametersT) -> FloatArray:
-        """Return the log-probability of each state in each co-cluster, shape (Q, L, K + 1)."""
+        """Return ``log F[q, l, s]`` for each state in each co-cluster, shape (Q, L, K + 1)."""
         ...
 
     def update(self, counts: FloatArray, previous: ParametersT) -> ParametersT:
         """Return the parameters that maximise the expected likelihood.
 
-        ``counts[q, l, s]`` is the number, integer or fractional, of cells of the
-        co-cluster ``(q, l)`` in the state ``s``.
+        ``counts[q, l, s]``, written ``N[q, l, s]``, is the number, integer or
+        fractional, of cells of the co-cluster ``(q, l)`` in the state ``s``. The
+        expected likelihood of each co-cluster is ``sum_s N[q, l, s] * log F[q, l, s]``.
         """
         ...
 
@@ -71,6 +81,9 @@ class ResponseModel(Protocol[ParametersT]):
         """Return the penalty of the parameters in the integrated likelihood.
 
         Half a logarithm of the sample size per free parameter.
+
+        See the mathematical model: :doc:`/model/response-models`, equation
+        :eq:`eq-response-penalty`.
         """
         ...
 
@@ -124,18 +137,26 @@ class CategoricalParameters:
 class Categorical:
     """A vote rate per co-cluster, then a free distribution over the K scores.
 
-    Definition. For a shown cell of the co-cluster ``(q, l)``::
+    Definition. For a shown cell of the co-cluster ``(q, l)``, with the vote rate
+    ``nu[q, l]`` (``vote_rate``) and the shares ``p[q, l, k]`` (``vote_shares``)::
 
-        P(no vote) = 1 - vote_rate[q, l]
-        P(vote at rank k) = vote_rate[q, l] * vote_shares[q, l, k]
+        P(no vote) = F[q, l, 0] = 1 - nu[q, l]
+        P(vote at rank k) = F[q, l, k] = nu[q, l] * p[q, l, k]
 
     with K - 1 free parameters per co-cluster for the distribution and no constraint on
     its shape. The update is the maximum of the expected likelihood: the vote rate is
     the share of cells that carry a vote, and the distribution is the share of votes at
-    each rank, after ``smoothing`` is added to each count.
+    each rank, after ``smoothing`` is added to each count; the vote rate is then kept
+    between ``min_probability`` and ``1 - min_probability``::
+
+        nu[q, l] = sum_{k >= 1} N[q, l, k] / sum_s N[q, l, s]
+        p[q, l, k] = (N[q, l, k] + smoothing) / sum_h (N[q, l, h] + smoothing)
 
     It is the simple reference against which the cost and the benefit of the ordinal
     probit model are judged.
+
+    See the mathematical model: :doc:`/model/response-models`, equations
+    :eq:`eq-response-rate` and :eq:`eq-response-categorical`.
 
     Attributes:
         smoothing: Pseudo-count added to the number of votes at each rank before the
@@ -196,6 +217,9 @@ class Categorical:
 
         ``0.5 * Q * L * (K - 1) * log(max(n_votes, 1))`` for the distributions, plus
         ``0.5 * Q * L * log(max(n_shown, 1))`` for the vote rates.
+
+        See the mathematical model: :doc:`/model/response-models`, equation
+        :eq:`eq-response-penalty`.
         """
         n_groups, n_blocks = shape
         n_coclusters = n_groups * n_blocks
@@ -233,17 +257,18 @@ class OrdinalProbitParameters:
 class OrdinalProbit:
     """A vote rate per co-cluster, then a latent normal opinion cut into K levels.
 
-    Definition. In a co-cluster, a shown cell carries a vote with the probability
-    ``vote_rate``. The vote comes from a hidden continuous opinion, normal with mean
-    ``latent_mean`` and standard deviation ``latent_spread``, which fixed thresholds
-    ``t_1 < ... < t_{K-1}`` cut into K levels, with ``t_0 = -inf`` and ``t_K = +inf``::
+    Definition. In the co-cluster ``(q, l)``, a shown cell carries a vote with the
+    probability ``nu[q, l]`` (``vote_rate``). The vote comes from a hidden continuous
+    opinion, normal with mean ``mu[q, l]`` (``latent_mean``) and standard deviation
+    ``sigma[q, l]`` (``latent_spread``), which fixed thresholds ``t_1 < ... < t_{K-1}``
+    cut into K levels, with ``t_0 = -inf`` and ``t_K = +inf``::
 
-        P(no vote) = 1 - vote_rate
-        P(vote at rank k) = vote_rate * p_k
-        p_k = cdf((t_k - latent_mean) / latent_spread)
-              - cdf((t_{k-1} - latent_mean) / latent_spread)
+        P(no vote) = F[q, l, 0] = 1 - nu[q, l]
+        P(vote at rank k) = F[q, l, k] = nu[q, l] * p[q, l, k]
+        p[q, l, k] = Phi((t_k - mu[q, l]) / sigma[q, l])
+                     - Phi((t_{k-1} - mu[q, l]) / sigma[q, l])
 
-    where ``cdf`` is the standard normal distribution function. Two numbers then sum
+    where ``Phi`` is the standard normal distribution function. Two numbers then sum
     up how a group answers a block: where the opinion stands and how spread it is.
 
     The thresholds default to ``k + 1/2`` for ``k`` from 1 to K - 1. They are fixed,
@@ -253,6 +278,10 @@ class OrdinalProbit:
 
     Reference: Corneli, Bouveyron, Latouche (2020), Co-clustering of ordinal data via
     latent continuous random variables and not missing at random entries.
+
+    See the mathematical model: :doc:`/model/response-models`, equations
+    :eq:`eq-response-probit`, :eq:`eq-response-rate`, :eq:`eq-response-moments` and
+    :eq:`eq-response-opinion`.
 
     Attributes:
         thresholds: The K - 1 thresholds, strictly increasing, or ``None`` for the
@@ -333,6 +362,9 @@ class OrdinalProbit:
         The mean and the spread restart from the previous ones and take at most
         ``max_inner_iterations`` steps. A co-cluster without any cell keeps its
         previous vote rate; a co-cluster without any vote keeps its previous opinion.
+
+        See the mathematical model: :doc:`/model/response-models`, equations
+        :eq:`eq-response-rate`, :eq:`eq-response-moments` and :eq:`eq-response-opinion`.
         """
         latent_mean, latent_spread = fit_latent_normal(
             counts[..., 1:],
@@ -350,6 +382,9 @@ class OrdinalProbit:
 
         Two parameters of opinion and one vote rate per co-cluster:
         ``Q * L * log(max(n_votes, 1)) + 0.5 * Q * L * log(max(n_shown, 1))``.
+
+        See the mathematical model: :doc:`/model/response-models`, equation
+        :eq:`eq-response-penalty`.
         """
         n_groups, n_blocks = shape
         n_coclusters = n_groups * n_blocks

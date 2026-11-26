@@ -26,7 +26,10 @@ from civiqhub_selene.errors import InvalidParameterError
 __all__ = ["MAX_PROFILES", "MixedMembershipBlockModel"]
 
 MAX_PROFILES = 4096
-"""Largest number of profiles ``n_groups ** n_blocks`` the exact expectation enumerates."""
+"""Largest number of profiles ``n_groups ** n_blocks`` the exact expectation enumerates.
+
+See the mathematical model: :doc:`/model/complexity`.
+"""
 
 _MIN_PROBABILITY = 1e-300
 # Cells read at once by the expectation step: voters x items x profiles.
@@ -210,12 +213,14 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
     weighted by voter; the prior on ``phi`` is not.
 
     The expectation step is exact: it enumerates the profiles and gives the posterior
-    probability of each profile of each voter, the probability of each role on each
-    block, and the expected number of cells of each co-cluster in each state. The
+    probability ``eta[i, c]`` of each profile of each voter, the probability
+    ``kappa[i, l, q]`` that the voter follows the group ``q`` on the block ``l``, the
+    expected number ``H[j, l]`` of shown cells of the item ``j`` that take the block
+    ``l``, and the expected number of cells of each co-cluster in each state. The
     maximisation step then sets::
 
-        theta[i, q] proportional to  sum_l P(role on block l = q) + alpha - 1
-        phi[j, l]   proportional to  expected cells of item j in block l + beta - 1
+        theta[i, q] proportional to  sum_l kappa[i, l, q] + alpha - 1
+        phi[j, l]   proportional to  H[j, l] + beta - 1
 
     and updates the response model from the expected counts, which are fractional.
     The objective never decreases when the response model updates by maximum
@@ -245,6 +250,9 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
     Pfeffermann (1993) for the weighted pseudo-likelihood. The role per block and the
     exact expectation over the profiles follow the reference engine of the CiviqHub
     explainer "LBM and MM-OLBM step by step".
+
+    See the mathematical model: :doc:`/model/mixed-membership`, equations
+    :eq:`eq-mm-cell` to :eq:`eq-mm-mstep`.
 
     Attributes:
         voter_concentration: The concentration alpha of the Dirichlet prior on the
