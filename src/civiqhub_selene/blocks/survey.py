@@ -35,19 +35,20 @@ def read_survey_csv(
     ``""`` when the source uses blank scores for that purpose. Covariates are text
     and blanks are returned as ``None``. Other columns are ignored.
 
-    Every item must share the same observation scale. Distinct per-item scales are
-    SEL-8.2 (ItemScales).
+    Items may use different scales: each score is read on the scale of its item, and
+    the matrix keeps the scale of each item (:class:`~civiqhub_selene.blocks.ItemScales`).
 
     Args:
         lines: An iterable of CSV lines, such as an open text file.
-        item_scales: A declared scale for every item column to read.
+        item_scales: The declared scale of every item column to read, by column name.
         voter_column: Column holding the unique voter identifier.
         weight_column: Optional column holding positive survey weights.
         covariate_columns: Columns to retain in the aligned covariate table.
         delimiter: CSV field delimiter.
         decimal: Decimal separator for weights.
         unshown_label: Optional marker for a question treated as not shown.
-        scale: Optional scale of the matrix when every item already shares it.
+        scale: Optional scale of every item, when they all share it; it must then
+            agree with ``item_scales``.
 
     Returns:
         The matrix and the covariate table, in CSV voter order.

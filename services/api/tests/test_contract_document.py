@@ -144,12 +144,36 @@ def test_every_job_field_is_always_present(openapi: dict[str, Any]) -> None:
     assert set(job["required"]) == set(job["properties"])
 
 
-def test_the_only_supported_submission_is_coclustering_single_1(openapi: dict[str, Any]) -> None:
+def test_the_supported_submissions_are_coclustering_single_1_and_2(
+    openapi: dict[str, Any],
+) -> None:
     branches = openapi["components"]["schemas"]["JobSubmission"]["oneOf"]
-    assert branches == [{"$ref": "#/components/schemas/CoclusteringSingleV1Submission"}]
-    submission = openapi["components"]["schemas"]["CoclusteringSingleV1Submission"]
-    assert submission["properties"]["kind"]["const"] == "coclustering.single"
-    assert submission["properties"]["schema_version"]["const"] == 1
+    assert branches == [
+        {"$ref": "#/components/schemas/CoclusteringSingleV1Submission"},
+        {"$ref": "#/components/schemas/CoclusteringSingleV2Submission"},
+    ]
+    for version in (1, 2):
+        submission = openapi["components"]["schemas"][f"CoclusteringSingleV{version}Submission"]
+        assert submission["properties"]["kind"]["const"] == "coclustering.single"
+        assert submission["properties"]["schema_version"]["const"] == version
+    results = openapi["components"]["schemas"]["Job"]["properties"]["result"]["oneOf"]
+    assert results[:2] == [
+        {"$ref": "#/components/schemas/CoclusteringSingleV1Result"},
+        {"type": "null"},
+    ]
+    assert results[2] == {"$ref": "#/components/schemas/CoclusteringSingleV2Result"}
+
+
+def test_the_parameters_of_schema_2_extend_those_of_schema_1(openapi: dict[str, Any]) -> None:
+    schemas = openapi["components"]["schemas"]
+    first = schemas["CoclusteringSingleV1Parameters"]["properties"]
+    second = schemas["CoclusteringSingleV2Parameters"]["properties"]
+    assert set(second) == set(first) | {"thresholds"}
+    for name in first:
+        assert second[name].get("default") == first[name].get("default"), name
+    thresholds = second["thresholds"]["properties"]
+    assert thresholds["axis"]["default"] == "auto"
+    assert thresholds["mode"]["default"] == "fixed"
 
 
 def test_the_product_scale_is_minus_two_to_plus_two(openapi: dict[str, Any]) -> None:

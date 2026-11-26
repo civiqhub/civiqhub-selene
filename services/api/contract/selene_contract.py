@@ -57,6 +57,11 @@ CONTRACT_MAJOR = 1
 """The major version of the contract this client speaks: the ``/v1`` prefix."""
 
 FIXTURES = pathlib.Path(__file__).resolve().parent / "fixtures" / "v1"
+RESULT_SCHEMAS = {
+    1: "selene.coclustering.single.result/1",
+    2: "selene.coclustering.single.result/2",
+}
+"""The result schema of each payload schema of ``coclustering.single`` this client reads."""
 TERMINAL_STATES = frozenset({"succeeded", "failed"})
 JOB_FIELDS = (
     "id",
@@ -271,8 +276,12 @@ def check_job(job: object) -> None:
 
 
 def check_result(result: Mapping[str, Any]) -> None:
-    """Check the fields of a ``selene.coclustering.single.result/1``."""
-    expect(result.get("schema") == "selene.coclustering.single.result/1", "unknown result schema")
+    """Check the fields of a ``selene.coclustering.single.result/1`` or ``/2``.
+
+    A result of payload schema 2 gives the scales of the items and the scale of each.
+    """
+    schema = result.get("schema")
+    expect(schema in RESULT_SCHEMAS.values(), "unknown result schema")
     expect(isinstance(result.get("available"), bool), "result.available is not a boolean")
     provenance = result.get("provenance")
     expect(isinstance(provenance, dict), "result without provenance")
@@ -285,6 +294,17 @@ def check_result(result: Mapping[str, Any]) -> None:
         assert isinstance(value, dict)
         expect(len(value["group_index"]) == len(value["voters"]), "one group per voter")
         expect(len(value["block_index"]) == len(value["items"]), "one block per item")
+        if schema == RESULT_SCHEMAS[2]:
+            scales = value["scales"]
+            expect(len(value["scale_index"]) == len(value["items"]), "one scale per item")
+            expect(
+                all(0 <= index < len(scales) for index in value["scale_index"]),
+                "scale_index names a scale",
+            )
+            expect(
+                len(value["coclusters"]["vote_shares_by_scale"]) == len(scales),
+                "one table of shares per scale",
+            )
     else:
         unavailable = result.get("unavailable")
         expect(isinstance(unavailable, dict), "an absent result says why")
@@ -323,7 +343,14 @@ def _close(found: object, wanted: object, relative: float, absolute: float) -> b
     return found == wanted
 
 
-_GROUP_BY_BLOCK_TABLES = ("vote_rate", "vote_shares", "n_votes", "latent_mean", "latent_spread")
+_GROUP_BY_BLOCK_TABLES = (
+    "vote_rate",
+    "vote_shares",
+    "n_votes",
+    "latent_mean",
+    "latent_spread",
+    "has_fixed_spread",
+)
 
 
 def _naming(index: list[int], size: int) -> list[int]:
@@ -375,6 +402,12 @@ def canonical_value(value: Mapping[str, Any]) -> dict[str, Any]:
                 tables[name] = [
                     [table[group][block] for block in block_order] for group in group_order
                 ]
+        by_scale = coclusters.get("vote_shares_by_scale")
+        if isinstance(by_scale, list):
+            tables["vote_shares_by_scale"] = [
+                [[table[group][block] for block in block_order] for group in group_order]
+                for table in by_scale
+            ]
         renamed["coclusters"] = tables
     return renamed
 
@@ -458,11 +491,27 @@ def _fresh_key(prefix: str) -> str:
     return f"{prefix}:{uuid.uuid4().hex}"
 
 
+def _advertises(client: SeleneClient, schema_version: int) -> bool:
+    """Whether the service says it accepts ``coclustering.single`` at this schema version."""
+    try:
+        answer = client.service()
+    except OSError:
+        return False
+    if answer.status != 200 or not isinstance(answer.body, dict):
+        return False
+    return any(
+        kind.get("kind") == "coclustering.single" and schema_version in kind["schema_versions"]
+        for kind in answer.body.get("kinds", [])
+    )
+
+
 def run_check(client: SeleneClient, *, wait_timeout: float = 300.0) -> list[dict[str, Any]]:
     """Run the consumer suite of contract v1 and return one report per check.
 
     Each report holds ``name``, ``passed`` and, on failure, ``problem``. The suite leaves
-    no job behind: it deletes the jobs it created.
+    no job behind: it deletes the jobs it created. When the service accepts payload
+    schema 2 of ``coclustering.single`` (items on their own scales, since contract
+    1.2.0), the suite also refuses its negative cases and computes its reference survey.
     """
     reports: list[dict[str, Any]] = []
     created: list[str] = []
@@ -470,6 +519,7 @@ def run_check(client: SeleneClient, *, wait_timeout: float = 300.0) -> list[dict
         FIXTURES / "coclustering-single-1" / "reference"
     )
     no_votes_submission, no_votes = load_reference(FIXTURES / "coclustering-single-1" / "no-votes")
+    survey_submission, survey = load_reference(FIXTURES / "coclustering-single-2" / "reference")
 
     def step(name: str, check: Callable[[], None]) -> None:
         try:
@@ -521,8 +571,8 @@ def run_check(client: SeleneClient, *, wait_timeout: float = 300.0) -> list[dict
         check_error(wrong.service(), 401, "unauthenticated")
         check_error(wrong.job("job_" + "A" * 22), 401, "unauthenticated")
 
-    def refuses_invalid() -> None:
-        for path in sorted((FIXTURES / "coclustering-single-1" / "invalid").glob("*.json")):
+    def refuses_invalid(directory: str = "coclustering-single-1") -> None:
+        for path in sorted((FIXTURES / directory / "invalid").glob("*.json")):
             case = json.loads(path.read_text("utf-8"))
             body = dict(case["body"])
             body["submission_key"] = (
@@ -549,6 +599,20 @@ def run_check(client: SeleneClient, *, wait_timeout: float = 300.0) -> list[dict
     def unknown_job() -> None:
         check_error(client.job("job_" + uuid.uuid4().hex), 404, "job_not_found")
         check_error(client.delete("job_" + uuid.uuid4().hex), 404, "job_not_found")
+
+    def survey_computation() -> None:
+        submission = dict(survey_submission)
+        submission["submission_key"] = _fresh_key("test-only:survey")
+        answer = client.submit(submission)
+        expect(answer.status == 202, f"submission answered {answer.status} ({answer.error_code})")
+        created.append(answer.body["id"])
+        expect(answer.body["content_fingerprint"] == survey["content_fingerprint"], "fingerprint")
+        done = client.wait(answer.body["id"], timeout=wait_timeout)
+        check_job(done.body)
+        result = done.body["result"]
+        expect(result["schema"] == RESULT_SCHEMAS[2], "a survey gives a result/2")
+        problems = compare_with_reference(done.body, survey)
+        expect(not problems, "; ".join(problems))
 
     def computation() -> None:
         submission = dict(reference_submission)
@@ -602,6 +666,9 @@ def run_check(client: SeleneClient, *, wait_timeout: float = 300.0) -> list[dict
     step("refuses-invalid", refuses_invalid)
     step("unknown-job", unknown_job)
     step("computation", computation)
+    if _advertises(client, 2):
+        step("refuses-invalid-scales", lambda: refuses_invalid("coclustering-single-2"))
+        step("computation-scales", survey_computation)
     step("explained-absence", explained_absence)
     step("deletion", deletion)
     for job_id in created:
