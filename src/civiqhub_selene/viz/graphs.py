@@ -106,6 +106,8 @@ def coclustering_graph(value: Coclustering) -> "networkx.Graph[Node]":
     ``vote_shares`` (a tuple), and ``latent_mean`` and ``latent_spread`` under the
     ordinal probit response model (``None`` otherwise).
 
+    See the mathematical model: :doc:`/model/reading-results`.
+
     Raises:
         InvalidInputError: If ``value`` is not a ``Coclustering``.
     """
@@ -143,6 +145,9 @@ def membership_graph(
     group), ``mixedness`` (one minus its largest membership) and ``memberships`` (a
     tuple). Under a mixed membership, a voter tied to two groups bridges them. With
     ``side="items"``, the same for the blocks and the items.
+
+    See the mathematical model: :doc:`/model/reading-results`, equation
+    :eq:`eq-results-mixedness`.
 
     Args:
         value: A co-clustering.
@@ -199,6 +204,8 @@ def role_graph(value: MixedCoclustering) -> "networkx.DiGraph[Node]":
     ``MixedCoclustering.role_changes(l, l + 1)[q, r]``. An edge between two different
     groups is a change of role; ``changes_role`` says so.
 
+    See the mathematical model: :doc:`/model/reading-results`.
+
     Raises:
         InvalidInputError: If ``value`` is not a ``MixedCoclustering``.
     """
@@ -237,9 +244,11 @@ def group_graph(value: Coclustering) -> "networkx.Graph[Node]":
 
     Definition. For two groups ``q`` and ``r``, the agreement is one minus the total
     variation distance between their distributions of votes on a block, averaged over
-    the blocks with the share of each block as its weight::
+    the blocks with the share of each block as its weight. With ``p[q, l, k]`` the vote
+    shares of the table of co-clusters and ``rho_bar[l]`` the share of the block ``l``,
+    normalised to sum to 1::
 
-        agreement(q, r) = 1 - sum_l share_l * 0.5 * sum_k |shares[q, l, k] - shares[r, l, k]|
+        agreement(q, r) = 1 - sum_l rho_bar[l] * 0.5 * sum_k |p[q, l, k] - p[r, l, k]|
 
     It reads the distributions of the votes only, not the vote rates: two groups that
     vote alike but not as often agree fully. It is 1 for identical opinions and 0 for
@@ -248,6 +257,9 @@ def group_graph(value: Coclustering) -> "networkx.Graph[Node]":
     Each edge carries ``agreement`` and ``by_block`` (the agreement on each block, a
     tuple); each node carries the attributes of the groups of
     :func:`coclustering_graph`.
+
+    See the mathematical model: :doc:`/model/reading-results`, equation
+    :eq:`eq-results-agreement`.
 
     Raises:
         InvalidInputError: If ``value`` is not a ``Coclustering``.
