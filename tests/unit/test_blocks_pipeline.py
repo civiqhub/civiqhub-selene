@@ -20,7 +20,7 @@ pytest.importorskip("numpy")
 import numpy as np
 
 from civiqhub_selene import Result
-from civiqhub_selene.blocks import Partition, VoteMatrix
+from civiqhub_selene.blocks import OrdinalScale, Partition, VoteMatrix
 from civiqhub_selene.blocks._arrays import IntArray
 from civiqhub_selene.blocks._numerics import History, count_states, one_hot
 from civiqhub_selene.blocks.base import BlockModel, estimator_for, memberships
@@ -33,6 +33,7 @@ from civiqhub_selene.blocks.results import (
 from civiqhub_selene.blocks.synthetic import make_votes, single_memberships
 from civiqhub_selene.registry import Registry
 from civiqhub_selene.testing import EstimatorContract
+from civiqhub_selene.types import UnavailableReason
 
 pytestmark = pytest.mark.blocks
 
@@ -171,3 +172,18 @@ class TestToyModel(EstimatorContract):
 
     def make_empty_data(self) -> VoteMatrix:
         return VoteMatrix.from_records([])
+
+
+def test_a_block_model_written_for_one_scale_refuses_several() -> None:
+    # TEST ONLY. Two items of two answers and one of four.
+    yes_no, four = OrdinalScale((0, 1)), OrdinalScale((1, 2, 3, 4))
+    votes = VoteMatrix.from_responses(
+        [[1, 4, 0], [0, 2, 1], [1, 1, 1], [0, 3, 1]],
+        item_scales={"q1": yes_no, "q2": four, "q3": yes_no},
+    )
+    assert not ToyModel.accepts_several_scales
+    result = ToyModel().estimate(votes, seed=0)
+    assert not result.is_available
+    assert result.unavailable is not None
+    assert result.unavailable.reason is UnavailableReason.UNSUPPORTED_INPUT
+    assert "ToyModel reads items on one scale" in result.unavailable.detail

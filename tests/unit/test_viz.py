@@ -283,3 +283,43 @@ def test_viz_is_not_a_public_name_of_the_root() -> None:
 
     assert "viz" not in civiqhub_selene.__all__
     assert np.isfinite(SINGLE.objective)
+
+
+def test_every_figure_reads_items_on_several_scales() -> None:
+    from civiqhub_selene.blocks import OrdinalScale
+
+    # TEST ONLY. Items mixing scales of two, four, five and six answers.
+    scales = [OrdinalScale(tuple(range(1, (2, 4, 5, 6)[item % 4] + 1))) for item in range(12)]
+    votes, _ = make_votes(
+        single_memberships((15, 15)),
+        single_memberships((6, 6)),
+        vote_rate=[[0.8, 0.6], [0.6, 0.8]],
+        latent_mean=[[0.8, 0.25], [0.2, 0.75]],
+        latent_spread=[[0.12, 0.14], [0.14, 0.12]],
+        item_scales=scales,
+        seed=4,
+    )
+    single = LatentBlockModel(n_groups=2, n_blocks=2).estimate(votes, seed=0).value
+    mixed = (
+        MixedMembershipBlockModel(n_groups=2, n_blocks=2, max_iterations=20)
+        .estimate(votes, seed=0)
+        .value
+    )
+    edge = next(iter(viz.graphs.coclustering_graph(single).edges(data=True)))[2]
+    assert "mean_score" not in edge
+    assert 0.0 <= edge["mean_position"] <= 1.0
+    assert len(edge["typical_score_by_scale"]) == 4
+    agreement = viz.graphs.group_graph(single).edges[("group", 0), ("group", 1)]["agreement"]
+    assert 0.0 <= agreement <= 1.0
+    scores = {data["score"] for _, _, data in viz.graphs.vote_graph(votes).edges(data=True)}
+    assert scores <= set(range(1, 7))
+    for figure in (
+        viz.draw.draw_coclustering(single),
+        viz.draw.draw_groups(single),
+        viz.draw.draw_memberships(mixed),
+        viz.draw.draw_roles(mixed),
+        viz.draw.plot_vote_matrix(votes, single),
+        viz.draw.plot_vote_matrix(votes),
+        viz.draw.plot_history(mixed),
+    ):
+        assert isinstance(figure, Axes)
