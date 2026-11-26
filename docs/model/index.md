@@ -35,6 +35,6 @@ The pages build on one another, in this order. Those that are not written yet ar
 8. [Choosing the shape](choosing-the-shape.md): the integrated completed likelihood and the likelihood of held-out votes.
 9. [Reading the results](reading-results.md): memberships, roles, agreement between two results, what is identifiable.
 10. [Cost and numerical safeguards](complexity.md).
-11. From the API to the formulas: each public object and the formulas it computes (not written yet).
+11. [From the API to the formulas](api-to-formulas.md): each public name and the formulas it holds or computes.
 12. Glossary and references (not written yet).
 13. The ordinal family (not written yet).
