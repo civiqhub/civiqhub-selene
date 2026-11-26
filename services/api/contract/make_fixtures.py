@@ -336,11 +336,12 @@ def invalid_submissions(base: dict[str, Any]) -> dict[str, dict[str, Any]]:
     cases: dict[str, tuple[bool, int, str, Any]] = {
         # name: (valid against the JSON schema, status, code, change)
         "unknown-kind": (False, 422, "unsupported_kind", set_path("kind", value="spectral.embed")),
-        "schema-version-2": (
+        # 0 is never a payload schema version: the case stays true when versions are added.
+        "schema-version-0": (
             False,
             422,
             "unsupported_schema_version",
-            set_path("schema_version", value=2),
+            set_path("schema_version", value=0),
         ),
         "exposure-unknown": (
             True,
