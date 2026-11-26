@@ -62,3 +62,16 @@ def test_each_letter_of_the_section_is_defined_in_the_notation() -> None:
         text = page.read_text(encoding="utf-8")
         used = set().union(*(_letters(a or b) for a, b in _MATH.findall(text)))
         assert used <= defined, f"{page.name} writes letters the notation does not define"
+
+
+_ROLE = re.compile(r"\{py:(\w+)\}`([^`]*)`")
+
+
+def test_each_role_of_the_section_names_one_object() -> None:
+    # A role closed by a stray brace still builds, as text: catch it here.
+    for page in sorted(MODEL.glob("*.md")):
+        text = page.read_text(encoding="utf-8")
+        for kind, target in _ROLE.findall(text):
+            assert re.fullmatch(r"~?[A-Za-z_][\w.]*", target), (
+                f"{page.name}: the role {{py:{kind}}} has the target {target!r}"
+            )

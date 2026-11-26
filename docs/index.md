@@ -105,6 +105,7 @@ The estimation <model/estimation>
 The starts <model/initialization>
 Choosing the shape <model/choosing-the-shape>
 Reading the results <model/reading-results>
+Cost and numerical safeguards <model/complexity>
 ```
 
 ```{toctree}
