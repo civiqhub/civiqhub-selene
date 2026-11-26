@@ -229,6 +229,16 @@ python -c "import secrets; print(secrets.token_urlsafe(32))" > /tmp/selene-token
 SELENE_TOKEN_FILE=/tmp/selene-token SELENE_HOST=127.0.0.1 python -m selene_api
 ```
 
+Behind a TLS-terminating proxy, HTTP off the loopback interface is allowed only when
+`SELENE_TLS_TERMINATED_BY_PROXY=true` and no certificate is set. Never set this variable
+on CiviqHub infrastructure. When it is true, the application port is `SELENE_PORT` if
+set, otherwise `PORT` if set and valid, otherwise 80. The token may come from
+`SELENE_TOKEN` instead of a file:
+
+```bash
+SELENE_TLS_TERMINATED_BY_PROXY=true SELENE_TOKEN=test-token-abcdefghijklmnopqrstuvwxyzabcdef SELENE_HOST=0.0.0.0 python -m selene_api
+```
+
 In another terminal, one synthetic computation compared with the local reference, then
 the consumer suite of v1:
 
@@ -257,11 +267,14 @@ they are not privacy thresholds nor a scientific calibration.
 
 **Process.** One server process (Starlette on Uvicorn, no reload, no HTTP worker
 multiplication) started by `python -m selene_api`, configured by `SELENE_*` environment
-variables only. A start-up check runs a computation process once and compares its engine
-version before `/readyz` answers 200; if it fails, the process exits. The server refuses
-to start (exit status 78) without a valid token file, with an unknown `SELENE_*`
-variable, and without TLS unless it is bound to the loopback interface. On SIGTERM it
-stops the running computation and its process group, forgets every job and exits.
+variables, and by `PORT` only as a fallback for the application port when
+`SELENE_TLS_TERMINATED_BY_PROXY=true`. A start-up check runs a computation process once
+and compares its engine version before `/readyz` answers 200; if it fails, the process
+exits. The server refuses to start (exit status 78) without a valid token
+(`SELENE_TOKEN_FILE` or `SELENE_TOKEN`), with an unknown `SELENE_*` variable, and without
+TLS unless it is bound to the loopback interface or `SELENE_TLS_TERMINATED_BY_PROXY=true`.
+On SIGTERM it stops the running computation and its process group, forgets every job and
+exits.
 
 **Inside the server.** Three replaceable layers, each behind a narrow interface:
 
@@ -294,9 +307,11 @@ token. Neither fails because a computation runs: busy is a metric and a field of
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `SELENE_TOKEN_FILE` | required | file of the machine token; one token per line, so that a rotation can list the old and the new; re-read when it changes |
-| `SELENE_TLS_CERT_FILE`, `SELENE_TLS_KEY_FILE` | required off loopback | server certificate chain and key (PEM); TLS 1.2 at least; re-read within 5 s when they change, the previous certificate staying if the new files do not load |
-| `SELENE_HOST` / `SELENE_PORT` / `SELENE_METRICS_PORT` | `0.0.0.0` / `8443` / `9464` | listening addresses of the application (HTTPS) and of the metrics (HTTP) |
+| `SELENE_TOKEN_FILE` | required unless `SELENE_TOKEN` is set | file of the machine token; one token per line, so that a rotation can list the old and the new; re-read when it changes |
+| `SELENE_TOKEN` | unset | a single machine token of the same form as a line of the token file; not re-read; when both are set, this value must be a token of the file, and the file remains the live source |
+| `SELENE_TLS_CERT_FILE`, `SELENE_TLS_KEY_FILE` | required off loopback unless `SELENE_TLS_TERMINATED_BY_PROXY=true` | server certificate chain and key (PEM); TLS 1.2 at least; re-read within 5 s when they change, the previous certificate staying if the new files do not load |
+| `SELENE_TLS_TERMINATED_BY_PROXY` | unset | exact value `true` lets the service listen on HTTP off the loopback interface when no certificate is set, behind a TLS-terminating proxy. Any other non-empty value is a configuration error. Never set this on CiviqHub infrastructure. When true, the application port is `SELENE_PORT` if set, otherwise `PORT` if set and valid, otherwise 80 |
+| `SELENE_HOST` / `SELENE_PORT` / `SELENE_METRICS_PORT` | `0.0.0.0` / `8443` / `9464` | listening addresses of the application (HTTPS, or HTTP when `SELENE_TLS_TERMINATED_BY_PROXY=true`) and of the metrics (HTTP). `PORT` is ignored unless that proxy mode is on |
 | `SELENE_ENVIRONMENT` | unset | label reported by `GET /v1/service`, for example `dev` or `staging` |
 | `SELENE_JOB_TIMEOUT_SECONDS` | `120` | a computation still running is stopped and fails with `timeout` |
 | `SELENE_RESULT_TTL_SECONDS` | `900` | retention of a finished job |

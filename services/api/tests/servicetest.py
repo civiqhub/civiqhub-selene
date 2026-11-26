@@ -52,7 +52,9 @@ def service_for(settings: Settings, runner: Runner | None = None) -> Service:
     """Assemble a service around ``runner``, by default the real process runner."""
     runner = runner or ProcessRunner(max_result_bytes=settings.max_result_bytes)
     versions = Versions.current(BuildInfo())
-    return Service.build(settings, TokenStore(settings.token_file), runner, versions)
+    return Service.build(
+        settings, TokenStore(settings.token_file, token=settings.token), runner, versions
+    )
 
 
 @contextlib.asynccontextmanager

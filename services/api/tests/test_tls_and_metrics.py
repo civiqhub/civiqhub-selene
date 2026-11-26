@@ -361,6 +361,7 @@ def test_an_unusable_token_file_shows_in_the_metrics(tmp_path: pathlib.Path) -> 
     async def main() -> None:
         async with asgi_client(service) as client:
             assert metric(_registry_text(service), "selene_token_usable") == 1
+            assert service.tokens.path is not None
             service.tokens.path.write_text("short\n", encoding="ascii")
             service.tokens._checked = -10.0
             answer = await client.get("/v1/service", headers=AUTH)
