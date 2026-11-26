@@ -57,6 +57,13 @@ Pfeffermann, D. (1993). The code cites the author and the year only, for the wei
 - Code: {py:class}`~civiqhub_selene.blocks.LatentBlockModel` and {py:class}`~civiqhub_selene.blocks.MixedMembershipBlockModel`, docstring.
 - Pages: [The latent block model](latent-block-model.md), [The mixed-membership model](mixed-membership.md).
 
+### Pratt (1981)
+
+Pratt, J. W. (1981). Concavity of the log likelihood. *Journal of the American Statistical Association*, 76(373), 103–106. [doi:10.1080/01621459.1981.10477614](https://doi.org/10.1080/01621459.1981.10477614)
+
+- Code: `fit_thresholds` of `civiqhub_selene.blocks._numerics`, docstring, for the concavity of the likelihood of an ordinal probit in its thresholds, which makes the Newton steps on the estimated thresholds safe.
+- Pages: [The response models](response-models.md#estimated-thresholds).
+
 ### Qin and Rohe (2013)
 
 Qin, T. and Rohe, K. (2013). Regularized spectral clustering under the degree-corrected stochastic blockmodel. *Advances in Neural Information Processing Systems*, 26, 3120–3128. [arXiv:1309.4111](https://arxiv.org/abs/1309.4111)

@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "submission_conflict",
+    "message": "This submission key is bound to a retained job with other content.",
+    "retryable": false
+  }
+}
