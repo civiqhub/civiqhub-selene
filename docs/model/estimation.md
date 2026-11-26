@@ -1,6 +1,6 @@
 # The estimation
 
-Checked against the code of `develop` at commit `97a0f15`.
+Checked against the code of `develop` at commit `c29d115`.
 
 ## In plain words
 
@@ -101,13 +101,13 @@ The same seed gives the same computation and the same value; another seed is ano
 
 | Rule | Code |
 | --- | --- |
-| Settings and their defaults | `src/civiqhub_selene/blocks/base.py:165-202` |
+| Settings and their defaults | `BlockModel`, `src/civiqhub_selene/blocks/base.py:176-250`; defaults `:208-214` |
 | One stream per start, best start kept, first on a tie | `IterativeEstimator._compute`, `blocks/iterative.py:82-98`; `_comparable`, `:40-43` |
-| The loop and its stop rule | `iterate`, `blocks/_numerics.py:199-227`; `History`, `:181-196` (internal) |
+| The loop and its stop rule | `iterate`, `blocks/_numerics.py:334-362`; `History`, `:316-331` (internal) |
 | A model cannot redefine the loop | `blocks/iterative.py:74-80` |
 | `estimate`: checks, provenance, absence, value | `src/civiqhub_selene/estimator.py:146-179` |
 | Provenance and its fingerprint | `estimator.py:181-197`; `src/civiqhub_selene/types.py:203-252` |
-| Fingerprint of a value | `blocks/results.py:320-341` |
+| Fingerprint of a value | `Coclustering.fingerprint` and `_fingerprint`, `blocks/results.py:344-378` |
 | What an objective compares | Docstring of `Coclustering`, `blocks/results.py:192-193` |
 
 ## Limits

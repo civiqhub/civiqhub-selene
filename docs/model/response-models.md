@@ -1,6 +1,6 @@
 # The response models
 
-Checked against the code of `develop` at commit `97a0f15`.
+Checked against the code of `develop` at commit `c29d115`.
 
 ## In plain words
 
@@ -26,7 +26,7 @@ They differ in how they write $p_{qlk}$.
 
 ### The ordinal probit
 
-{py:class}`~civiqhub_selene.blocks.responses.OrdinalProbit` reads each vote of the co-cluster $(q, l)$ as a hidden opinion $y_{ij}$, normal with the mean $\mu_{ql}$ ({py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbitParameters.latent_mean`) and the standard deviation $\sigma_{ql}$ ({py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbitParameters.latent_spread`). Fixed thresholds $t_1 < \dots < t_{K-1}$ ({py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbitParameters.thresholds`), with $t_0 = -\infty$ and $t_K = +\infty$, cut the opinion into levels: the vote is at the level $k$ when $t_{k-1} < y_{ij} \leq t_k$. With the standardised thresholds
+{py:class}`~civiqhub_selene.blocks.responses.OrdinalProbit` reads each vote of the co-cluster $(q, l)$ as a hidden opinion $y_{ij}$, normal with the mean $\mu_{ql}$ ({py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbitParameters.latent_mean`) and the standard deviation $\sigma_{ql}$ ({py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbitParameters.latent_spread`). Thresholds $t_1 < \dots < t_{K-1}$ ({py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbitParameters.thresholds`), with $t_0 = -\infty$ and $t_K = +\infty$, cut the opinion into levels: the vote is at the level $k$ when $t_{k-1} < y_{ij} \leq t_k$. With the standardised thresholds
 
 $$
 z_{qlk} = \frac{t_k - \mu_{ql}}{\sigma_{ql}}, \qquad k = 0, \dots, K,
@@ -38,7 +38,7 @@ $$
 p_{qlk} = \Phi(z_{qlk}) - \Phi(z_{ql,k-1}).
 $$ (eq-response-probit)
 
-By default the thresholds are $t_k = k + \tfrac{1}{2}$ for $k = 1, \dots, K - 1$ ({py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbit.thresholds` left to `None`); a strictly increasing tuple of $K - 1$ numbers replaces them. They are never estimated. With the default thresholds, the level $k$ is the interval of opinions around $k$, so that $\mu_{ql}$ reads directly on the axis of levels, from $1$ to $K$: a group whose mean is $4.2$ on a block stands between the levels $4$ and $5$. A co-cluster has three free parameters: $\nu_{ql}$, $\mu_{ql}$ and $\sigma_{ql}$.
+By default the thresholds are $t_k = k + \tfrac{1}{2}$ for $k = 1, \dots, K - 1$ ({py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbit.thresholds` left to `None`); a strictly increasing tuple of $K - 1$ numbers replaces them. They are fixed unless {py:class}`~civiqhub_selene.blocks.responses.Thresholds` sets `mode="estimated"`, which estimates the inner thresholds of each scale ([Estimated thresholds](#estimated-thresholds)). With the default thresholds, the level $k$ is the interval of opinions around $k$, so that $\mu_{ql}$ reads directly on the axis of levels, from $1$ to $K$: a group whose mean is $4.2$ on a block stands between the levels $4$ and $5$. A co-cluster has three free parameters: $\nu_{ql}$, $\mu_{ql}$ and $\sigma_{ql}$.
 
 ### Items on several scales
 
@@ -140,21 +140,21 @@ $$
 \sum_{q=1}^{Q} \sum_{l=1}^{L} \sum_{k=1}^{K_g} N_{qlgk} \log p_{qlgk},
 $$ (eq-response-thresholds-estimated)
 
-with $p_{qlgk}$ of {eq}`eq-response-probit-by-scale`, under the order $t_{g1} < \dots < t_{g,K_g-1}$. This sum is concave in the thresholds (Pratt 1981): each update takes, after the opinions, Newton steps on the inner thresholds, each halved until it keeps the order and does not lower {eq}`eq-response-thresholds-estimated`, and kept only then. It is a generalised expectation-maximisation: the objective of the block model never decreases. Each inner threshold adds $\tfrac{1}{2} \log n_{\text{votes}}$ to the penalty {eq}`eq-response-penalty`, a Hypothesis, since every co-cluster shares the thresholds of a scale. The estimate tests the convention of the axis: on answers that are not regular, the inner thresholds move away from the regular grid, and the integrated likelihood says whether the move is worth its parameters.
+with $p_{qlgk}$ of {eq}`eq-response-probit-by-scale`, under the order $t_{g1} < \dots < t_{g,K_g-1}$. This sum is concave in the thresholds (Pratt 1981): each update takes, after the opinions, Newton steps on the inner thresholds, each halved until it keeps the order and does not lower {eq}`eq-response-thresholds-estimated`, and kept only then. It is a generalised expectation-maximisation: the objective of the block model never decreases. The code counts each inner threshold in the penalty {eq}`eq-response-penalty`, with $\tfrac{1}{2} \log n_{\text{votes}}$. On answers that are not regular, the inner thresholds move away from the regular grid of their scale.
 
 ### The penalty of the parameters
 
-The integrated likelihood of a single-membership arrangement subtracts half a logarithm of the sample size per free parameter of the response model. The code counts the parameters of the votes with the number of votes $n_{\text{votes}}$ ({py:attr}`~civiqhub_selene.blocks.VoteMatrix.n_votes`), and the vote rates with the number of shown cells $n_{\text{shown}}$ ({py:attr}`~civiqhub_selene.blocks.VoteMatrix.n_shown`), each at least $1$:
+The integrated likelihood of a single-membership arrangement subtracts half a logarithm of the sample size per free parameter of the response model. The code counts the parameters of the votes with the number of votes $n_{\text{votes}}$ ({py:attr}`~civiqhub_selene.blocks.VoteMatrix.n_votes`), and the vote rates with the number of shown cells $n_{\text{shown}}$ ({py:attr}`~civiqhub_selene.blocks.VoteMatrix.n_shown`), each at least $1$. With $\mathcal{G}$ the scales of the items and $K_g$ the levels of the scale $g$ ([The data: items on different scales](data.md#items-on-different-scales)):
 
 $$
-\text{categorical:} \quad \tfrac{1}{2} \, Q L (K - 1) \log n_{\text{votes}} + \tfrac{1}{2} \, Q L \log n_{\text{shown}},
-$$
-
-$$
-\text{ordinal probit:} \quad Q L \log n_{\text{votes}} + \tfrac{1}{2} \, Q L \log n_{\text{shown}}.
+\begin{aligned}
+\text{categorical:} \quad & \tfrac{1}{2} \, Q L \sum_{g \in \mathcal{G}} (K_g - 1) \log n_{\text{votes}} + \tfrac{1}{2} \, Q L \log n_{\text{shown}}, \\
+\text{ordinal probit, fixed thresholds:} \quad & Q L \log n_{\text{votes}} + \tfrac{1}{2} \, Q L \log n_{\text{shown}}, \\
+\text{ordinal probit, estimated thresholds:} \quad & Q L \log n_{\text{votes}} + \tfrac{1}{2} \, Q L \log n_{\text{shown}} + \tfrac{1}{2} \log n_{\text{votes}} \sum_{g \in \mathcal{G}} \max(K_g - 3, 0).
+\end{aligned}
 $$ (eq-response-penalty)
 
-The ordinal probit has two parameters of opinion per co-cluster, hence $QL$ halves of a logarithm twice.
+The categorical model has $K_g - 1$ free shares per co-cluster on each scale $g$; with one scale, the sum is $K - 1$. The ordinal probit has two parameters of opinion per co-cluster, hence $QL$ halves of a logarithm twice, and a fixed grid adds nothing, whatever the number of scales. With estimated thresholds, the code adds $\tfrac{1}{2} \log n_{\text{votes}}$ for each inner threshold of each scale, $\max(K_g - 3, 0)$ for the scale $g$, once for the matrix and not once per co-cluster.
 
 ## An example
 
@@ -242,34 +242,35 @@ print(round(float(pooled.latent_mean[0, 0]), 4), round(float(pooled.latent_sprea
 
 | Formula | Code |
 | --- | --- |
-| Protocol | `src/civiqhub_selene/blocks/responses.py:46-81` |
-| {eq}`eq-response-states`, floored at $10^{-300}$ before the logarithm | `state_log_probabilities`, `blocks/coclusters.py:78-89` |
-| {eq}`eq-response-rate`, bounds, empty co-cluster | `_vote_rate`, `blocks/responses.py:84-95` |
-| {eq}`eq-response-categorical` | `Categorical.update`, `blocks/responses.py:180-192` |
-| {eq}`eq-response-probit`, default thresholds | `blocks/_numerics.py:107-148`, `blocks/responses.py:313-317` |
-| {eq}`eq-response-moments` | `truncated_moments`, `blocks/_numerics.py:151-178` |
-| {eq}`eq-response-opinion`, stop at $10^{-8}$ | `fit_latent_normal`, `blocks/_numerics.py:230-297` |
-| {eq}`eq-response-penalty` | `blocks/responses.py:194-204`, `:348-358` |
-| Starting parameters | `blocks/responses.py:163-174`, `:300-322` |
-| {eq}`eq-response-probit-by-scale`, grid of each scale | `OrdinalProbit._vote_shares`, `level_probabilities_by_scale` and `scale_bounds` in `blocks/_numerics.py` |
-| {eq}`eq-response-axes`, `"auto"` | `Thresholds.grid_of` and `Thresholds.axis_for`, `blocks/responses.py` |
-| {eq}`eq-response-opinion-by-scale`, spread held on two levels | `fit_latent_normal_by_scale`, `blocks/_numerics.py`; `OrdinalProbit.update` |
-| {eq}`eq-response-thresholds-estimated`, ends held, Newton steps kept when they keep the order and raise the sum | `fit_thresholds` and `threshold_objective`, `blocks/_numerics.py`; `OrdinalProbit.update`, `OrdinalProbit.complexity_penalty` |
+| Protocol | `src/civiqhub_selene/blocks/responses.py:64-117` |
+| {eq}`eq-response-states`, floored at $10^{-300}$ before the logarithm | `state_log_probabilities`, `blocks/coclusters.py:190-205` |
+| {eq}`eq-response-rate`, bounds, empty co-cluster | `_vote_rate`, `blocks/responses.py:138-151` |
+| {eq}`eq-response-categorical`, one distribution per scale | `Categorical.update`, `blocks/responses.py:318-334` |
+| {eq}`eq-response-probit` | `norm_cdf`, `interval_mass` and `level_probabilities`, `blocks/_numerics.py:153-210` |
+| Default thresholds | `Thresholds.grid_of`, `blocks/responses.py:469-477` |
+| {eq}`eq-response-moments` | `truncated_moments`, `blocks/_numerics.py:213-240` |
+| {eq}`eq-response-opinion`, stop at $10^{-8}$ | `fit_latent_normal`, `blocks/_numerics.py:365-413`, which calls `fit_latent_normal_by_scale`, `:416-498` |
+| {eq}`eq-response-penalty` | `Categorical.complexity_penalty`, `blocks/responses.py:336-348`; `OrdinalProbit.complexity_penalty`, `:751-767` |
+| Starting parameters | `Categorical.initial_parameters`, `blocks/responses.py:291-304`; `OrdinalProbit.initial_parameters`, `:657-689`; `_overall_vote_rate`, `:154-163` |
+| {eq}`eq-response-probit-by-scale`, grid of each scale | `OrdinalProbit._vote_shares`, `blocks/responses.py:831-841`; `scale_bounds` and `level_probabilities_by_scale`, `blocks/_numerics.py:243-286` |
+| {eq}`eq-response-axes`, `"auto"` | `Thresholds.grid_of` and `Thresholds.axis_for`, `blocks/responses.py:469-488` |
+| {eq}`eq-response-opinion-by-scale`, spread held on two levels | `fit_latent_normal_by_scale`, `blocks/_numerics.py:416-498`; `OrdinalProbit.update`, `blocks/responses.py:704-749` |
+| {eq}`eq-response-thresholds-estimated`, ends held, Newton steps kept when they keep the order and raise the sum | `threshold_objective` and `fit_thresholds`, `blocks/_numerics.py:504-620`; `OrdinalProbit.update`, `blocks/responses.py:704-749` |
 
 The code also does what the formulas do not say:
 
 - **Masses in the tails.** {eq}`eq-response-probit` is computed without cancellation: when the lower threshold of an interval is above the mean ($z_{ql,k-1} > 0$), the difference is taken on the survival functions, $\Phi(-z_{ql,k-1}) - \Phi(-z_{qlk})$, which has the same value. $\Phi$ itself is computed as $\tfrac{1}{2} \operatorname{erfc}(-z / \sqrt{2})$, accurate in the lower tail.
 - **Floors.** Each share $p_{qlk}$ of the ordinal probit is floored at $10^{-12}$ before it enters {eq}`eq-response-states`, and the shares are not normalised again; each probability $F_{qls}$ is floored at $10^{-300}$ before its logarithm. In the moments, a mass is floored at $10^{-300}$, $m^{(1)}_{qlk}$ is kept between $t_{k-1}$ and $t_k$, and $m^{(2)}_{qlk}$ is kept above $\big(m^{(1)}_{qlk}\big)^2$.
-- **Starting parameters.** Both models start every co-cluster at the same vote rate: the votes over the shown cells of the whole matrix, weighted by $w_i$ when the votes carry weights, and bounded. The categorical model draws each distribution from a Dirichlet law of concentration $5$ on each level; the ordinal probit starts each mean at $(K + 1) / 2$ plus a normal draw of standard deviation $0.5$, and each $\sigma_{ql}$ at $1$.
+- **Starting parameters.** Both models start every co-cluster at the same vote rate: the votes over the shown cells of the whole matrix, weighted by $w_i$ when the votes carry weights, and bounded. The categorical model draws each distribution of each scale from a Dirichlet law of concentration $5$ on each level of the scale. On the axis of levels, the ordinal probit starts each mean at $(K + 1) / 2$ plus a normal draw of standard deviation $0.5$, and each $\sigma_{ql}$ at $1$; on the unit axis, it starts each mean at $\tfrac{1}{2}$ plus the same draw divided by $K$, and each $\sigma_{ql}$ at $1 / K$, $K$ the levels of the longest scale.
 
 ## Limits
 
-- The thresholds are the same for every item of a scale and every co-cluster, and fixed: the model reads the levels of every scale on one axis, whose alignment between scales is a convention, not an estimate.
+- The thresholds are the same for every item of a scale and every co-cluster. They are fixed by default; estimated, only the inner thresholds of each scale move, its first and its last held. The model reads the levels of every scale on one axis, whose alignment between scales is a convention.
 - The ordinal probit gives each co-cluster one normal opinion: a co-cluster split in two camps reads as a wide spread around the middle, not as two modes.
 - The vote rate is a property of the co-cluster: whether a voter votes does not depend on its opinion in the model.
 
 ## References
 
 - Corneli, M., Bouveyron, C. and Latouche, P. (2020). Co-clustering of ordinal data via latent continuous random variables and not missing at random entries. *Journal of Computational and Graphical Statistics*, 29(4), 771–785. doi:10.1080/10618600.2020.1739533. The code takes from it the hidden normal opinion cut by thresholds.
-- Pratt, J. W. (1981). Concavity of the log likelihood. *Journal of the American Statistical Association*, 76(373), 103–106. doi:10.1080/01621459.1981.10477614. The concavity of the likelihood of an ordered probit in its thresholds, which makes the Newton steps on the inner thresholds safe.
+- Pratt, J. W. (1981). Concavity of the log likelihood. *Journal of the American Statistical Association*, 76(373), 103–106. doi:10.1080/01621459.1981.10477613. The concavity of the likelihood of an ordered probit in its thresholds, which makes the Newton steps on the inner thresholds safe.
 - Dempster, A. P., Laird, N. M. and Rubin, D. B. (1977). Maximum likelihood from incomplete data via the EM algorithm. *Journal of the Royal Statistical Society, Series B*, 39(1), 1–22. doi:10.1111/j.2517-6161.1977.tb01600.x

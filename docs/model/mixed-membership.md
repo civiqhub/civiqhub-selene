@@ -1,6 +1,6 @@
 # The mixed-membership model
 
-Checked against the code of `develop` at commit `97a0f15`.
+Checked against the code of `develop` at commit `c29d115`.
 
 ## In plain words
 
@@ -157,13 +157,13 @@ The blocks are found, and on each block the role that {py:attr}`~civiqhub_selene
 
 | Formula or rule | Code |
 | --- | --- |
-| Model, {eq}`eq-mm-likelihood`, {eq}`eq-mm-objective`, weights | Docstring, `src/civiqhub_selene/blocks/mixed.py:168-206` |
-| {eq}`eq-mm-cell`, {eq}`eq-mm-profiles`, $\kappa$, $H$, $N$, $\mathcal{L}$ | `_expect`, `blocks/mixed.py:103-161` |
-| {eq}`eq-mm-objective` as computed | `_state`, `blocks/mixed.py:374-402` |
-| {eq}`eq-mm-mstep`, response update | `_step`, `blocks/mixed.py:328-336`; `_normalised`, `:95-100` |
-| Start | `_start`, `blocks/mixed.py:309-326`; `_smoothed`, `:84-92` |
-| Settings and their bounds; `MAX_PROFILES` | `blocks/mixed.py:28-29`, `:276-305` |
-| Value | `_finish`, `blocks/mixed.py:338-372`; {py:class}`~civiqhub_selene.blocks.results.MixedCoclustering`, `blocks/results.py:434-475` |
+| Model, {eq}`eq-mm-likelihood`, {eq}`eq-mm-objective`, weights, several scales | Docstring, `src/civiqhub_selene/blocks/mixed.py:217-262` |
+| {eq}`eq-mm-cell`, {eq}`eq-mm-profiles`, $\kappa$, $H$, $N$, $\mathcal{L}$, scale by scale | `_expect`, `blocks/mixed.py:116-209` |
+| {eq}`eq-mm-objective` as computed | `_state`, `blocks/mixed.py:431-460` |
+| {eq}`eq-mm-mstep`, response update | `_step`, `blocks/mixed.py:384-392`; `_normalised`, `:108-113` |
+| Start | `_start`, `blocks/mixed.py:362-382`; `_smoothed`, `:97-105` |
+| Settings and their bounds; `MAX_PROFILES` | `blocks/mixed.py:33-34`, `:333-358` |
+| Value | `_finish`, `blocks/mixed.py:394-427`; {py:class}`~civiqhub_selene.blocks.results.MixedCoclustering`, `blocks/results.py:487-604` |
 
 The code also does what the formulas do not say:
 

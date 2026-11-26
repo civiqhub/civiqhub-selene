@@ -1,6 +1,6 @@
 # The starts
 
-Checked against the code of `develop` at commit `97a0f15`.
+Checked against the code of `develop` at commit `c29d115`.
 
 ## In plain words
 
@@ -30,6 +30,15 @@ counting from $0$ as the code does. The items are dealt to the blocks in the sam
 
 - `"states"`, the default: one row per voter and one column per pair (item, state), with $\mathbf{X}_{i,(j,s)} = S_{ijs}$. Two rows share an entry when the two voters are in the same state on the same item, so that $\mathbf{X}\mathbf{X}^{\top}$ counts the items on which two voters gave the same answer, abstentions included. The degree of a voter is its number of shown cells. The same is done with the transposed array for the items.
 - `"scores"`: one matrix of centred levels, $\mathbf{X}_{ij} = s_{ij} - (K + 1)/2$ on a voted cell and $0$ elsewhere, so that a neutral vote, an abstention and a cell that is not shown all read $0$. Its degrees are the numbers of votes of each row and column. The left singular vectors place the voters and the right ones the items.
+
+**Items on several scales.** A level means another answer from one scale to the next ([The data: items on different scales](data.md#items-on-different-scales)), so both encodings first place the votes of every scale on the unit axis of {py:class}`~civiqhub_selene.blocks.responses.Thresholds`, where the level $k$ of the scale $g$ covers the interval $\big(\tfrac{k-1}{K_g}, \tfrac{k}{K_g}\big]$ ([The response models: items on several scales](response-models.md#items-on-several-scales), {eq}`eq-response-axes`), and $K$ is the number of levels of the longest scale. Under `"states"`, the axis is cut into $K$ equal bins, and a vote is spread over the bins its interval covers, in proportion to the length it covers in each; an abstention keeps its own column. For the item $j$ of the scale $g_j$ and the bin $b = 1, \dots, K$:
+
+$$
+\mathbf{X}_{i,(j,0)} = S_{ij0}, \qquad
+\mathbf{X}_{i,(j,b)} = \sum_{k=1}^{K_{g_j}} S_{ijk} \; K_{g_j} \, \Big\lvert \Big(\tfrac{k-1}{K_{g_j}}, \tfrac{k}{K_{g_j}}\Big] \cap \Big(\tfrac{b-1}{K}, \tfrac{b}{K}\Big] \Big\rvert,
+$$
+
+where $\lvert \cdot \rvert$ is the length of an interval: the weights of a vote sum to $1$, so that the degree of a voter is still its number of shown cells. Under `"scores"`, the centred level of a vote is stretched to the levels of the longest scale, $\mathbf{X}_{ij} = \big(s_{ij} - (K_{g_j} + 1)/2\big) \, K / K_{g_j}$: $K$ times the distance from $\tfrac{1}{2}$ to the centre of its interval. With one scale, both encodings are those above.
 
 **The regularised Laplacian.** With $\mathbf{D}_{\mathrm{r}}$ and $\mathbf{D}_{\mathrm{c}}$ the diagonal matrices of the degrees of the rows and of the columns, and $\mathbf{I}$ the identity,
 
@@ -106,10 +115,11 @@ The spectral arrangement agrees with the planted groups for 58 voters out of 60 
 | Random start | `blocks/starts.py:66-84` |
 | Spectral start, settings and their defaults | `blocks/starts.py:87-176` |
 | Fixed start, `from_coclustering`, checks | `blocks/starts.py:179-254` |
-| The matrix of each encoding | `_decomposition`, `blocks/spectral.py:315-351` |
-| {eq}`eq-starts-laplacian` | `_laplacian`, `blocks/spectral.py:354-368`; `_inverse_root`, `:371-375` |
-| Number of components | `n_singular_values`, `blocks/spectral.py:297-312`; `SpectralStart.arrangement`, `blocks/starts.py:151-176` |
-| Projection, leverage, k-means++, Lloyd, empty clusters | `blocks/spectral.py:387-512` |
+| The matrix of each encoding | `_decomposition`, `blocks/spectral.py:327-369` |
+| Votes of several scales on the unit axis, the stretch of `"scores"` | `_aligned_states`, `blocks/spectral.py:372-396`; `_decomposition`, `:349-356` |
+| {eq}`eq-starts-laplacian` | `_laplacian`, `blocks/spectral.py:399-413`; `_inverse_root`, `:416-420` |
+| Number of components | `n_singular_values`, `blocks/spectral.py:309-321`; `SpectralStart.arrangement`, `blocks/starts.py:151-176` |
+| Projection, leverage, k-means++, Lloyd, empty clusters | `SpectralEmbedding.labels`, `blocks/spectral.py:141-197`; `:432-554` |
 
 The code also does what the formulas do not say:
 
@@ -120,7 +130,7 @@ The code also does what the formulas do not say:
 ## Limits
 
 - A spectral start is a start, not a result: the model still climbs from it, and can end elsewhere.
-- The decomposition is dense: its cost grows with $M \cdot P \cdot (K + 1)$ under `"states"`.
+- The decomposition is dense: its cost grows with $M \cdot P \cdot (K + 1)$ under `"states"`, $K$ the levels of the longest scale.
 - The gap in the singular values is a reading, not a criterion for the shape.
 
 ## References
