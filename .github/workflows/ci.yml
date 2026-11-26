@@ -250,7 +250,10 @@ jobs:
   # The site is built with warnings as errors: a broken link, a reference to a name that
   # does not exist or a page outside every table of contents fails the job. It is built
   # by the script that publishes it (docs.yml), from this commit alone: this clone holds
-  # no other branch and no tag, so no other version is built.
+  # no other branch and no tag, so no other version is built. Sphinx runs without network
+  # when the runner allows it (--offline warns when it does not). Then no page may load a
+  # script, a style sheet, a font or an image from another server; the one exception,
+  # Mermaid, is listed in the script.
   docs:
     name: documentation
     runs-on: ubuntu-latest
@@ -261,7 +264,8 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
-      - run: python .github/scripts/build-docs-site.py --output _site --development HEAD
+      - run: python .github/scripts/build-docs-site.py --output _site --development HEAD --offline
+      - run: python .github/scripts/check-no-external-resources.py _site
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: docs-html
