@@ -195,7 +195,11 @@ def state_log_probabilities(vote_rate: FloatArray, vote_shares: FloatArray) -> F
     shape (Q, L, C, K + 1). State 0 (shown without a vote): ``log(1 - vote_rate)``;
     state ``k``: ``log(vote_rate) + log(vote_shares[k])``. Probabilities are floored at
     1e-300 before the logarithm, so a state past the levels of a scale, whose share is
-    0, has a finite logarithm.
+    0, has a finite logarithm. With ``nu`` the vote rate and ``p`` the vote shares, this
+    is ``log F[q, l, s]``, or ``log F[q, l, g, s]`` on the scale ``g``.
+
+    See the mathematical model: :doc:`/model/response-models`, equations
+    :eq:`eq-response-states` and :eq:`eq-response-probit-by-scale`.
     """
     rate = vote_rate.reshape(vote_rate.shape + (1,) * (vote_shares.ndim - vote_rate.ndim))
     probabilities = np.concatenate(

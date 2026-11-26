@@ -317,10 +317,13 @@ def spectral_embedding(
 def n_singular_values(votes: VoteMatrix, encoding: Encoding = "states") -> tuple[int, int]:
     """Return how many singular values each side of the embedding of ``votes`` has.
 
-    With M voters, P items and K levels: ``min(M, P * (K + 1))`` for the voters and
-    ``min(P, M * (K + 1))`` for the items under ``"states"``; ``min(M, P)`` on both
-    sides under ``"scores"``. These are the largest numbers of components
-    :func:`spectral_embedding` accepts. Nothing is decomposed.
+    With M voters, P items and K levels, those of the longest scale when the items use
+    several: ``min(M, P * (K + 1))`` for the voters and ``min(P, M * (K + 1))`` for the
+    items under ``"states"``; ``min(M, P)`` on both sides under ``"scores"``. These are
+    the largest numbers of components :func:`spectral_embedding` accepts. Nothing is
+    decomposed.
+
+    See the mathematical model: :doc:`/model/initialization`.
     """
     n_voters, n_items = votes.shape
     if encoding == "scores":
