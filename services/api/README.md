@@ -161,7 +161,10 @@ the same job and the same result as before.
 Schema 2 on one scale is the computation of schema 1: the same input fingerprint, the
 same computation fingerprint and the same numbers; only the form of the result changes.
 The guide [Échelles par proposition](../../docs/scales.md) explains the model and its
-readings on the engine side.
+readings on the engine side. The page [Service de calcul](../../docs/service.md) writes,
+with the symbols and the equations of the mathematical model, how a submission of
+`coclustering.single` becomes a computation of the engine, and its result the result of
+the contract.
 
 ## Fixtures and contract client
 
