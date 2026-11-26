@@ -47,8 +47,10 @@ class OrdinalScale:
     """An ordered scale of scores. Defaults to the five-score agreement scale.
 
     A score is the answer of a vote, for example from -2 to +2. A level is the rank of
-    a score on the scale, from 1 to ``n_levels``; level 0 means "no vote" and is
+    a score on the scale, from 1 to ``n_levels`` (K); level 0 means "no vote" and is
     internal to matrices.
+
+    See the mathematical model: :doc:`/model/data`.
 
     Attributes:
         scores: The scores, strictly increasing integers, at least two.
@@ -137,15 +139,17 @@ class ItemScales(Displayable):
     The questions of a survey use different scales: two answers, four, seven. This
     object says which scale each item uses. Its ``scales`` are the distinct scales, in
     the order in which the items first use them, and ``scale_index[j]`` is the position
-    in ``scales`` of the scale of the item ``j``. Two scales with the same scores are
-    the same scale: response models give each scale its own grid of thresholds, and
-    the items of one scale share it.
+    in ``scales`` of the scale of the item ``j``, the scale ``g_j`` of the mathematical
+    model. Two scales with the same scores are the same scale: response models give
+    each scale its own grid of thresholds, and the items of one scale share it.
 
     Build it with :meth:`from_scales`, from the scale of each item in the order of the
     columns, or with :meth:`uniform` when every item uses one scale. It reads by
     position, like the columns of a matrix: ``len(item_scales)`` is the number of
     items, ``item_scales[j]`` the scale of the item ``j``, and iteration yields the
     scale of each item in turn. Two values with the same content are equal.
+
+    See the mathematical model: :doc:`/model/data`.
 
     Attributes:
         scales: The distinct scales, at least one, in the order of their first item.
@@ -491,6 +495,14 @@ class VoteMatrix(Displayable):
     A cell has three states. It is *not shown* when ``shown`` is false, whatever
     ``levels`` holds; an *abstention* when it is shown and ``levels`` is 0; *voted*
     when it is shown and ``levels`` is positive. A vote at the neutral score is a vote.
+    The models read the state ``s[i, j]`` of each shown cell, 0 for an abstention and
+    ``k`` for a vote at rank ``k``, through its indicator::
+
+        S[i, j, s] = 1 if the cell (i, j) is shown and s[i, j] = s, else 0
+
+    so that a cell that is not shown is zero in every state.
+
+    See the mathematical model: :doc:`/model/data`, equation :eq:`eq-data-states`.
 
     Each item has a scale. By default every item uses the five-score agreement scale;
     ``scale`` gives every item another one, and ``item_scales`` gives each item its
@@ -507,7 +519,8 @@ class VoteMatrix(Displayable):
         voters: Opaque identifiers of the rows, unique.
         items: Opaque identifiers of the columns, unique.
         scale: The scale of every item. Defaults to the five-score agreement scale.
-        voter_weights: Optional finite, positive survey weights, in row order.
+        voter_weights: Optional finite, positive survey weights, in row order. The
+            models read them scaled to average 1, as ``w[i]``.
         item_scales: The scale of each item, as an :class:`ItemScales` in column order,
             in place of ``scale``. Given with ``scale``, they must agree.
 
@@ -1052,6 +1065,9 @@ class VoteMatrix(Displayable):
 
         Their votes stay in ``levels``, to be predicted; this matrix is unchanged.
 
+        See the mathematical model: :doc:`/model/choosing-the-shape`, equations
+        :eq:`eq-shape-held-out-single` and :eq:`eq-shape-held-out-mixed`.
+
         Raises:
             InvalidInputError: If ``cells`` is not a boolean array of the same shape.
         """
@@ -1215,7 +1231,11 @@ class GroupedVotes(Displayable):
         """Count the shown cells of each co-cluster in each state, on a matrix of one scale.
 
         Shape (Q, L, K + 1). Index 0: shown without a vote; index ``k``: vote at rank
-        ``k``. A cell that is not shown is counted nowhere.
+        ``k``. A cell that is not shown is counted nowhere. Without survey weights::
+
+            N[q, l, s] = sum_{i in group q} sum_{j in block l} S[i, j, s]
+
+        See the mathematical model: :doc:`/model/data`, equation :eq:`eq-data-counts`.
 
         Raises:
             InvalidInputError: If the items use several scales: a level then means
@@ -1235,7 +1255,11 @@ class GroupedVotes(Displayable):
         of the scale ``c`` in the co-cluster ``(q, l)`` in the state ``s``: 0 for no
         vote, ``k`` for a vote at rank ``k`` of that scale. The states past the levels
         of a scale are 0. With one scale, ``counts_by_scale()[:, :, 0]`` is
-        :meth:`counts`.
+        :meth:`counts`. Without survey weights, this is ``N[q, l, g, s]``, ``g`` the
+        scale at the position ``c``.
+
+        See the mathematical model: :doc:`/model/data`, equation
+        :eq:`eq-data-counts-by-scale`.
         """
         scales = self.votes.item_scales
         return count_states_by_scale(
@@ -1283,7 +1307,10 @@ class GroupedVotes(Displayable):
         """Return the five vote counts of a co-cluster, ready for the ordinal family.
 
         The counts are named ``"group {group} x block {block}"``. They follow the rank
-        of the scores on the scale.
+        of the scores on the scale: ``N[q, l, 1]`` to ``N[q, l, 5]``, without the
+        abstentions ``N[q, l, 0]``.
+
+        See the mathematical model: :doc:`/model/data`, equation :eq:`eq-data-counts`.
 
         Raises:
             InvalidInputError: If the items use several scales, if the scale does not

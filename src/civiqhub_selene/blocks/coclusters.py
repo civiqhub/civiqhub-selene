@@ -195,7 +195,11 @@ def state_log_probabilities(vote_rate: FloatArray, vote_shares: FloatArray) -> F
     shape (Q, L, C, K + 1). State 0 (shown without a vote): ``log(1 - vote_rate)``;
     state ``k``: ``log(vote_rate) + log(vote_shares[k])``. Probabilities are floored at
     1e-300 before the logarithm, so a state past the levels of a scale, whose share is
-    0, has a finite logarithm.
+    0, has a finite logarithm. With ``nu`` the vote rate and ``p`` the vote shares, this
+    is ``log F[q, l, s]``, or ``log F[q, l, g, s]`` on the scale ``g``.
+
+    See the mathematical model: :doc:`/model/response-models`, equations
+    :eq:`eq-response-states` and :eq:`eq-response-probit-by-scale`.
     """
     rate = vote_rate.reshape(vote_rate.shape + (1,) * (vote_shares.ndim - vote_rate.ndim))
     probabilities = np.concatenate(
@@ -438,7 +442,11 @@ class CoclusterTable(Displayable):
 
         Shape (Q, L, K + 1), for a table of one scale. State 0 (shown without a vote):
         ``log(1 - vote_rate)``; state ``k``: ``log(vote_rate) + log(vote_shares[k])``.
-        Probabilities are floored at 1e-300 before the logarithm.
+        Probabilities are floored at 1e-300 before the logarithm. With ``nu`` the vote
+        rate and ``p`` the vote shares, this is ``log F[q, l, s]``.
+
+        See the mathematical model: :doc:`/model/response-models`, equation
+        :eq:`eq-response-states`.
 
         Raises:
             InvalidInputError: If the table has several scales: read
@@ -454,7 +462,11 @@ class CoclusterTable(Displayable):
         an item of the scale ``c`` in the co-cluster ``(q, l)`` is in the state ``s``.
         The states past the levels of a scale have the probability 0, floored at
         1e-300 before the logarithm. With one scale, ``[:, :, 0]`` is
-        :meth:`log_probabilities`.
+        :meth:`log_probabilities`. This is ``log F[q, l, g, s]``, ``g`` the scale at
+        the position ``c``.
+
+        See the mathematical model: :doc:`/model/response-models`, equation
+        :eq:`eq-response-states`.
         """
         return state_log_probabilities(self.vote_rate, self._padded_shares)
 

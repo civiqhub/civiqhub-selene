@@ -144,7 +144,11 @@ def make_votes(
     """Draw synthetic votes from a planted truth. These are not real data.
 
     With memberships to a single cluster on both sides, this is exactly the latent
-    block model; with spread memberships, it is the mixed-membership model.
+    block model; with spread memberships, it is the mixed-membership model. The vote
+    rate, the mean and the spread of each co-cluster are those of the ordinal probit
+    response model.
+
+    See the mathematical model: :doc:`/model/data`; :doc:`/model/mixed-membership`.
 
     The draw is made with ``numpy.random.default_rng(seed)``, in this exact order,
     which is part of the reproducibility contract:
