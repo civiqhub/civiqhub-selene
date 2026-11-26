@@ -1,6 +1,6 @@
 # Notation
 
-This page fixes the notation of the whole section. It was checked against the code of `develop` at commit `97a0f15`. Every other page of the section, and the formulas the docstrings and the notebooks write, use these letters with these meanings. A letter names one object only, everywhere.
+This page fixes the notation of the whole section. It was checked against the code of `develop` at commit `c29d115`. Every other page of the section, and the formulas the docstrings and the notebooks write, use these letters with these meanings. A letter names one object only, everywhere.
 
 Each symbol is followed by the name the code gives it, as a link to the reference. A name that starts with an underscore is internal to the code: it is cited, without a link, so that the reader can find it in the source.
 
@@ -122,3 +122,12 @@ A cell has three states that the notation keeps apart: not shown ($(i, j) \notin
 | $\operatorname{match}$ | The share of identifiers two partitions arrange in the same way, after the best renumbering | {py:meth}`~civiqhub_selene.blocks.Partition.agreement_with` |
 
 The pages that define these quantities give their formulas and the lines of the code that compute them.
+
+## The ordinal family
+
+| Symbol | Meaning | Name in the code |
+| --- | --- | --- |
+| $N_k$ | The number of votes at the level $k$, from $1$ to $5$, of one item or of one co-cluster: $N_{qlk}$ when the co-cluster $(q, l)$ is meant | {py:attr}`~civiqhub_selene.ordinal.VoteCounts.counts` |
+| $n$ | The number of votes of the counts, $\sum_{k=1}^{5} N_k$ | {py:attr}`~civiqhub_selene.ordinal.VoteCounts.total` |
+| $f_k$ | The share of the votes at the level $k$, an exact fraction | {py:attr}`~civiqhub_selene.ordinal.VoteCounts.shares` |
+| $f_{\leq k}$ | The share of the votes at the level $k$ or below, for $k$ from $1$ to $4$ | {py:attr}`~civiqhub_selene.ordinal.VoteCounts.cumulative_shares` |
