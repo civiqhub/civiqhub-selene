@@ -7,8 +7,9 @@
 tests read them: a symbol is defined once, and the Greek and calligraphic letters that
 the other pages of the section write are all defined there. ``docs/model/api-to-formulas.md``
 links each public name to its formulas: every exported name it must list is on it, and
-every numbered equation of the section is cited there. The tests read the files only and
-do not import the engine.
+every numbered equation of the section is cited there. The glossary holds the words of the
+architecture, and the references every work an estimator names. The tests read the files
+only and do not import the engine.
 """
 
 import ast
@@ -21,6 +22,9 @@ ROOT = Path(__file__).resolve().parents[2]
 MODEL = ROOT / "docs" / "model"
 NOTATION = MODEL / "notation.md"
 API = MODEL / "api-to-formulas.md"
+GLOSSARY = MODEL / "glossary.md"
+REFERENCES = MODEL / "references.md"
+ARCHITECTURE = ROOT / "docs" / "architecture.md"
 PACKAGE = ROOT / "src" / "civiqhub_selene"
 
 # The source distribution ships the tests without the pages of the site.
@@ -158,3 +162,50 @@ def test_each_numbered_equation_of_the_section_is_cited_on_the_page_of_the_api()
     assert len(labels) > 20
     cited = set(re.findall(r"\{eq\}`(eq-[\w-]+)`", API.read_text(encoding="utf-8")))
     assert sorted(labels - cited) == []
+
+
+def _first_cells(path: Path, heading: str) -> list[str]:
+    """Return the first cell of each row of the table under ``heading`` in a page."""
+    text = path.read_text(encoding="utf-8").split(f"\n{heading}\n", 1)[1]
+    cells = []
+    for line in text.split("\n## ", 1)[0].splitlines():
+        match = _ROW.match(line)
+        if match is not None and not set(match["symbol"].strip()) <= {"-", " "}:
+            cells.append(match["symbol"].strip())
+    return cells[1:]
+
+
+def test_the_glossary_holds_each_word_of_the_architecture() -> None:
+    words = {w for cell in _first_cells(ARCHITECTURE, "## Words") for w in cell.split(", ")}
+    assert {"score", "co-cluster", "fingerprint"} <= words
+    glossary = {w for cell in _first_cells(GLOSSARY, "## Words") for w in cell.split(", ")}
+    assert sorted(words - glossary) == []
+
+
+def _references_of_the_estimators() -> list[tuple[str, str]]:
+    """Return the first author and the year of each work a ``reference`` attribute names."""
+    works = []
+    for path in sorted((PACKAGE / "blocks").glob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if (
+                isinstance(node, ast.Assign)
+                and any(isinstance(t, ast.Name) and t.id == "reference" for t in node.targets)
+                and isinstance(node.value, ast.Constant)
+                and isinstance(node.value.value, str)
+            ):
+                for part in node.value.value.split(";"):
+                    match = re.match(r"\s*([A-Z][a-z]+)\b.*\b(\d{4})\s*$", part)
+                    assert match is not None, f"{path.name}: unexpected reference {part!r}"
+                    works.append((match[1], match[2]))
+    return works
+
+
+def test_each_work_an_estimator_names_has_an_entry_in_the_references() -> None:
+    works = _references_of_the_estimators()
+    assert ("Govaert", "2003") in works
+    assert ("Airoldi", "2008") in works
+    headings = re.findall(r"^### (.+)$", REFERENCES.read_text(encoding="utf-8"), re.M)
+    for author, year in works:
+        assert any(h.startswith(author) and h.endswith(f"({year})") for h in headings), (
+            f"docs/model/references.md has no entry for {author} ({year})"
+        )
