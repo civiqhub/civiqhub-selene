@@ -11,7 +11,10 @@ from a CSV file, starts a block model, runs a full inference and draws the resul
 | [`04_olbm_vs_mm_olbm.ipynb`](04_olbm_vs_mm_olbm.ipynb) | One pipeline for both models, compared on the same footing: main arrangement, members planted in two groups, roles, held-out votes; on a collective with shared members, where the MM-OLBM predicts better, and on one without, where the OLBM does |
 
 The notebooks are saved with their outputs, so they can be read on GitHub without
-running them.
+running them. Their formulas use the letters of the
+[notation](https://selene.civiqhub.com/dev/model/notation.html) of the mathematical
+model of SELENE; the cell "Mathematical background" at the top of each notebook links to
+the pages that derive what it computes.
 
 ## Scripts
 
