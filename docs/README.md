@@ -289,6 +289,8 @@ Equation {eq}`eq-levels-sum-to-one` says that the probabilities sum to one.
 - **What KaTeX reads.** KaTeX supports a large part of LaTeX, not all of it: see [its list](https://katex.org/docs/supported.html). Among what it does not read: `multline`, `flalign`, `eqnarray` and `\label` (put the label after the closing `$$`).
 - **Checks.** KaTeX reads the formulas in the browser: the build does not check their TeX. A formula that KaTeX cannot read shows in place as an error, and the rest of the page still renders. Look at the page after writing a formula.
 - **A dollar sign** that is not a formula is written `\$`.
+- **One notation.** A formula of any page, docstring or notebook uses the letters of `model/notation.md`, with the meanings it gives them; a new symbol is added there first. A page of the section `model/` follows the outline of [Write a page of the mathematical model](#write-a-page-of-the-mathematical-model).
+- **Docstrings.** A docstring keeps its formula in plain text, with the letters of the notation (`F[q, l, s]`, `theta[i, q]`), so that `help()` shows it in a terminal; KaTeX renders formulas on the site only. A class or a function that carries a formula ends its docstring with a line `See the mathematical model:` that links to its page with `:doc:` and to its equations with `:eq:`, which the build checks.
 
 A diagram is a block fenced with `mermaid`; GitHub draws it as well. The site loads Mermaid from the jsDelivr network, on the pages that hold a diagram only. It is the one script the site reads from another server (decision of Yanis of 25/11/2026); the CI checks that no other resource comes from another server (see [How the site is published](#how-the-site-is-published)).
 
@@ -335,7 +337,7 @@ What the model and the code do not do.
 The articles the page draws on.
 ````
 
-Add the page to the `toctree` of the caption "Mathematical model" in `index.md`, and replace its line "(not written yet)" in `model/index.md` by a link.
+Add the page to the `toctree` of the caption "Mathematical model" in `index.md`, and replace its line "(not written yet)" in `model/index.md` by a link. A public name that the page derives gets its row in `model/api-to-formulas.md`: `tests/unit/test_docs_model.py` fails as long as a name of the modules it lists has no row, or a numbered equation of the section is cited nowhere there.
 
 ## The reference
 

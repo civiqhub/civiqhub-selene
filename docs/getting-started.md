@@ -39,6 +39,8 @@ VoteCounts(1, 1, 0, 1, 3; 6 votes)
 6 3 1/2
 ```
 
+Each share is the count of a score over the number of votes, as an exact fraction: the score $+2$ holds $3$ of the $6$ votes, a share of $3/6 = 1/2$. [From the API to the formulas](model/api-to-formulas.md) lists the formulas of each public name.
+
 ## Run a first co-clustering
 
 Co-clustering arranges voters in groups and items in blocks, so that the votes of one group on one block look alike. The pair of a group and a block is a co-cluster.
@@ -80,6 +82,14 @@ Three things to notice:
 - **The model is a value.** {py:class}`~civiqhub_selene.blocks.single.LatentBlockModel` is a frozen dataclass: its settings are its fields, and it reads nothing from the environment.
 - **The seed is explicit.** The same votes, the same settings and the same seed give the same result.
 - **The call is the same for every method.** {py:meth}`~civiqhub_selene.estimator.Estimator.estimate` is written once, for all estimators.
+
+**What is estimated.** The model gives each voter $i$ a group $R_i$ and each item $j$ a block $C_j$, and each co-cluster $(q, l)$ the probabilities $F_{qls}$ of the states $s$ of a shown cell: an abstention, or a vote at one of the levels. Without survey weights, it maximises the classified log-likelihood
+
+$$
+\mathcal{L}_{\mathrm{c}} = \sum_{i, j, s} S_{ijs} \log F_{R_i C_j s} + \sum_{i} \log \pi_{R_i} + \sum_{j} \log \rho_{C_j},
+$$
+
+where $S_{ijs}$ is $1$ when the shown cell $(i, j)$ is in the state $s$, and $\pi_q$ and $\rho_l$ are the shares of the groups and of the blocks. {py:attr}`~civiqhub_selene.blocks.results.Coclustering.objective` is its value at the arrangement found. See [The latent block model](model/latent-block-model.md).
 
 To build a matrix from your own votes, see the constructors of {py:class}`~civiqhub_selene.blocks.data.VoteMatrix`: `from_records`, `from_table`, `from_arrays` and `from_responses`.
 
@@ -175,7 +185,9 @@ latent_block_model 0.1.0 0
 d00f9fe3f69a743e
 ```
 
-The fingerprint identifies the computation: the method and its version, the settings, the seed and the input. Two results with the same fingerprint come from the same computation.
+The fingerprint identifies the computation: the method and its version, the settings, the seed and the input. Two results with the same fingerprint come from the same computation ([The estimation](model/estimation.md#determinism-and-provenance)).
+
+Each co-cluster holds a vote rate $\nu_{ql}$ and the shares $p_{qlk}$ of its votes over the levels: a shown cell of the co-cluster is an abstention with the probability $1 - \nu_{ql}$, and a vote at the level $k$ with the probability $\nu_{ql} \, p_{qlk}$ ([The response models](model/response-models.md)). The memberships of a single-membership result are a soft reading of its arrangement, not probabilities of error, and the result carries no uncertainty ([Reading the results](model/reading-results.md)).
 
 ## A result can be an explained absence
 
@@ -195,7 +207,7 @@ False
 no_votes - the matrix holds no vote
 ```
 
-Reading `absent.value` raises {py:class}`~civiqhub_selene.errors.UnavailableError`. Test `is_available` first.
+Reading `absent.value` raises {py:class}`~civiqhub_selene.errors.UnavailableError`. Test `is_available` first. A co-clustering of $Q$ groups and $L$ blocks exists only on a matrix with at least one vote, at least $\max(2, Q)$ voters with a vote and at least $\max(2, L)$ items with a vote ([The data](model/data.md#when-a-result-exists)).
 
 ## Start from a spectral arrangement
 
@@ -213,7 +225,13 @@ print(found.groups.agreement_with(coclustering.groups))
 1.0
 ```
 
-The start is a setting of the model: it enters the provenance of the result. {py:func}`~civiqhub_selene.blocks.spectral.spectral_embedding` gives the embedding itself, to read its spectrum before choosing a shape.
+The start is a setting of the model: it enters the provenance of the result. {py:func}`~civiqhub_selene.blocks.spectral.spectral_embedding` gives the embedding itself, to read its spectrum before choosing a shape. The spectral start divides the matrix $\mathbf{X}$ of the votes by the square roots of its regularised degrees,
+
+$$
+\mathbf{X}_\tau = (\mathbf{D}_{\mathrm{r}} + \tau_{\mathrm{r}} \mathbf{I})^{-1/2} \, \mathbf{X} \, (\mathbf{D}_{\mathrm{c}} + \tau_{\mathrm{c}} \mathbf{I})^{-1/2},
+$$
+
+and groups the rows of its leading singular vectors by k-means ([The starts](model/initialization.md#the-spectral-start)).
 
 ## Let a voter follow several groups
 
@@ -240,6 +258,14 @@ MixedCoclustering(56 voters in 3 groups x 14 items in 2 blocks)
 ```
 
 `role_changes()` counts the voters by the group they follow on block 0 (rows) and on block 1 (columns): off the diagonal, a voter changes role from one block to the other.
+
+The mixed-membership model computes the observed log-likelihood $\mathcal{L}$ exactly, over the $Q^L$ profiles of a voter, and maximises it with Dirichlet priors on the memberships $\theta_{iq}$ and $\phi_{jl}$. Without survey weights,
+
+$$
+\mathcal{J} = \mathcal{L} + (\alpha - 1) \sum_{i, q} \log \theta_{iq} + (\beta - 1) \sum_{j, l} \log \phi_{jl},
+$$
+
+with $\alpha$ and $\beta$ its {py:attr}`~civiqhub_selene.blocks.MixedMembershipBlockModel.voter_concentration` and {py:attr}`~civiqhub_selene.blocks.MixedMembershipBlockModel.item_concentration`. The value reports $\mathcal{J}$ as its objective and $\mathcal{L}$ as {py:attr}`~civiqhub_selene.blocks.results.MixedCoclustering.log_likelihood`. See [The mixed-membership model](model/mixed-membership.md).
 
 ## Draw the result
 
@@ -278,5 +304,6 @@ The [examples](examples.md) run the whole inference, from a CSV file to the figu
 
 - [Examples](examples.md) are notebooks that run the single-membership and the mixed-membership models from end to end.
 - [Finding your way](library-map.md) says which module holds what.
+- The [Mathematical model](model/index.md) derives what each method computes, in one notation.
 - [Architecture](architecture.md) explains the contract behind `estimate` and how to add a method.
 - The [reference](reference/index.md) documents every public name.
