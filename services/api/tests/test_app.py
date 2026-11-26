@@ -25,6 +25,10 @@ INVALID = sorted(
     path.stem
     for path in (make_fixtures.FIXTURES / "coclustering-single-1" / "invalid").glob("*.json")
 )
+INVALID_SCALES = sorted(
+    path.stem
+    for path in (make_fixtures.FIXTURES / "coclustering-single-2" / "invalid").glob("*.json")
+)
 SECURED = [
     ("GET", "/v1/service"),
     ("POST", "/v1/jobs"),
@@ -163,7 +167,7 @@ def test_the_service_describes_itself(tmp_path: pathlib.Path, schema_validator: 
         assert info["kinds"] == [
             {
                 "kind": "coclustering.single",
-                "schema_versions": [1],
+                "schema_versions": [1, 2],
                 "method": {"name": "latent_block_model", "version": "0.1.0"},
             }
         ]
@@ -221,6 +225,52 @@ def test_an_explained_absence_succeeds(tmp_path: pathlib.Path, read_fixture: Rea
         assert done["state"] == "succeeded"
         assert done["result"]["available"] is False
         assert done["result"]["unavailable"]["reason"] == "no_votes"
+
+    run_with(tmp_path, scenario)
+
+
+@pytest.mark.parametrize("name", INVALID_SCALES)
+def test_each_refusal_of_scales_is_answered_as_the_contract_says(
+    tmp_path: pathlib.Path, read_fixture: Reader, name: str
+) -> None:
+    case = read_fixture(f"coclustering-single-2/invalid/{name}.json")
+
+    async def scenario(client: httpx.AsyncClient) -> None:
+        answer = await client.post("/v1/jobs", headers=AUTH, json=case["body"])
+        assert answer.status_code == case["expect"]["status"]
+        assert answer.json()["error"]["code"] == case["expect"]["code"]
+        assert answer.json()["error"]["retryable"] is False
+
+    run_with(tmp_path, scenario, FakeRunner())
+
+
+def test_a_survey_on_three_scales_from_submission_to_result(
+    tmp_path: pathlib.Path, schema_validator: Validator, read_fixture: Reader
+) -> None:
+    expected = read_fixture("coclustering-single-2/reference.expected.json")
+    body = make_fixtures.survey_submission()
+
+    async def scenario(client: httpx.AsyncClient) -> None:
+        answer = await client.post("/v1/jobs", headers=AUTH, json=body)
+        assert answer.status_code == 202
+        job = answer.json()
+        schema_validator("Job").validate(job)
+        done = await finished(client, job["id"])
+        schema_validator("Job").validate(done)
+        selene_contract.check_job(done)
+        assert selene_contract.compare_with_reference(done, expected) == []
+        result = done["result"]
+        assert result["schema"] == "selene.coclustering.single.result/2"
+        assert [scale["id"] for scale in result["value"]["scales"]] == [
+            "yes-no",
+            "agree-4",
+            "agree-5",
+        ]
+        # The same survey with its scales declared in another order is the same submission.
+        reordered = json.loads(json.dumps(body))
+        reordered["payload"]["scales"].reverse()
+        replay = await client.post("/v1/jobs", headers=AUTH, json=reordered)
+        assert (replay.status_code, replay.json()["id"]) == (200, job["id"])
 
     run_with(tmp_path, scenario)
 

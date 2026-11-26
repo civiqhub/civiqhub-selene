@@ -62,16 +62,21 @@ def test_homogeneous_from_responses_keeps_original_ranks_and_matches_from_record
     assert weighted != records
 
 
-def test_four_distinct_item_scales_are_refused_until_item_scales() -> None:
+def test_four_distinct_item_scales_give_one_scale_per_item() -> None:
     scales = {
         "q1": OrdinalScale((1, 2)),
         "q2": OrdinalScale((1, 2, 3)),
         "q3": OrdinalScale((1, 2, 3, 4)),
         "q4": OrdinalScale((1, 2, 3, 4, 5)),
     }
-    with pytest.raises(InvalidInputError, match="item 'q2'") as error:
-        VoteMatrix.from_responses([[1, 1, 1, 1]], item_scales=scales)
-    assert "SEL-8.2" in error.value.hint
+    votes = VoteMatrix.from_responses([[2, 3, 4, 5], [1, None, 1, 3]], item_scales=scales)
+    np.testing.assert_array_equal(votes.levels, [[2, 3, 4, 5], [1, 0, 1, 3]])
+    assert votes.scales == tuple(scales.values())
+    assert votes.item_scales.scale_index.tolist() == [0, 1, 2, 3]
+    assert [votes.scale_of(item) for item in votes.items] == list(scales.values())
+    assert votes.n_levels == 5
+    with pytest.raises(InvalidInputError, match="4 scales, not one"):
+        _ = votes.scale
 
 
 def test_a_score_in_an_unshown_cell_is_refused() -> None:
@@ -87,14 +92,18 @@ def test_a_score_in_an_unshown_cell_is_refused() -> None:
 
 def test_survey_responses_name_the_item_when_a_score_is_off_the_scale() -> None:
     three = OrdinalScale((1, 2, 3))
-    with pytest.raises(InvalidInputError, match="exactly the response table items"):
+    with pytest.raises(
+        InvalidInputError, match="exactly the items of the matrix; no scale for 'a'"
+    ):
         VoteMatrix.from_responses([[1]], items=["a"], item_scales={"other": three})
     with pytest.raises(InvalidInputError, match="item 'short'"):
         VoteMatrix.from_responses([[4]], item_scales={"short": three})
-    with pytest.raises(InvalidInputError, match="item 'long'"):
+    with pytest.raises(
+        InvalidInputError, match=r"item 'short'.*score 4 is not on the scale \+1, \+2, \+3"
+    ):
         VoteMatrix.from_responses(
-            [[1, 2]],
-            item_scales={"short": three, "long": OrdinalScale((1, 2, 3, 4))},
+            [[4, 4]],
+            item_scales={"long": OrdinalScale((1, 2, 3, 4)), "short": three},
         )
 
 
@@ -322,16 +331,13 @@ def test_csv_loads_homogeneous_scales_weights_and_aligned_covariates() -> None:
     assert covariates.columns["mode"] == ("phone; landline", None)
 
 
-def test_csv_refuses_heterogeneous_item_scales_and_names_the_column() -> None:
-    csv = StringIO("responseid,Q1,Q2\na,1,1\n")
-    with pytest.raises(InvalidInputError, match="item 'Q2'"):
-        read_survey_csv(
-            csv,
-            item_scales={
-                "Q1": OrdinalScale((1, 2)),
-                "Q2": OrdinalScale((1, 2, 3)),
-            },
-        )
+def test_csv_reads_items_on_different_scales_and_names_the_column_of_a_bad_score() -> None:
+    scales = {"Q1": OrdinalScale((1, 2)), "Q2": OrdinalScale((1, 2, 3))}
+    votes, _ = read_survey_csv(StringIO("responseid,Q1,Q2\na,1,3\nb,2,\n"), item_scales=scales)
+    np.testing.assert_array_equal(votes.levels, [[1, 3], [2, 0]])
+    assert votes.scales == (scales["Q1"], scales["Q2"])
+    with pytest.raises(InvalidInputError, match="item 'Q1'"):
+        read_survey_csv(StringIO("responseid,Q1,Q2\na,3,1\n"), item_scales=scales)
 
 
 @pytest.mark.parametrize(

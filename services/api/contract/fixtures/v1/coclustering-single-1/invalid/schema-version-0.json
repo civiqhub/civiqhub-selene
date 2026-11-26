@@ -1,5 +1,5 @@
 {
-  "description": "TEST ONLY. Negative case 'schema-version-2' of contract v1.",
+  "description": "TEST ONLY. Negative case 'schema-version-0' of contract v1.",
   "schema_valid": false,
   "expect": {
     "status": 422,
@@ -7,7 +7,7 @@
   },
   "body": {
     "kind": "coclustering.single",
-    "schema_version": 2,
+    "schema_version": 0,
     "submission_key": "test-only:reference:0001",
     "caller_reference": "test-only/generation-1",
     "payload": {

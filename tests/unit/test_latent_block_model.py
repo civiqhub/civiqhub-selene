@@ -13,9 +13,9 @@ pytest.importorskip("numpy")
 
 import numpy as np
 
-from civiqhub_selene.blocks import LatentBlockModel, Partition, VoteMatrix
+from civiqhub_selene.blocks import LatentBlockModel, OrdinalScale, Partition, VoteMatrix
 from civiqhub_selene.blocks.base import BlockModel, estimator_for, memberships
-from civiqhub_selene.blocks.responses import Categorical, OrdinalProbit
+from civiqhub_selene.blocks.responses import Categorical, OrdinalProbit, Thresholds
 from civiqhub_selene.blocks.results import (
     HasIntegratedLikelihood,
     PredictsVotes,
@@ -23,6 +23,7 @@ from civiqhub_selene.blocks.results import (
 )
 from civiqhub_selene.blocks.single import _sweep
 from civiqhub_selene.blocks.synthetic import make_votes, single_memberships
+from civiqhub_selene.errors import InvalidInputError
 from civiqhub_selene.registry import default_registry
 from civiqhub_selene.testing import EstimatorContract
 from civiqhub_selene.types import Method, UnavailableReason, settings_of
@@ -331,3 +332,182 @@ class TestLatentBlockModel(EstimatorContract):
 
     def make_empty_data(self) -> VoteMatrix:
         return VoteMatrix.from_records([])
+
+
+# Items on several scales --------------------------------------------------------------
+# TEST ONLY. Synthetic collectives whose items mix scales of two, four, five and six
+# answers in each block, like the questions of a survey; the truth is planted on the unit
+# axis, where the ordinal probit reads several scales by default.
+
+TWO, FOUR, FIVE, SIX = (OrdinalScale(tuple(range(1, size + 1))) for size in (2, 4, 5, 6))
+MIXED_SCALES = [(TWO, FOUR, FIVE, SIX)[item % 4] for item in range(24)]
+PLANTED_MEANS = [[0.8, 0.25], [0.2, 0.75], [0.5, 0.5]]
+PLANTED_SPREADS = [[0.12, 0.14], [0.14, 0.12], [0.2, 0.2]]
+
+
+def most_common(labels: Any) -> int:
+    counts: Any = np.bincount(labels)
+    return int(counts.argmax())
+
+
+def mixed(seed: int) -> tuple[VoteMatrix, Any]:
+    return make_votes(
+        single_memberships((40, 35, 30)),
+        single_memberships((12, 12)),
+        latent_mean=PLANTED_MEANS,
+        latent_spread=PLANTED_SPREADS,
+        item_scales=MIXED_SCALES,
+        seed=seed,
+    )
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_planted_groups_and_opinions_are_found_on_items_of_four_scales(seed: int) -> None:
+    votes, truth = mixed(seed)
+    assert votes.item_scales.n_scales == 4
+    value = LatentBlockModel(n_groups=3, n_blocks=2).estimate(votes, seed=seed).value
+    groups = Partition.from_voter_labels(votes.voters, truth.roles[:, 0])
+    blocks = Partition.from_item_labels(votes.items, np.repeat([0, 1], 12))
+    assert value.groups.agreement_with(groups) >= 0.95
+    assert value.blocks.agreement_with(blocks) >= 0.95
+    # Match the groups and blocks found to the planted ones, then read their opinions.
+    planted_blocks = np.repeat([0, 1], 12)
+    found_group = [most_common(value.group_index[truth.roles[:, 0] == q]) for q in range(3)]
+    found_block = [most_common(value.block_index[planted_blocks == block]) for block in range(2)]
+    table = value.coclusters
+    assert table.latent_mean is not None
+    assert table.latent_spread is not None
+    for q in range(3):
+        for block in range(2):
+            cell = (found_group[q], found_block[block])
+            assert table.latent_mean[cell] == pytest.approx(PLANTED_MEANS[q][block], abs=0.06)
+            assert table.latent_spread[cell] == pytest.approx(PLANTED_SPREADS[q][block], abs=0.06)
+    assert (np.diff(value.history.objectives) >= -1e-9).all()
+
+
+def test_a_value_on_several_scales_keeps_them_apart() -> None:
+    votes, _ = mixed(0)
+    result = LatentBlockModel(n_groups=3, n_blocks=2).estimate(votes, seed=0)
+    value = result.value
+    assert value.item_scales == votes.item_scales
+    assert value.scales == (TWO, FOUR, FIVE, SIX)
+    with pytest.raises(InvalidInputError, match="4 scales, not one"):
+        _ = value.scale
+    table = value.coclusters
+    assert [array.shape[-1] for array in table.vote_shares_by_scale] == [2, 4, 5, 6]
+    assert table.thresholds is not None
+    assert next(grid.tolist() for grid in table.thresholds) == [0.5]
+    data = value.to_dict()
+    assert "scores" not in data
+    assert data["scales"] == [[1, 2], [1, 2, 3, 4], [1, 2, 3, 4, 5], [1, 2, 3, 4, 5, 6]]
+    assert data["scale_index"] == votes.item_scales.scale_index.tolist()
+    assert "vote_shares_by_scale" in data["coclusters"]
+    # The cells read the table of their scale: their log-probabilities sum to the objective.
+    cells = float(value.log_probability(votes)[votes.shown].sum())
+    shares = np.bincount(value.group_index) / votes.shape[0]
+    block_shares = np.bincount(value.block_index) / votes.shape[1]
+    labels = float(np.log(shares[value.group_index]).sum()) + float(
+        np.log(block_shares[value.block_index]).sum()
+    )
+    assert value.objective == pytest.approx(cells + labels, abs=1e-6)
+    with pytest.raises(InvalidInputError, match="same voters, items and scales"):
+        value.log_probability(VoteMatrix.from_arrays(votes.levels.clip(0, 2), scale=TWO))
+
+
+def test_the_levels_axis_and_the_unit_axis_give_the_same_arrangement_on_one_scale() -> None:
+    on_levels = LatentBlockModel(
+        n_groups=3, n_blocks=2, response_model=OrdinalProbit(thresholds=Thresholds(axis="levels"))
+    ).estimate(VOTES, seed=0)
+    on_unit = LatentBlockModel(
+        n_groups=3, n_blocks=2, response_model=OrdinalProbit(thresholds=Thresholds(axis="unit"))
+    ).estimate(VOTES, seed=0)
+    default = MODEL.estimate(VOTES, seed=0).value
+    levels, unit = on_levels.value, on_unit.value
+    assert np.array_equal(levels.group_index, default.group_index)
+    assert np.array_equal(levels.group_index, unit.group_index)
+    assert np.array_equal(levels.block_index, unit.block_index)
+    assert unit.objective == pytest.approx(levels.objective, rel=1e-9)
+    assert unit.integrated_likelihood == pytest.approx(levels.integrated_likelihood, rel=1e-9)
+    assert levels.coclusters.latent_mean is not None
+    assert unit.coclusters.latent_mean is not None
+    assert levels.coclusters.latent_spread is not None
+    assert unit.coclusters.latent_spread is not None
+    # The unit axis is the axis of levels carried by x -> (x - 1/2) / K.
+    assert unit.coclusters.latent_mean == pytest.approx((levels.coclusters.latent_mean - 0.5) / 5)
+    assert unit.coclusters.latent_spread == pytest.approx(levels.coclusters.latent_spread / 5)
+    assert on_unit.fingerprint() != on_levels.fingerprint()
+
+
+def test_a_block_of_yes_no_questions_holds_its_spread_and_says_so() -> None:
+    scales = [TWO] * 8 + [FIVE] * 8
+    votes, _ = make_votes(
+        single_memberships((30, 30)),
+        single_memberships((8, 8)),
+        vote_rate=[[0.9, 0.9], [0.9, 0.9]],
+        latent_mean=[[0.8, 0.3], [0.2, 0.7]],
+        latent_spread=[[0.15, 0.15], [0.15, 0.15]],
+        item_scales=scales,
+        seed=2,
+    )
+    value = LatentBlockModel(n_groups=2, n_blocks=2).estimate(votes, seed=0).value
+    table = value.coclusters
+    assert table.has_fixed_spread is not None
+    assert table.latent_spread is not None
+    binary_block = int(value.block_index[0])
+    assert table.has_fixed_spread[:, binary_block].all()
+    assert not table.has_fixed_spread[:, 1 - binary_block].any()
+    assert table.latent_spread[:, binary_block] == pytest.approx([0.2, 0.2])
+    assert np.isfinite(table.latent_mean).all()
+
+
+def test_survey_weights_enter_a_computation_on_several_scales() -> None:
+    votes, _ = mixed(1)
+    weighted = VoteMatrix.from_arrays(
+        votes.levels,
+        item_scales=votes.item_scales,
+        voter_weights=np.linspace(0.5, 2.0, votes.shape[0]),
+    )
+    plain = LatentBlockModel(n_groups=3, n_blocks=2).estimate(votes, seed=0).value
+    value = LatentBlockModel(n_groups=3, n_blocks=2).estimate(weighted, seed=0).value
+    assert value.objective != plain.objective
+    assert value.coclusters.n_votes.sum() == pytest.approx(votes.n_votes)
+
+
+SIX_ANSWERS = OrdinalScale(tuple(range(1, 7)))
+PLANTED_GRID = (1 / 6, 0.25, 0.45, 0.7, 5 / 6)
+
+
+def uneven(seed: int) -> VoteMatrix:
+    """Items of six answers whose inner thresholds are not regular, and items of two."""
+    votes, _ = make_votes(
+        single_memberships((80, 80)),
+        single_memberships((10, 10)),
+        vote_rate=[[0.9, 0.9], [0.9, 0.9]],
+        latent_mean=[[0.75, 0.35], [0.3, 0.65]],
+        latent_spread=[[0.2, 0.2], [0.2, 0.2]],
+        item_scales=[SIX_ANSWERS, TWO] * 10,
+        thresholds={SIX_ANSWERS: PLANTED_GRID},
+        seed=seed,
+    )
+    return votes
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_estimated_thresholds_find_a_planted_grid(seed: int) -> None:
+    votes = uneven(seed)
+    estimated = OrdinalProbit(thresholds=Thresholds(mode="estimated"))
+    value = (
+        LatentBlockModel(n_groups=2, n_blocks=2, response_model=estimated)
+        .estimate(votes, seed=0)
+        .value
+    )
+    assert value.coclusters.thresholds is not None
+    grid = value.coclusters.thresholds[value.coclusters.scales.index(SIX_ANSWERS)]
+    assert grid == pytest.approx(PLANTED_GRID, abs=0.03)
+    assert (np.diff(grid) > 0).all()
+    assert (np.diff(value.history.objectives) >= -1e-9).all()
+    fixed = LatentBlockModel(n_groups=2, n_blocks=2).estimate(votes, seed=0).value
+    # The regular grid misreads these answers: the estimate explains them better, even
+    # after the penalty of its three inner thresholds.
+    assert value.objective > fixed.objective
+    assert value.integrated_likelihood > fixed.integrated_likelihood

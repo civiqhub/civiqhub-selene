@@ -257,6 +257,18 @@ def spectral_embedding(
         right ones the items, as in DI-SIM. Cheaper, but blind to a difference of
         spread at equal mean.
 
+    Items on several scales. A level means another answer from one scale to the next,
+    so both encodings first place the votes on one axis, the unit axis of
+    :class:`~civiqhub_selene.blocks.responses.Thresholds`, where every scale covers the
+    axis from 0 to 1 in equal shares, and K is the levels of the longest scale. Under
+    ``"states"``, the vote at the level ``k`` of a scale of ``K_c`` levels covers the
+    interval ``((k - 1) / K_c, k / K_c]`` of the axis, which is cut into K equal bins:
+    the vote is spread over the bins it covers, in proportion to the length it covers
+    in each, so that it still weighs 1; an abstention keeps its own state. Under
+    ``"scores"``, the centred level of a vote is stretched by ``K / K_c``, the centre of
+    its interval on the axis, measured in levels of the longest scale. With one scale,
+    both are the encodings above, unchanged.
+
     See the mathematical model: :doc:`/model/initialization`, equation
     :eq:`eq-starts-laplacian`.
 
@@ -330,7 +342,7 @@ def _decomposition(
     same content share an entry. The arrays returned are read-only.
     """
     if encoding == "states":
-        states = votes._states()
+        states = _aligned_states(votes)
         n_voters, n_items, n_states = states.shape
         voter_basis, voter_values = _left_vectors(
             _laplacian(states.reshape(n_voters, n_items * n_states), regularization)
@@ -341,9 +353,15 @@ def _decomposition(
             )
         )
     else:
-        middle = (votes.n_levels + 1) / 2
         voted = votes.voted
-        centred = np.where(voted, votes.levels - middle, 0.0)
+        scales = votes.item_scales
+        if scales.is_uniform:
+            middle = (votes.n_levels + 1) / 2
+            centred = np.where(voted, votes.levels - middle, 0.0)
+        else:
+            levels = scales.levels_by_item
+            stretch = votes.n_levels / levels
+            centred = np.where(voted, (votes.levels - (levels + 1) / 2) * stretch, 0.0)
         laplacian = _laplacian(centred, regularization, degrees=voted.astype(np.float64))
         left, values, right_t = np.linalg.svd(laplacian, full_matrices=False)
         voter_basis, item_basis = left, right_t.T
@@ -357,6 +375,33 @@ def _decomposition(
         np.asarray(item_basis),
         np.asarray(item_values),
     )
+
+
+def _aligned_states(votes: VoteMatrix) -> FloatArray:
+    """Return the states of each cell, read on the unit axis: shape (M, P, K + 1).
+
+    With one scale, the states of the matrix. With several, state 0 stays the
+    abstention, and the vote at the level ``k`` of a scale of ``K_c`` levels is spread
+    over the K bins of the axis that its interval ``((k - 1) / K_c, k / K_c]`` covers,
+    each in proportion to the length it covers, times ``K_c``: the weights of a vote
+    sum to 1.
+    """
+    scales = votes.item_scales
+    states = votes._states()
+    if scales.is_uniform:
+        return states
+    n_levels = votes.n_levels
+    weights = np.zeros((scales.n_scales, n_levels + 1, n_levels + 1))
+    for position, scale in enumerate(scales.scales):
+        weights[position, 0, 0] = 1.0
+        own = scale.n_levels
+        for level in range(1, own + 1):
+            for bin_ in range(1, n_levels + 1):
+                low = max((level - 1) / own, (bin_ - 1) / n_levels)
+                high = min(level / own, bin_ / n_levels)
+                weights[position, level, bin_] = max(high - low, 0.0) * own
+    aligned: FloatArray = np.einsum("ijs,jst->ijt", states, weights[scales.scale_index])
+    return aligned
 
 
 def _laplacian(

@@ -19,9 +19,10 @@ from civiqhub_selene.blocks.responses import (
     OrdinalProbit,
     OrdinalProbitParameters,
     ResponseModel,
+    Thresholds,
     _vote_rate,
 )
-from civiqhub_selene.errors import InvalidParameterError
+from civiqhub_selene.errors import InvalidInputError, InvalidParameterError
 from civiqhub_selene.types import settings_of
 
 pytestmark = pytest.mark.blocks
@@ -341,3 +342,210 @@ def test_probit_settings_enter_the_provenance_as_they_are() -> None:
 def test_probit_settings_out_of_range_are_refused(settings: dict[str, object], named: str) -> None:
     with pytest.raises(InvalidParameterError, match=named):
         OrdinalProbit(**settings)  # type: ignore[arg-type]
+
+
+# Several scales -----------------------------------------------------------------------
+# TEST ONLY. Synthetic counts on a scale of two answers and a scale of four.
+
+YES_NO = OrdinalScale((0, 1))
+FOUR = OrdinalScale((1, 2, 3, 4))
+SURVEY = VoteMatrix.from_responses(
+    [[1, 4, 0], [0, 2, None], [1, 1, 1], [None, 3, 1]],
+    item_scales={"q1": YES_NO, "q2": FOUR, "q3": YES_NO},
+)
+
+
+def test_the_axis_of_the_thresholds_follows_the_number_of_scales() -> None:
+    rule = Thresholds()
+    assert rule.axis_for(VOTES) == "levels"
+    assert rule.axis_for(SURVEY) == "unit"
+    assert rule.grid_of(FOUR, "levels") == (1.5, 2.5, 3.5)
+    assert rule.grid_of(FOUR, "unit") == (0.25, 0.5, 0.75)
+    assert rule.grid_of(YES_NO, "unit") == (0.5,)
+    assert Thresholds(axis="levels").axis_for(SURVEY) == "levels"
+
+
+def test_grids_given_by_hand_replace_the_regular_ones() -> None:
+    rule = Thresholds(axis="unit", grids={FOUR: (0.2, 0.5, 0.8)})
+    assert rule.grid_of(FOUR, "unit") == (0.2, 0.5, 0.8)
+    assert rule.grid_of(YES_NO, "unit") == (0.5,)
+    assert rule.grids == ((FOUR, (0.2, 0.5, 0.8)),)
+    assert OrdinalProbit(thresholds={FOUR: (0.2, 0.5, 0.8)}).thresholds == Thresholds(
+        grids={FOUR: (0.2, 0.5, 0.8)}
+    )
+    settings = dict(settings_of(OrdinalProbit(thresholds=rule)))
+    assert settings["thresholds"][0] == ("type", "Thresholds")
+
+
+@pytest.mark.parametrize(
+    ("changes", "named"),
+    [
+        ({"axis": "log"}, "'auto', 'levels' or 'unit'"),
+        ({"grids": {FOUR: (0.5, 0.2, 0.8)}}, "strictly increasing"),
+        ({"grids": {FOUR: (0.5,)}}, "has 3 thresholds"),
+        ({"grids": {(1, 2): (0.5,)}}, "keyed by OrdinalScale"),
+        ({"grids": ((FOUR, (0.2, 0.5, 0.8)), (FOUR, (0.3, 0.5, 0.7)))}, "twice"),
+    ],
+)
+def test_inconsistent_thresholds_are_refused(changes: dict[str, Any], named: str) -> None:
+    with pytest.raises(InvalidParameterError, match=named):
+        Thresholds(**changes)
+
+
+def test_the_probit_starts_on_the_unit_axis_when_items_use_several_scales() -> None:
+    params = OrdinalProbit().initial_parameters((2, 2), SURVEY, np.random.default_rng(0))
+    assert [grid.tolist() for grid in params.thresholds_by_scale] == [[0.5], [0.25, 0.5, 0.75]]
+    assert params.spread_unit == 0.25
+    assert params.latent_spread.tolist() == [[0.25, 0.25], [0.25, 0.25]]
+    expected = 0.5 + np.random.default_rng(0).normal(0.0, 0.5, size=(2, 2)) / 4
+    assert np.array_equal(params.latent_mean, expected)
+    with pytest.raises(InvalidInputError, match="2 scales, not one"):
+        _ = params.thresholds
+    with pytest.raises(InvalidParameterError, match="grid of one scale"):
+        OrdinalProbit(thresholds=(1.5,)).initial_parameters(
+            (1, 1), SURVEY, np.random.default_rng(0)
+        )
+
+
+def test_each_vote_is_cut_by_the_grid_of_its_scale() -> None:
+    model = OrdinalProbit()
+    params = OrdinalProbitParameters(
+        np.array([[0.8]]),
+        np.array([[0.6]]),
+        np.array([[0.2]]),
+        (np.array([0.5]), np.array([0.25, 0.5, 0.75])),
+        spread_unit=0.25,
+    )
+    logs = model.log_probabilities_by_scale(params)
+    assert logs.shape == (1, 1, 2, 5)
+    probabilities = np.exp(logs[0, 0])
+    yes = level_probabilities(0.6, 0.2, [0.5])[1]
+    assert probabilities[0, :3].tolist() == pytest.approx([0.2, 0.8 * (1 - yes), 0.8 * yes])
+    assert probabilities[0, 3:].max() < 1e-299
+    assert probabilities[1].sum() == pytest.approx(1.0)
+    assert probabilities[1, 1:].tolist() == pytest.approx(
+        (0.8 * level_probabilities(0.6, 0.2, [0.25, 0.5, 0.75])).tolist()
+    )
+    with pytest.raises(InvalidInputError, match="2 scales"):
+        model.log_probabilities(params)
+
+
+def test_the_opinion_is_one_for_the_votes_of_every_scale() -> None:
+    # A co-cluster votes yes 30 times out of 40 on the scale of two answers, and mostly
+    # at the top of the scale of four: one opinion near 0.6 explains both.
+    counts = np.zeros((1, 1, 2, 5))
+    counts[0, 0, 0, :3] = [5, 10, 30]
+    counts[0, 0, 1, :] = [5, 2, 6, 14, 18]
+    start = OrdinalProbitParameters(
+        np.array([[0.5]]),
+        np.array([[0.5]]),
+        np.array([[0.25]]),
+        (np.array([0.5]), np.array([0.25, 0.5, 0.75])),
+        spread_unit=0.25,
+    )
+    fitted = OrdinalProbit(max_inner_iterations=500).update(counts, start)
+    assert float(fitted.vote_rate[0, 0]) == pytest.approx(80 / 90)
+    mean, spread = float(fitted.latent_mean[0, 0]), float(fitted.latent_spread[0, 0])
+    assert 0.55 < mean < 0.75
+    assert 0.1 < spread < 0.4
+    # Alone, the votes of the scale of four give another opinion: the two scales pool.
+    alone = counts.copy()
+    alone[0, 0, 0] = 0
+    on_four = OrdinalProbit(max_inner_iterations=500).update(alone, start)
+    assert float(on_four.latent_mean[0, 0]) != pytest.approx(mean)
+
+
+def test_votes_on_two_answers_only_hold_the_spread_at_one_level() -> None:
+    counts = np.zeros((1, 2, 2, 5))
+    counts[0, 0, 0, :3] = [2, 8, 32]  # yes and no only
+    counts[0, 1, 0, :3] = [2, 8, 32]
+    counts[0, 1, 1, :] = [0, 1, 2, 3, 4]  # a few votes on four answers
+    start = OrdinalProbitParameters(
+        np.full((1, 2), 0.5),
+        np.full((1, 2), 0.5),
+        np.full((1, 2), 0.1),
+        (np.array([0.5]), np.array([0.25, 0.5, 0.75])),
+        spread_unit=0.25,
+    )
+    fitted = OrdinalProbit(max_inner_iterations=500).update(counts, start)
+    assert fitted.latent_spread[0, 0] == 0.25
+    assert fitted.latent_spread[0, 1] != 0.25
+    # With the spread held, the mean puts 32 of 40 votes above 1/2.
+    assert level_probabilities(fitted.latent_mean[0, 0], 0.25, [0.5])[1] == pytest.approx(0.8)
+    table = OrdinalProbit().to_table(fitted, counts, (YES_NO, FOUR))
+    assert table.has_fixed_spread is not None
+    assert table.has_fixed_spread.tolist() == [[True, False]]
+    assert table[0, 0].has_fixed_spread
+    assert table.to_dict()["has_fixed_spread"] == [[True, False]]
+
+
+def test_the_categorical_model_has_one_free_distribution_per_scale() -> None:
+    model = Categorical(smoothing=0.0)
+    params = model.initial_parameters((1, 2), SURVEY, np.random.default_rng(3))
+    assert [array.shape for array in params.vote_shares_by_scale] == [(1, 2, 2), (1, 2, 4)]
+    first = np.random.default_rng(3).dirichlet(np.full(2, 5.0), size=(1, 2))
+    assert np.array_equal(params.vote_shares_by_scale[0], first)
+    counts = np.zeros((1, 2, 2, 5))
+    counts[0, 0, 0, :3] = [1, 3, 6]
+    counts[0, 0, 1, :] = [0, 0, 1, 1, 2]
+    updated = model.update(counts, params)
+    assert updated.vote_shares_by_scale[0][0, 0].tolist() == pytest.approx([1 / 3, 2 / 3])
+    assert updated.vote_shares_by_scale[1][0, 0].tolist() == pytest.approx([0, 0.25, 0.25, 0.5])
+    # No vote in the second co-cluster: it keeps its distributions.
+    assert np.array_equal(
+        updated.vote_shares_by_scale[1][0, 1], params.vote_shares_by_scale[1][0, 1]
+    )
+    logs = model.log_probabilities_by_scale(updated)
+    assert logs.shape == (1, 2, 2, 5)
+    assert np.exp(logs[0, 0, 0, :3]).sum() == pytest.approx(1.0)
+    expected = 0.5 * 2 * (1 + 3) * math.log(SURVEY.n_votes) + 0.5 * 2 * math.log(SURVEY.n_shown)
+    assert model.complexity_penalty((1, 2), SURVEY) == pytest.approx(expected)
+    table = model.to_table(updated, counts, (YES_NO, FOUR))
+    assert table.vote_shares_by_scale[1][0, 0].tolist() == pytest.approx([0, 0.25, 0.25, 0.5])
+
+
+def test_one_scale_counts_are_read_with_or_without_the_axis_of_scales() -> None:
+    model = OrdinalProbit()
+    params = probit_parameters((1, 1))
+    assert np.array_equal(
+        model.update(COUNTS, params).latent_mean,
+        model.update(COUNTS[:, :, np.newaxis, :], params).latent_mean,
+    )
+    with pytest.raises(InvalidInputError, match="groups, blocks, scales, states"):
+        model.update(COUNTS[0], params)
+
+
+def test_estimated_thresholds_move_the_inner_thresholds_only() -> None:
+    six = OrdinalScale(tuple(range(1, 7)))
+    planted = np.array([1 / 6, 0.25, 0.45, 0.7, 5 / 6])
+    mean, spread = np.array([[0.3, 0.7]]), np.array([[0.2, 0.2]])
+    counts = np.zeros((1, 2, 1, 7))
+    counts[..., 0, 1:] = 500 * level_probabilities(mean, spread, planted)
+    start = OrdinalProbitParameters(
+        np.full((1, 2), 0.9),
+        mean,
+        spread,
+        (np.array([1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6]),),
+        spread_unit=1 / 6,
+    )
+    model = OrdinalProbit(thresholds=Thresholds(mode="estimated"), max_inner_iterations=50)
+    # Each update moves the opinions, then the grid at those opinions: a few updates
+    # reach the joint maximum, which the planted grid gives on these exact counts.
+    updated = start
+    for _ in range(20):
+        updated = model.update(counts, updated)
+    grid = updated.thresholds_by_scale[0]
+    assert grid[0] == 1 / 6
+    assert grid[-1] == 5 / 6
+    assert grid == pytest.approx(planted, abs=0.02)
+    fixed = OrdinalProbit(max_inner_iterations=50).update(counts, start)
+    assert np.array_equal(fixed.thresholds_by_scale[0], start.thresholds_by_scale[0])
+    votes = VoteMatrix.from_arrays([[1, 6, 3], [2, 4, 5]], scale=six)
+    plain = OrdinalProbit().complexity_penalty((2, 2), votes)
+    assert model.complexity_penalty((2, 2), votes) == pytest.approx(
+        plain + 0.5 * 3 * math.log(votes.n_votes)
+    )
+    with pytest.raises(InvalidParameterError, match="'fixed' or 'estimated'"):
+        Thresholds(mode="free")  # type: ignore[arg-type]
+    assert Thresholds(mode="estimated").is_estimated
+    assert not Thresholds().is_estimated

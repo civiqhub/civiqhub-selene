@@ -23,9 +23,9 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from civiqhub_selene.blocks._arrays import FloatArray, IntArray
-from civiqhub_selene.blocks._numerics import History
+from civiqhub_selene.blocks._numerics import History, columns_by_scale
 from civiqhub_selene.blocks.coclusters import Cocluster, CoclusterTable
-from civiqhub_selene.blocks.data import OrdinalScale, VoteMatrix
+from civiqhub_selene.blocks.data import ItemScales, OrdinalScale, VoteMatrix, _only_scale
 from civiqhub_selene.blocks.partition import ItemBlock, Partition, VoterGroup
 from civiqhub_selene.errors import InvalidInputError
 from civiqhub_selene.types import Displayable
@@ -192,7 +192,7 @@ class Coclustering(Displayable):
         computation: Fingerprint of the computation that produced the value.
         voters: The voters, in the order of the matrix.
         items: The items, in the order of the matrix.
-        scale: The scale of scores.
+        item_scales: The scale of each item, as the matrix gave it.
         group_index: Shape (M,): for each voter, the index of its main group.
         block_index: Shape (P,): for each item, the index of its main block.
         group_memberships: Shape (M, Q): degree of membership of each voter to each
@@ -214,7 +214,7 @@ class Coclustering(Displayable):
     computation: str
     voters: tuple[str, ...]
     items: tuple[str, ...]
-    scale: OrdinalScale
+    item_scales: ItemScales
     group_index: IntArray
     block_index: IntArray
     group_memberships: FloatArray
@@ -230,10 +230,18 @@ class Coclustering(Displayable):
         if not isinstance(self.coclusters, CoclusterTable):
             raise InvalidInputError(f"coclusters are a CoclusterTable, got {self.coclusters!r}")
         n_groups, n_blocks = self.coclusters.shape
-        if self.coclusters.scale != self.scale:
+        if not isinstance(self.item_scales, ItemScales):
+            raise InvalidInputError(f"item_scales is an ItemScales, got {self.item_scales!r}")
+        if self.item_scales.n_items != n_items:
             raise InvalidInputError(
-                f"the table of co-clusters is on the scale {self.coclusters.scale.scores!r}, "
-                f"the value on the scale {self.scale.scores!r}"
+                f"item_scales gives the scales of {self.item_scales.n_items} items "
+                f"to {n_items} items"
+            )
+        table = tuple(scale.scores for scale in self.coclusters.scales)
+        value = tuple(scale.scores for scale in self.item_scales.scales)
+        if table != value:
+            raise InvalidInputError(
+                f"the table of co-clusters is on the scales {table!r}, the value on {value!r}"
             )
         object.__setattr__(self, "voters", voters)
         object.__setattr__(self, "items", items)
@@ -251,6 +259,22 @@ class Coclustering(Displayable):
             if ((index < 0) | (index >= size)).any():
                 raise InvalidInputError(f"{name} holds indices from 0 to {size - 1}")
         object.__setattr__(self, "objective", float(self.objective))
+
+    # Scales ---------------------------------------------------------------------------
+
+    @property
+    def scale(self) -> OrdinalScale:
+        """The scale of every item, when they all use one.
+
+        Raises:
+            InvalidInputError: If the items use several scales: read :attr:`item_scales`.
+        """
+        return _only_scale(self.item_scales.scales, "this co-clustering")
+
+    @property
+    def scales(self) -> tuple[OrdinalScale, ...]:
+        """The distinct scales of the items, in the order of their first item."""
+        return self.item_scales.scales
 
     # Shape and clusters ---------------------------------------------------------------
 
@@ -331,7 +355,9 @@ class Coclustering(Displayable):
         """Return a stable fingerprint of what was found: 16 hexadecimal characters.
 
         SHA-256 of the voters, the items and the scores, then the bytes of the indices,
-        the memberships, and the vote rates and vote shares of the table. The history,
+        the memberships, and the vote rates and vote shares of the table. With several
+        scales, the scores of each scale and the scale of each item take the place of
+        the scores, and the vote shares of each scale follow one another. The history,
         the objective and the trace of the choice of shape are left out.
         """
         return self._fingerprint
@@ -339,14 +365,24 @@ class Coclustering(Displayable):
     @cached_property
     def _fingerprint(self) -> str:
         digest = hashlib.sha256()
-        digest.update(repr((self.voters, self.items, self.scale.scores)).encode())
+        scales = self.item_scales
+        if scales.is_uniform:
+            head: tuple[object, ...] = (self.voters, self.items, scales.scales[0].scores)
+        else:
+            head = (
+                self.voters,
+                self.items,
+                tuple(scale.scores for scale in scales.scales),
+                tuple(scales.scale_index.tolist()),
+            )
+        digest.update(repr(head).encode())
         digest.update(np.ascontiguousarray(self.group_index, dtype="<i8").tobytes())
         digest.update(np.ascontiguousarray(self.block_index, dtype="<i8").tobytes())
         for array in (
             self.group_memberships,
             self.block_memberships,
             self.coclusters.vote_rate,
-            self.coclusters.vote_shares,
+            *self.coclusters.vote_shares_by_scale,
         ):
             digest.update(_float_bytes(array))
         return digest.hexdigest()[:16]
@@ -355,13 +391,24 @@ class Coclustering(Displayable):
         """Return plain lists and numbers, ready for JSON.
 
         A float that is not finite becomes ``None``. The fields proper to a subclass
-        are added by it.
+        are added by it. With one scale, ``scores`` gives its scores; with several,
+        ``scales`` gives the scores of each scale and ``scale_index`` the scale of each
+        item, in place of ``scores``.
         """
+        scales = self.item_scales
+        reading: dict[str, Any] = (
+            {"scores": list(scales.scales[0].scores)}
+            if scales.is_uniform
+            else {
+                "scales": [list(scale.scores) for scale in scales.scales],
+                "scale_index": scales.scale_index.tolist(),
+            }
+        )
         return {
             "kind": type(self).__name__,
             "voters": list(self.voters),
             "items": list(self.items),
-            "scores": list(self.scale.scores),
+            **reading,
             "group_index": self.group_index.tolist(),
             "block_index": self.block_index.tolist(),
             "group_memberships": _plain(self.group_memberships),
@@ -393,9 +440,13 @@ class Coclustering(Displayable):
     def _check_votes(self, votes: VoteMatrix) -> None:
         if not isinstance(votes, VoteMatrix):
             raise InvalidInputError(f"votes are a VoteMatrix, got {type(votes).__name__}")
-        if votes.voters != self.voters or votes.items != self.items or votes.scale != self.scale:
+        if (
+            votes.voters != self.voters
+            or votes.items != self.items
+            or votes.item_scales != self.item_scales
+        ):
             raise InvalidInputError(
-                "log_probability reads a matrix of the same voters, items and scale, in the "
+                "log_probability reads a matrix of the same voters, items and scales, in the "
                 f"same order, as the one the co-clustering was computed on: got {votes!r}"
             )
 
@@ -439,9 +490,12 @@ class SingleCoclustering(Coclustering):
                 scale of the co-clustering.
         """
         self._check_votes(votes)
-        logs = self.coclusters.log_probabilities()
+        logs = self.coclusters.log_probabilities_by_scale()
         cells: FloatArray = logs[
-            self.group_index[:, np.newaxis], self.block_index[np.newaxis, :], votes.levels
+            self.group_index[:, np.newaxis],
+            self.block_index[np.newaxis, :],
+            self.item_scales.scale_index[np.newaxis, :],
+            votes.levels,
         ]
         return cells
 
@@ -555,10 +609,19 @@ class MixedCoclustering(Coclustering):
                 scale of the co-clustering.
         """
         self._check_votes(votes)
-        probabilities = np.exp(self.coclusters.log_probabilities())
+        probabilities = np.exp(self.coclusters.log_probabilities_by_scale())
         blocks = np.arange(self.n_blocks)
-        by_profile = probabilities[self.profiles, blocks[np.newaxis, :], :]
-        by_item = np.einsum("jl,cls->cjs", self.block_memberships, by_profile)
+        by_profile = probabilities[self.profiles, blocks[np.newaxis, :]]
+        scales = self.item_scales
+        by_item = np.zeros((self.profiles.shape[0], len(self.items), probabilities.shape[-1]))
+        for scale, columns in enumerate(columns_by_scale(scales.scale_index, scales.n_scales)):
+            on_scale = by_profile[:, :, scale, :]
+            if columns is None:
+                by_item = np.einsum("jl,cls->cjs", self.block_memberships, on_scale)
+            else:
+                by_item[:, columns] = np.einsum(
+                    "jl,cls->cjs", self.block_memberships[columns], on_scale
+                )
         by_cell = np.einsum("ic,cjs->ijs", self.profile_probabilities, by_item)
         cells = np.take_along_axis(by_cell, votes.levels[..., np.newaxis], axis=2)[..., 0]
         logs: FloatArray = np.log(np.maximum(cells, _MIN_PROBABILITY))
