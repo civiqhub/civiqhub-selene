@@ -84,7 +84,7 @@ class ToyModel(BlockModel[Assignment, SingleCoclustering]):
             computation=computation,
             voters=votes.voters,
             items=votes.items,
-            scale=votes.scale,
+            item_scales=votes.item_scales,
             group_index=state.rows,
             block_index=state.cols,
             group_memberships=one_hot(state.rows, self.n_groups),

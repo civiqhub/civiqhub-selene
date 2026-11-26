@@ -40,6 +40,26 @@ $$ (eq-response-probit)
 
 By default the thresholds are $t_k = k + \tfrac{1}{2}$ for $k = 1, \dots, K - 1$ ({py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbit.thresholds` left to `None`); a strictly increasing tuple of $K - 1$ numbers replaces them. They are never estimated. With the default thresholds, the level $k$ is the interval of opinions around $k$, so that $\mu_{ql}$ reads directly on the axis of levels, from $1$ to $K$: a group whose mean is $4.2$ on a block stands between the levels $4$ and $5$. A co-cluster has three free parameters: $\nu_{ql}$, $\mu_{ql}$ and $\sigma_{ql}$.
 
+### Items on several scales
+
+When the items use several scales ([The data: items on different scales](data.md#items-on-different-scales)), each scale $g$ has its own grid of thresholds $t_{g1} < \dots < t_{g,K_g - 1}$, with $t_{g0} = -\infty$ and $t_{gK_g} = +\infty$. A vote on an item of the scale $g$ is cut by the grid of its scale, and the co-cluster keeps one opinion for all its items, whatever their scale: one rate $\nu_{ql}$, one mean $\mu_{ql}$ and one standard deviation $\sigma_{ql}$. The probability of the state $s$ of a shown cell of an item of the scale $g$ in the co-cluster $(q, l)$ is
+
+$$
+F_{qlg0} = 1 - \nu_{ql}, \qquad F_{qlgk} = \nu_{ql} \, p_{qlgk}, \qquad p_{qlgk} = \Phi\Big(\frac{t_{gk} - \mu_{ql}}{\sigma_{ql}}\Big) - \Phi\Big(\frac{t_{g,k-1} - \mu_{ql}}{\sigma_{ql}}\Big), \quad k = 1, \dots, K_g.
+$$ (eq-response-probit-by-scale)
+
+With one scale this is {eq}`eq-response-probit`. The grids must sit on one axis for one opinion to explain the votes of every scale: this is an assumption of the model, that the answers of two scales that cut the axis at the same place mean the same position. {py:class}`~civiqhub_selene.blocks.responses.Thresholds` sets the axis, and the regular grid of the scale $g$ on it:
+
+$$
+\text{axis of levels:} \quad t_{gk} = k + \tfrac{1}{2}, \qquad \text{unit axis:} \quad t_{gk} = \frac{k}{K_g}, \qquad k = 1, \dots, K_g - 1.
+$$ (eq-response-axes)
+
+On the unit axis, every scale covers the axis from $0$ to $1$, each of its levels taking an equal share of it: "yes" on two answers and the two top answers of four lie above $\tfrac{1}{2}$. On the axis of levels, the first levels of every scale line up. By default ({py:attr}`~civiqhub_selene.blocks.responses.Thresholds.axis` set to `"auto"`), the engine uses the axis of levels when the items share one scale, so that a matrix of one scale is computed exactly as before, and the unit axis when they use several. {py:attr}`~civiqhub_selene.blocks.responses.Thresholds.grids` replaces the regular grid of some scales by grids given by hand, on the chosen axis.
+
+The unit axis is the axis of levels carried by $x \mapsto (x - \tfrac{1}{2}) / K$, with $K$ the levels of the longest scale: on a matrix of one scale, both give the same likelihood and the same arrangements, and the means and standard deviations of the unit axis are those of the axis of levels carried the same way. The floor $\sigma_{\min}$ and the start of $\sigma_{ql}$ are read in units of one level of the longest scale, $\sigma_{\mathrm{u}}$ ({py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbitParameters.spread_unit`): $1$ on the axis of levels, $1 / K$ on the unit axis.
+
+The categorical model has one free distribution per scale: the shares $p_{qlgk}$ over the $K_g$ levels of the scale $g$, with nothing to tie the distributions of two scales together, and one vote rate $\nu_{ql}$ for all.
+
 ## Estimation
 
 A block model hands the response model counts $N_{qls}$ and asks for the parameters that maximise the expected log-likelihood of the cells of each co-cluster,
@@ -101,6 +121,17 @@ with the new $\mu_{ql}$ in the variance. The floor $\sigma_{\min}$ = {py:attr}`~
 
 The steps restart from the previous $\mu_{ql}$ and $\sigma_{ql}$, and stop when the largest change of a mean or a standard deviation, over all co-clusters, is under $10^{-8}$, or after {py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbit.max_inner_iterations` steps. Each update of the block model thus runs a few steps of this inner loop, not the loop to its end.
 
+**On several scales.** The moments of a vote at the level $k$ of the scale $g$ are those of the opinion truncated to $(t_{g,k-1}, t_{gk}]$: the formulas {eq}`eq-response-moments`, on the grid of its scale, written $m^{(1)}_{qlgk}$ and $m^{(2)}_{qlgk}$. The opinion of the co-cluster pools the votes of every scale, with the counts $N_{qlgk}$ and $n_{ql} = \sum_g \sum_{k \geq 1} N_{qlgk}$:
+
+$$
+\mu_{ql} \leftarrow \frac{1}{n_{ql}} \sum_{g \in \mathcal{G}} \sum_{k=1}^{K_g} N_{qlgk} \, m^{(1)}_{qlgk}, \qquad
+\sigma_{ql} \leftarrow \sqrt{\max\Big(\frac{1}{n_{ql}} \sum_{g \in \mathcal{G}} \sum_{k=1}^{K_g} N_{qlgk} \, m^{(2)}_{qlgk} - \mu_{ql}^2, \; (\sigma_{\min} \sigma_{\mathrm{u}})^2\Big)}.
+$$ (eq-response-opinion-by-scale)
+
+The code sums over the levels first, then over the scales, so that one scale gives exactly {eq}`eq-response-opinion`.
+
+**Scales of two levels.** A vote on a scale of two levels only says on which side of one threshold the opinion lies: $p_{qlg2} = \Phi((\mu_{ql} - t_{g1}) / \sigma_{ql})$ fixes the ratio $(\mu_{ql} - t_{g1}) / \sigma_{ql}$, and not the mean and the standard deviation apart. When every vote of a co-cluster is on a scale of two levels, the code therefore holds $\sigma_{ql} = \sigma_{\mathrm{u}}$ and estimates $\mu_{ql}$ alone, by the first half of {eq}`eq-response-opinion-by-scale`; the table of the result marks these co-clusters ({py:attr}`~civiqhub_selene.blocks.CoclusterTable.has_fixed_spread`). One vote on a scale of three levels or more is enough to estimate the spread. The same holds on a matrix of one scale of two levels.
+
 ### The penalty of the parameters
 
 The integrated likelihood of a single-membership arrangement subtracts half a logarithm of the sample size per free parameter of the response model. The code counts the parameters of the votes with the number of votes $n_{\text{votes}}$ ({py:attr}`~civiqhub_selene.blocks.VoteMatrix.n_votes`), and the vote rates with the number of shown cells $n_{\text{shown}}$ ({py:attr}`~civiqhub_selene.blocks.VoteMatrix.n_shown`), each at least $1$:
@@ -159,6 +190,44 @@ print(round(float(updated.latent_mean[0, 0]), 4), round(float(updated.latent_spr
 4.0965 0.8388
 ```
 
+On two scales, the unit axis gives the grid $\tfrac{1}{2}$ to the scale of two answers and $\tfrac{1}{4}, \tfrac{1}{2}, \tfrac{3}{4}$ to the scale of four. One opinion of mean $0.6$ and standard deviation $0.2$ gives the states of a cell of each scale, the states past the levels of a scale having no probability; then one update pools $30$ "yes" out of $40$ votes and $40$ votes leaning to the top of the scale of four into one opinion:
+
+```python
+from civiqhub_selene.blocks import OrdinalScale
+from civiqhub_selene.blocks.responses import Thresholds
+
+yes_no = OrdinalScale((0, 1))
+four = OrdinalScale((1, 2, 3, 4))
+rule = Thresholds(axis="unit")
+print(rule.grid_of(yes_no, "unit"), rule.grid_of(four, "unit"))
+
+params = OrdinalProbitParameters(
+    vote_rate=np.array([[0.8]]),
+    latent_mean=np.array([[0.6]]),
+    latent_spread=np.array([[0.2]]),
+    thresholds=(np.array([0.5]), np.array([0.25, 0.5, 0.75])),
+    spread_unit=0.25,
+)
+states = np.exp(model.log_probabilities_by_scale(params))[0, 0]
+print(np.round(states[0, :3], 4).tolist())
+print(np.round(states[1], 4).tolist())
+
+counts = np.zeros((1, 1, 2, 5))
+counts[0, 0, 0, :3] = [5, 10, 30]
+counts[0, 0, 1, :] = [5, 2, 6, 14, 18]
+pooled = OrdinalProbit(max_inner_iterations=200).update(counts, params)
+print(round(float(pooled.vote_rate[0, 0]), 4))
+print(round(float(pooled.latent_mean[0, 0]), 4), round(float(pooled.latent_spread[0, 0]), 4))
+```
+
+```text
+(0.5,) (0.25, 0.5, 0.75)
+[0.2, 0.2468, 0.5532]
+[0.2, 0.032, 0.2148, 0.3719, 0.1813]
+0.8889
+0.708 0.2801
+```
+
 ## What the code does exactly
 
 | Formula | Code |
@@ -172,6 +241,9 @@ print(round(float(updated.latent_mean[0, 0]), 4), round(float(updated.latent_spr
 | {eq}`eq-response-opinion`, stop at $10^{-8}$ | `fit_latent_normal`, `blocks/_numerics.py:230-297` |
 | {eq}`eq-response-penalty` | `blocks/responses.py:194-204`, `:348-358` |
 | Starting parameters | `blocks/responses.py:163-174`, `:300-322` |
+| {eq}`eq-response-probit-by-scale`, grid of each scale | `OrdinalProbit._vote_shares`, `level_probabilities_by_scale` and `scale_bounds` in `blocks/_numerics.py` |
+| {eq}`eq-response-axes`, `"auto"` | `Thresholds.grid_of` and `Thresholds.axis_for`, `blocks/responses.py` |
+| {eq}`eq-response-opinion-by-scale`, spread held on two levels | `fit_latent_normal_by_scale`, `blocks/_numerics.py`; `OrdinalProbit.update` |
 
 The code also does what the formulas do not say:
 
@@ -181,7 +253,7 @@ The code also does what the formulas do not say:
 
 ## Limits
 
-- The thresholds are the same for every item and every co-cluster, and fixed: the model reads the levels on one axis.
+- The thresholds are the same for every item of a scale and every co-cluster, and fixed: the model reads the levels of every scale on one axis, whose alignment between scales is a convention, not an estimate.
 - The ordinal probit gives each co-cluster one normal opinion: a co-cluster split in two camps reads as a wide spread around the middle, not as two modes.
 - The vote rate is a property of the co-cluster: whether a voter votes does not depend on its opinion in the model.
 

@@ -14,9 +14,14 @@ from typing import Any, final
 import numpy as np
 
 from civiqhub_selene.blocks._arrays import FloatArray, IntArray
-from civiqhub_selene.blocks._numerics import History, count_states, logsumexp
+from civiqhub_selene.blocks._numerics import (
+    History,
+    columns_by_scale,
+    count_states_by_scale,
+    logsumexp,
+)
 from civiqhub_selene.blocks.base import BlockModel
-from civiqhub_selene.blocks.data import VoteMatrix
+from civiqhub_selene.blocks.data import OrdinalScale, VoteMatrix
 from civiqhub_selene.blocks.results import SingleCoclustering
 
 __all__ = ["LatentBlockModel"]
@@ -46,10 +51,18 @@ class _HardState:
 
 
 def _voter_scores(
-    states: FloatArray, logs: FloatArray, block_index: IntArray, group_shares: FloatArray
+    states: FloatArray,
+    logs: FloatArray,
+    block_index: IntArray,
+    scale_index: IntArray,
+    group_shares: FloatArray,
 ) -> FloatArray:
-    """Return the score of each voter for each group, the blocks being fixed. Shape (M, Q)."""
-    by_cell = np.einsum("ijs,qjs->iq", states, logs[:, block_index, :])
+    """Return the score of each voter for each group, the blocks being fixed. Shape (M, Q).
+
+    ``logs`` has the shape (Q, L, C, S): each column reads the table of its block and of
+    its scale.
+    """
+    by_cell = np.einsum("ijs,qjs->iq", states, logs[:, block_index, scale_index, :])
     scores: FloatArray = by_cell + np.log(np.maximum(group_shares, _MIN_SHARE))
     return scores
 
@@ -59,14 +72,27 @@ def _item_scores(
     logs: FloatArray,
     group_index: IntArray,
     block_shares: FloatArray,
+    scale_index: IntArray,
     voter_weights: FloatArray | None = None,
 ) -> FloatArray:
-    """Return the score of each item for each block, the groups being fixed. Shape (P, L)."""
+    """Return the score of each item for each block, the groups being fixed. Shape (P, L).
+
+    The items of each scale are scored on the table of their scale, one scale at a time.
+    """
     scored = logs[group_index]
-    if voter_weights is None:
-        by_cell = np.einsum("ijs,ils->jl", states, scored)
-    else:
-        by_cell = np.einsum("ijs,ils,i->jl", states, scored, voter_weights)
+    n_scales = logs.shape[2]
+    by_cell: FloatArray = np.zeros((states.shape[1], logs.shape[1]))
+    for scale, columns in enumerate(columns_by_scale(scale_index, n_scales)):
+        cells = states if columns is None else states[:, columns, :]
+        on_scale = scored[:, :, scale, :]
+        if voter_weights is None:
+            part = np.einsum("ijs,ils->jl", cells, on_scale)
+        else:
+            part = np.einsum("ijs,ils,i->jl", cells, on_scale, voter_weights)
+        if columns is None:
+            by_cell = part
+        else:
+            by_cell[columns] = part
     scores: FloatArray = by_cell + np.log(np.maximum(block_shares, _MIN_SHARE))
     return scores
 
@@ -89,6 +115,12 @@ def _sweep(index: IntArray, scores: FloatArray) -> IntArray:
             sizes[target] += 1
             moved[element] = target
     return moved
+
+
+def _scales_of(votes: VoteMatrix) -> OrdinalScale | tuple[OrdinalScale, ...]:
+    """The scale of the table of a value: the one scale, or the scales of the items."""
+    scales = votes.item_scales
+    return scales.scales[0] if scales.is_uniform else scales.scales
 
 
 def _softmax(scores: FloatArray) -> FloatArray:
@@ -166,6 +198,7 @@ class LatentBlockModel(BlockModel[_HardState, SingleCoclustering]):
     membership = "single"
     meaning = "each voter belongs to one group"
     default_criterion = "integrated_likelihood"
+    accepts_several_scales = True
 
     def _start(self, votes: VoteMatrix, rng: np.random.Generator) -> _HardState:
         shape = (self.n_groups, self.n_blocks)
@@ -181,24 +214,33 @@ class LatentBlockModel(BlockModel[_HardState, SingleCoclustering]):
 
     def _step(self, votes: VoteMatrix, state: _HardState) -> _HardState:
         states = votes._states()
+        scales = votes.item_scales
         n_voters, n_items = votes.shape
         shape = (self.n_groups, self.n_blocks)
         weights = votes._likelihood_weights
-        counts = count_states(
-            states, state.group_index, state.block_index, shape, voter_weights=weights
+        counts = count_states_by_scale(
+            states,
+            state.group_index,
+            state.block_index,
+            shape,
+            scales.scale_index,
+            scales.n_scales,
+            voter_weights=weights,
         )
         parameters = self.response_model.update(counts, state.parameters)
         group_mass = np.bincount(state.group_index, weights=weights, minlength=self.n_groups)
         group_shares = group_mass / n_voters
         block_shares = np.bincount(state.block_index, minlength=self.n_blocks) / n_items
-        logs = self.response_model.log_probabilities(parameters)
+        logs = self.response_model.log_probabilities_by_scale(parameters)
         group_index = _sweep(
-            state.group_index, _voter_scores(states, logs, state.block_index, group_shares)
+            state.group_index,
+            _voter_scores(states, logs, state.block_index, scales.scale_index, group_shares),
         )
         block_index = _sweep(
-            state.block_index, _item_scores(states, logs, group_index, block_shares, weights)
+            state.block_index,
+            _item_scores(states, logs, group_index, block_shares, scales.scale_index, weights),
         )
-        cell_logs = logs[group_index][:, block_index, :]
+        cell_logs = logs[group_index][:, block_index, scales.scale_index, :]
         group_logs = np.log(np.maximum(group_shares[group_index], _MIN_SHARE))
         if weights is None:
             response_score = float(np.einsum("ijs,ijs->", states, cell_logs))
@@ -219,14 +261,24 @@ class LatentBlockModel(BlockModel[_HardState, SingleCoclustering]):
         self, votes: VoteMatrix, state: _HardState, history: History, computation: str
     ) -> SingleCoclustering:
         states = votes._states()
+        scales = votes.item_scales
         n_voters, n_items = votes.shape
         shape = (self.n_groups, self.n_blocks)
-        logs = self.response_model.log_probabilities(state.parameters)
-        voter_scores = _voter_scores(states, logs, state.block_index, state.group_shares)
-        item_scores = _item_scores(
-            states, logs, state.group_index, state.block_shares, votes._likelihood_weights
+        logs = self.response_model.log_probabilities_by_scale(state.parameters)
+        voter_scores = _voter_scores(
+            states, logs, state.block_index, scales.scale_index, state.group_shares
         )
-        counts = count_states(states, state.group_index, state.block_index, shape)
+        item_scores = _item_scores(
+            states,
+            logs,
+            state.group_index,
+            state.block_shares,
+            scales.scale_index,
+            votes._likelihood_weights,
+        )
+        counts = count_states_by_scale(
+            states, state.group_index, state.block_index, shape, scales.scale_index, scales.n_scales
+        )
         integrated_likelihood = (
             state.objective
             - self.response_model.complexity_penalty(shape, votes)
@@ -237,12 +289,12 @@ class LatentBlockModel(BlockModel[_HardState, SingleCoclustering]):
             computation=computation,
             voters=votes.voters,
             items=votes.items,
-            scale=votes.scale,
+            item_scales=scales,
             group_index=state.group_index,
             block_index=state.block_index,
             group_memberships=_softmax(voter_scores),
             block_memberships=_softmax(item_scores),
-            coclusters=self.response_model.to_table(state.parameters, counts, votes.scale),
+            coclusters=self.response_model.to_table(state.parameters, counts, _scales_of(votes)),
             objective=state.objective,
             history=history,
             integrated_likelihood=integrated_likelihood,

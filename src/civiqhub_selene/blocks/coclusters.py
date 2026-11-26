@@ -22,7 +22,7 @@ from typing import Any, cast
 import numpy as np
 from numpy.typing import ArrayLike
 
-from civiqhub_selene.blocks._arrays import FloatArray
+from civiqhub_selene.blocks._arrays import BoolArray, FloatArray
 from civiqhub_selene.blocks.data import OrdinalScale, _only_scale
 from civiqhub_selene.errors import InvalidInputError
 from civiqhub_selene.types import Displayable
@@ -60,6 +60,9 @@ class Cocluster:
             model, on the axis of its thresholds; ``None`` under another response model.
         latent_spread: Standard deviation of the latent opinion, likewise.
         scores: The scores of the scale; with several scales, the scores of each.
+        has_fixed_spread: Whether the spread was held fixed rather than estimated,
+            because every vote of the co-cluster is on a scale of two levels. Defaults
+            to ``False``.
 
     Attributes:
         group: As given.
@@ -70,6 +73,7 @@ class Cocluster:
         latent_mean: As given.
         latent_spread: As given.
         scores_by_scale: The scores of each scale.
+        has_fixed_spread: As given.
     """
 
     group: int
@@ -80,6 +84,7 @@ class Cocluster:
     latent_mean: float | None
     latent_spread: float | None
     scores_by_scale: tuple[tuple[int, ...], ...]
+    has_fixed_spread: bool
 
     def __init__(
         self,
@@ -91,6 +96,8 @@ class Cocluster:
         latent_mean: float | None,
         latent_spread: float | None,
         scores: Sequence[int] | Sequence[Sequence[int]],
+        *,
+        has_fixed_spread: bool = False,
     ) -> None:
         by_scale = _is_by_scale(scores)
         if by_scale != _is_by_scale(vote_shares) and len(scores) and len(vote_shares):
@@ -117,6 +124,7 @@ class Cocluster:
             ("latent_mean", latent_mean),
             ("latent_spread", latent_spread),
             ("scores_by_scale", scales),
+            ("has_fixed_spread", bool(has_fixed_spread)),
         ):
             object.__setattr__(self, name, value)
 
@@ -247,6 +255,9 @@ class CoclusterTable(Displayable):
         thresholds: The thresholds of the ordinal probit response model, one grid of
             ``K_c - 1`` strictly increasing numbers per scale (a single grid for a
             single scale); ``None`` under another response model.
+        has_fixed_spread: Shape (Q, L), booleans: the latent spread of the co-cluster
+            was held fixed, because all its votes are on scales of two levels; ``None``
+            under another response model.
 
     Attributes:
         scales: The scales, in the order of the arrays.
@@ -256,6 +267,7 @@ class CoclusterTable(Displayable):
         latent_mean: Shape (Q, L), as given, or ``None``.
         latent_spread: Shape (Q, L), as given, or ``None``.
         thresholds: One grid of thresholds per scale, or ``None``.
+        has_fixed_spread: Shape (Q, L), as given, or ``None``.
 
     Raises:
         InvalidInputError: If the shapes do not agree, if a rate is outside [0, 1], if
@@ -270,6 +282,7 @@ class CoclusterTable(Displayable):
     latent_mean: FloatArray | None
     latent_spread: FloatArray | None
     thresholds: tuple[FloatArray, ...] | None
+    has_fixed_spread: BoolArray | None
 
     def __init__(
         self,
@@ -281,6 +294,7 @@ class CoclusterTable(Displayable):
         latent_spread: ArrayLike | None = None,
         *,
         thresholds: ArrayLike | Sequence[ArrayLike] | None = None,
+        has_fixed_spread: ArrayLike | None = None,
     ) -> None:
         scales, by_scale = _scales(scale)
         rate = _array(vote_rate, "vote_rate")
@@ -332,6 +346,15 @@ class CoclusterTable(Displayable):
                 )
             object.__setattr__(self, name, latent)
         object.__setattr__(self, "thresholds", _grids(thresholds, scales, by_scale))
+        fixed = None
+        if has_fixed_spread is not None:
+            fixed = np.array(has_fixed_spread, dtype=np.bool_)
+            if fixed.shape != rate.shape:
+                raise InvalidInputError(
+                    f"has_fixed_spread has the shape {rate.shape} of vote_rate, got {fixed.shape}"
+                )
+            fixed.setflags(write=False)
+        object.__setattr__(self, "has_fixed_spread", fixed)
 
     @property
     def scale(self) -> OrdinalScale:
@@ -393,6 +416,11 @@ class CoclusterTable(Displayable):
                 None if self.latent_spread is None else float(self.latent_spread[group, block])
             ),
             scores=scores[0] if one else scores,
+            has_fixed_spread=(
+                False
+                if self.has_fixed_spread is None
+                else bool(self.has_fixed_spread[group, block])
+            ),
         )
 
     def __iter__(self) -> Iterator[Cocluster]:
@@ -447,8 +475,8 @@ class CoclusterTable(Displayable):
         several, ``scores`` gives way to ``scales`` (the scores of each scale) and
         ``vote_shares`` to ``vote_shares_by_scale`` (one table per scale), so that a
         reader of one scale never reads the shares of several as one. Then
-        ``latent_mean`` and ``latent_spread``, and ``thresholds`` (one grid per scale),
-        when the table has them.
+        ``latent_mean`` and ``latent_spread``, ``thresholds`` (one grid per scale) and
+        ``has_fixed_spread``, when the table has them.
         """
         data: dict[str, Any]
         if len(self.scales) == 1:
@@ -471,6 +499,8 @@ class CoclusterTable(Displayable):
             data["latent_spread"] = self.latent_spread.tolist()
         if self.thresholds is not None:
             data["thresholds"] = [grid.tolist() for grid in self.thresholds]
+        if self.has_fixed_spread is not None:
+            data["has_fixed_spread"] = self.has_fixed_spread.tolist()
         return data
 
     def _describe(self) -> list[str]:

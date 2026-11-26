@@ -218,6 +218,15 @@ VALUE_FIELDS = (
     "history",
     "computation",
 )
+# The fields of the table of co-clusters in result/1; the engine may write more.
+COCLUSTER_FIELDS = (
+    "scores",
+    "vote_rate",
+    "vote_shares",
+    "n_votes",
+    "latent_mean",
+    "latent_spread",
+)
 
 
 def result_document(result: Any) -> dict[str, Any]:
@@ -238,7 +247,13 @@ def result_document(result: Any) -> dict[str, Any]:
         },
     }
     if data["available"]:
-        document["value"] = {name: data["value"][name] for name in VALUE_FIELDS}
+        value = {name: data["value"][name] for name in VALUE_FIELDS}
+        value["coclusters"] = {
+            name: field
+            for name, field in data["value"]["coclusters"].items()
+            if name in COCLUSTER_FIELDS
+        }
+        document["value"] = value
     else:
         document["unavailable"] = data["unavailable"]
     return document

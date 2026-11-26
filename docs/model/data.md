@@ -192,7 +192,7 @@ The code computes {eq}`eq-data-counts` in one product over all cells, with the i
 ## Limits
 
 - Each item has one scale, declared with the votes: the engine does not infer it from the levels it sees, nor align two scales on its own. An item whose answers are not ordered (a list of choices) or are numbers to be cut into classes is not on an ordinal scale and is prepared before it enters a matrix.
-- The block models of this commit read a matrix of one scale; on a matrix of several, a model that does not declare it reads them ({py:attr}`~civiqhub_selene.blocks.base.CoclusteringEstimator.accepts_several_scales`) returns an absence of value, `UNSUPPORTED_INPUT`.
+- {py:class}`~civiqhub_selene.blocks.LatentBlockModel` reads items on several scales; {py:class}`~civiqhub_selene.blocks.MixedMembershipBlockModel` reads one scale at this commit. On a matrix of several scales, a model that does not declare it reads them ({py:attr}`~civiqhub_selene.blocks.base.CoclusteringEstimator.accepts_several_scales`) returns an absence of value, `UNSUPPORTED_INPUT`.
 - The engine does not model why an item is shown or not: it assumes that a cell that is not shown hides nothing about the vote it would have received.
 - `vote_counts` needs a scale of five scores, that of the ordinal family.
 

@@ -36,6 +36,8 @@ $$
 
 the expected log-likelihood that a response model maximises on each co-cluster.
 
+When the items use several scales, a cell reads the probabilities of the scale of its item: $F_{R_i C_j s}$ becomes $F_{R_i C_j g_j s}$ in {eq}`eq-lbm-objective` and in the scores below, and the first term becomes $\sum_{q,l} \sum_{g \in \mathcal{G}} \sum_{s=0}^{K_g} N_{qlgs} \log F_{qlgs}$, with the counts by scale ([The data](data.md)) and the probabilities by scale of the response model {eq}`eq-response-probit-by-scale`. The code scores the items scale by scale; with one scale, it computes exactly what it computed before items could have several.
+
 ## Estimation
 
 The model is estimated by classification expectation-maximisation: it maximises {eq}`eq-lbm-objective` over the arrangement and the parameters together, one block of unknowns at a time. It is not a variational method.
