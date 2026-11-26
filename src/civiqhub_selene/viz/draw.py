@@ -467,6 +467,9 @@ def draw_groups(value: Coclustering, *, ax: Axes | None = None) -> Axes:
     averaged over the blocks), and carries its value. Reads
     :func:`~civiqhub_selene.viz.graphs.group_graph`.
 
+    See the mathematical model: :doc:`/model/reading-results`, equation
+    :eq:`eq-results-agreement`.
+
     Args:
         value: A co-clustering.
         ax: The axes to draw on. Defaults to new axes.
@@ -693,6 +696,9 @@ def plot_spectrum(
     for the shape, not a choice of it (the integrated likelihood or the held-out
     likelihood choose).
 
+    See the mathematical model: :doc:`/model/initialization`;
+    :doc:`/model/choosing-the-shape`.
+
     Args:
         embedding: The spectral embedding.
         n_values: The number of values drawn on each side, at least 1.
@@ -760,6 +766,9 @@ def plot_embedding(
     and spread along it with their participation: the "star" of Qin and Rohe (2013,
     figure 1). After projection onto the unit sphere (``project=True``), each cluster
     gathers on one point. The hollow circle is the origin.
+
+    See the mathematical model: :doc:`/model/initialization`, equation
+    :eq:`eq-starts-laplacian`.
 
     Args:
         embedding: The spectral embedding, with at least two components on that side.
@@ -842,6 +851,8 @@ def plot_embedding(
 def plot_history(value: Coclustering, *, ax: Axes | None = None) -> Axes:
     """Draw the objective after each iteration of the start that was kept.
 
+    See the mathematical model: :doc:`/model/estimation`.
+
     Args:
         value: A co-clustering.
         ax: The axes to draw on. Defaults to new axes.
@@ -868,6 +879,9 @@ def plot_mixedness(value: MixedCoclustering, *, bins: int = 10, ax: Axes | None 
     The mixedness of a voter is one minus its largest membership: 0 for a voter of a
     single group, up to ``1 - 1 / Q``. It is shown over the voters, never as a list by
     voter.
+
+    See the mathematical model: :doc:`/model/reading-results`, equation
+    :eq:`eq-results-mixedness`.
 
     Args:
         value: A mixed co-clustering.

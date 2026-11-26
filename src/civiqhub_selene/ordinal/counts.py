@@ -39,6 +39,9 @@ class VoteCounts(Displayable):
     non-negative integers is accepted and stored as a tuple. Shares are exact
     fractions, so that an equality at a threshold on paper is an equality in the code.
 
+    See the mathematical model: :doc:`/model/ordinal`, equations
+    :eq:`eq-ordinal-shares` and :eq:`eq-ordinal-cumulative`.
+
     Attributes:
         counts: The five counts, in the order of :data:`SCORES`.
         name: Free name of what was counted, for display and provenance. The engine
@@ -102,6 +105,13 @@ class VoteCounts(Displayable):
     def shares(self) -> tuple[Fraction, Fraction, Fraction, Fraction, Fraction]:
         """The five shares of votes, as exact fractions.
 
+        With ``N[k]`` the count at the level ``k`` and ``n`` the total::
+
+            f[k] = N[k] / n
+
+        See the mathematical model: :doc:`/model/ordinal`, equation
+        :eq:`eq-ordinal-shares`.
+
         Raises:
             InvalidInputError: If there is no vote.
         """
@@ -112,6 +122,14 @@ class VoteCounts(Displayable):
     @property
     def cumulative_shares(self) -> tuple[Fraction, Fraction, Fraction, Fraction]:
         """Four exact fractions: the share of votes at -2, at most -1, at most 0, at most +1.
+
+        With ``N[h]`` the count at the level ``h`` and ``n`` the total, for ``k`` from
+        1 to 4::
+
+            f_le[k] = (N[1] + ... + N[k]) / n
+
+        See the mathematical model: :doc:`/model/ordinal`, equation
+        :eq:`eq-ordinal-cumulative`.
 
         Raises:
             InvalidInputError: If there is no vote.
