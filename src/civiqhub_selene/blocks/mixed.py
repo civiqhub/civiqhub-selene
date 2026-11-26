@@ -196,8 +196,9 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
 
     The value reports this weighted ``log_likelihood``. The co-cluster counts on the
     value stay the raw, unweighted number of survey rows. A shown cell of item ``j``
-    has ``K_j + 1`` modalities; this estimator currently reads one shared scale of
-    ``K`` scores. Distinct observation scales per item are SEL-8.2 (ItemScales).
+    has ``K_j + 1`` modalities; this estimator reads one scale of ``K`` scores, shared
+    by every item. A matrix whose items use several scales gets an absence of value,
+    ``UNSUPPORTED_INPUT``, until the response models give each scale its grid (SEL-8.4).
 
     The model is estimated by expectation-maximisation, regularised by symmetric
     Dirichlet priors on the memberships, of concentrations ``voter_concentration``

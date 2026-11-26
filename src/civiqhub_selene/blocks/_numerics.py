@@ -18,7 +18,9 @@ from civiqhub_selene.blocks._arrays import FloatArray, IntArray
 
 __all__ = [
     "History",
+    "columns_by_scale",
     "count_states",
+    "count_states_by_scale",
     "fit_latent_normal",
     "interval_mass",
     "iterate",
@@ -72,6 +74,60 @@ def count_states(
     if voter_weights is not None:
         groups *= voter_weights[:, np.newaxis]
     counts: FloatArray = np.einsum("iq,jl,ijs->qls", groups, one_hot(cols, n_blocks), states)
+    return counts
+
+
+def columns_by_scale(scale_index: IntArray, n_scales: int) -> tuple[IntArray | None, ...]:
+    """Return the columns of each scale, in increasing order.
+
+    With one scale, the only entry is ``None``: every column, read without a copy, so
+    that a matrix of one scale is computed exactly as before items could have several.
+    """
+    if n_scales == 1:
+        return (None,)
+    return tuple(np.flatnonzero(scale_index == scale) for scale in range(n_scales))
+
+
+def count_states_by_scale(
+    states: FloatArray,
+    rows: IntArray,
+    cols: IntArray,
+    shape: tuple[int, int],
+    scale_index: IntArray,
+    n_scales: int,
+    *,
+    voter_weights: FloatArray | None = None,
+) -> FloatArray:
+    """Count the cells of each co-cluster in each state, scale by scale, for hard labels.
+
+    ``counts[q, l, c, s]`` is the number of cells of the items of the scale ``c`` in the
+    co-cluster ``(q, l)`` in the state ``s``. It is the sufficient statistic of every
+    block model when items have their own scales; with one scale it is
+    :func:`count_states` with an axis of length 1.
+
+    Args:
+        states: Indicator of the state of each cell, of shape (M, P, S).
+        rows: Label of each row, of shape (M,), in ``0..Q-1``.
+        cols: Label of each column, of shape (P,), in ``0..L-1``.
+        shape: ``(Q, L)``.
+        scale_index: The scale of each column, of shape (P,), in ``0..C-1``.
+        n_scales: ``C``.
+        voter_weights: Optional multiplicative weight of each row.
+
+    Returns:
+        An array of shape (Q, L, C, S).
+    """
+    n_groups, n_blocks = shape
+    counts: FloatArray = np.zeros((n_groups, n_blocks, n_scales, states.shape[-1]))
+    for scale, columns in enumerate(columns_by_scale(scale_index, n_scales)):
+        if columns is None:
+            counts[:, :, scale, :] = count_states(
+                states, rows, cols, shape, voter_weights=voter_weights
+            )
+        else:
+            counts[:, :, scale, :] = count_states(
+                states[:, columns, :], rows, cols[columns], shape, voter_weights=voter_weights
+            )
     return counts
 
 

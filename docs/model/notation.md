@@ -20,7 +20,11 @@ Each symbol is followed by the name the code gives it, as a link to the referenc
 | $M$ | Number of voters | First entry of {py:attr}`~civiqhub_selene.blocks.VoteMatrix.shape` | |
 | $P$ | Number of items | Second entry of {py:attr}`~civiqhub_selene.blocks.VoteMatrix.shape` | |
 | $i$, $j$ | A voter, from $1$ to $M$; an item, from $1$ to $P$ | Rows of {py:attr}`~civiqhub_selene.blocks.VoteMatrix.voters`, columns of {py:attr}`~civiqhub_selene.blocks.VoteMatrix.items` | |
-| $K$ | Number of levels of the scale: the scores, in order | {py:attr}`~civiqhub_selene.blocks.OrdinalScale.n_levels` | |
+| $K$ | Number of levels of the scale: the scores, in order; with several scales, the levels of the longest one | {py:attr}`~civiqhub_selene.blocks.OrdinalScale.n_levels`, {py:attr}`~civiqhub_selene.blocks.VoteMatrix.n_levels` | |
+| $\mathcal{G}$ | The scales of the items, one for each distinct set of scores; a single scale when every item has the same | {py:attr}`~civiqhub_selene.blocks.ItemScales.scales`, {py:attr}`~civiqhub_selene.blocks.VoteMatrix.scales` | |
+| $g$ | A scale of $\mathcal{G}$ | | |
+| $g_j$ | The scale of the item $j$ | {py:attr}`~civiqhub_selene.blocks.ItemScales.scale_index`, {py:meth}`~civiqhub_selene.blocks.VoteMatrix.scale_of` | $(P,)$ |
+| $K_g$ | Number of levels of the scale $g$ | {py:attr}`~civiqhub_selene.blocks.ItemScales.levels_by_item`, item by item | |
 | $k$ | A level, from $1$ to $K$ | | |
 | $\Omega$ | The set of shown cells $(i, j)$: the item $j$ was shown to the voter $i$ | {py:attr}`~civiqhub_selene.blocks.VoteMatrix.shown` | $(M, P)$ |
 | $s$ | A state of a shown cell: $0$ for shown without a vote, $k$ for a vote at level $k$ | | |
@@ -40,6 +44,7 @@ A cell has three states that the notation keeps apart: not shown ($(i, j) \notin
 | $R_i$ | The group of the voter $i$, when each voter belongs to one group | {py:attr}`~civiqhub_selene.blocks.results.Coclustering.group_index` | $(M,)$ |
 | $C_j$ | The block of the item $j$, when each item belongs to one block | {py:attr}`~civiqhub_selene.blocks.results.Coclustering.block_index` | $(P,)$ |
 | $N_{qls}$ | Count of the co-cluster $(q, l)$ in the state $s$: the shown cells of its voters and items in that state, each weighted by $w_i$; an expected, fractional count in the mixed-membership model | {py:meth}`~civiqhub_selene.blocks.GroupedVotes.counts` (without weights); `_numerics.count_states` (internal) | $(Q, L, K + 1)$ |
+| $N_{qlgs}$ | The same count, on the items of the scale $g$ only; with one scale, $N_{qls}$ | {py:meth}`~civiqhub_selene.blocks.GroupedVotes.counts_by_scale` (without weights); `_numerics.count_states_by_scale` (internal) | $(Q, L, \lvert\mathcal{G}\rvert, K + 1)$ |
 | $A_{iq}$ | Score of the voter $i$ for the group $q$, the blocks being fixed, in the latent block model | `single._voter_scores` (internal) | $(M, Q)$ |
 | $B_{jl}$ | Score of the item $j$ for the block $l$, the groups being fixed, in the latent block model | `single._item_scores` (internal) | $(P, L)$ |
 | $\pi_q$ | Share of the voters in the group $q$ | `group_shares` of `single._HardState` (internal) | $(Q,)$ |

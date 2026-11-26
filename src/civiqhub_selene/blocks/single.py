@@ -143,8 +143,9 @@ class LatentBlockModel(BlockModel[_HardState, SingleCoclustering]):
 
     Using that same penalty on the weighted objective is a Hypothesis: a weighted ICL
     is not a settled model-selection criterion. A shown cell of item ``j`` has
-    ``K_j + 1`` modalities; this estimator currently reads one shared scale of ``K``
-    scores. Distinct observation scales per item are SEL-8.2 (ItemScales).
+    ``K_j + 1`` modalities; this estimator reads one scale of ``K`` scores, shared by
+    every item. A matrix whose items use several scales gets an absence of value,
+    ``UNSUPPORTED_INPUT``, until the response models give each scale its grid (SEL-8.3).
 
     The memberships of the value are soft readings of the final arrangement: the
     scores of each voter for each group, turned into shares that sum to 1.
