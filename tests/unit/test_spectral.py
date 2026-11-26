@@ -9,10 +9,11 @@ pytest.importorskip("numpy")
 
 import numpy as np
 
-from civiqhub_selene.blocks import Partition, VoteMatrix
+from civiqhub_selene.blocks import OrdinalScale, Partition, VoteMatrix
 from civiqhub_selene.blocks.spectral import (
     ENCODINGS,
     SpectralEmbedding,
+    _aligned_states,
     _cluster_rows,
     _fill_empty,
     _laplacian,
@@ -269,3 +270,25 @@ def test_an_embedding_with_inconsistent_arrays_is_refused() -> None:
             voter_singular_values=np.ones(1),
             item_singular_values=np.ones(1),
         )
+
+
+def test_votes_on_several_scales_are_placed_on_one_axis() -> None:
+    yes_no, four = OrdinalScale((0, 1)), OrdinalScale((1, 2, 3, 4))
+    votes = VoteMatrix.from_responses(
+        [[1, 4], [0, 1], [None, 3]], item_scales={"q1": yes_no, "q2": four}
+    )
+    aligned = _aligned_states(votes)
+    assert aligned.shape == (3, 2, 5)
+    # "yes" covers the upper half of the axis: half on each of the two top bins of four.
+    assert aligned[0, 0].tolist() == [0, 0, 0, 0.5, 0.5]
+    assert aligned[1, 0].tolist() == [0, 0.5, 0.5, 0, 0]
+    assert aligned[2, 0].tolist() == [1, 0, 0, 0, 0]
+    assert aligned[0, 1].tolist() == [0, 0, 0, 0, 1]
+    # Each shown cell still weighs one.
+    assert aligned.sum(axis=-1).tolist() == [[1.0, 1.0], [1.0, 1.0], [1.0, 1.0]]
+    one_scale = VoteMatrix.from_responses([[1, 4]], item_scales={"a": four, "b": four})
+    assert _aligned_states(one_scale) is one_scale._states()
+    embedding = spectral_embedding(votes, n_voter_components=1, n_item_components=1)
+    assert embedding.voter_vectors.shape == (3, 1)
+    scores = spectral_embedding(votes, n_voter_components=1, n_item_components=1, encoding="scores")
+    assert np.isfinite(scores.voter_vectors).all()

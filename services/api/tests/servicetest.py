@@ -95,15 +95,17 @@ class FakeRunner:
 
     async def describe(self, *, timeout: float) -> dict[str, Any]:
         from civiqhub_selene import __version__
+        from selene_api.adapters import ADAPTERS
 
         return {
             "engine_version": __version__,
             "kinds": [
                 {
-                    "kind": "coclustering.single",
-                    "schema_version": 1,
+                    "kind": kind,
+                    "schema_version": version,
                     "method": {"name": "latent_block_model", "version": "fake"},
                 }
+                for kind, version in sorted(ADAPTERS)
             ],
         }
 

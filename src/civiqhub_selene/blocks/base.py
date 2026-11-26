@@ -86,6 +86,10 @@ class CoclusteringEstimator(Estimator[VoteMatrix, ValueT_co]):
         meaning: One sentence in plain words, for example "each voter belongs to one
             group".
         default_criterion: Key of the criterion that chooses its shape by default.
+        accepts_several_scales: Whether the estimator reads a matrix whose items use
+            several scales. Defaults to ``False``: an estimator that does not say so
+            answers such a matrix with an absence of value, ``UNSUPPORTED_INPUT``, and
+            never reads the levels of two scales as the same answers.
 
     Instance attributes a concrete subclass carries:
 
@@ -98,6 +102,7 @@ class CoclusteringEstimator(Estimator[VoteMatrix, ValueT_co]):
     membership: ClassVar[str]
     meaning: ClassVar[str]
     default_criterion: ClassVar[str]
+    accepts_several_scales: ClassVar[bool] = False
 
     n_groups: int
     n_blocks: int
@@ -107,6 +112,13 @@ class CoclusteringEstimator(Estimator[VoteMatrix, ValueT_co]):
         """Return the same estimator at another shape."""
 
     def _why_unavailable(self, votes: VoteMatrix) -> Unavailable | None:
+        n_scales = votes.item_scales.n_scales
+        if n_scales > 1 and not self.accepts_several_scales:
+            return Unavailable(
+                UnavailableReason.UNSUPPORTED_INPUT,
+                f"{type(self).__name__} reads items on one scale; the items of this matrix "
+                f"use {n_scales} scales",
+            )
         return availability(votes, self.n_groups, self.n_blocks)
 
 

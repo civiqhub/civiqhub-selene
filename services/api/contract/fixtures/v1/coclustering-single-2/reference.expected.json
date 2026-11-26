@@ -1,0 +1,133 @@
+{
+  "description": "TEST ONLY. Synthetic reference computed locally with the engine. A service computation of the same submission with the same engine wheel reproduces it: identical partitions, numbers within the tolerance.",
+  "content_fingerprint": "sha256:d05756e9a56448cec00529bb56d294323c968522dae1c3004575a469b6c156db",
+  "method": {
+    "name": "latent_block_model",
+    "version": "0.1.0",
+    "reference": "Govaert and Nadif 2003; Corneli, Bouveyron, Latouche 2020"
+  },
+  "input_fingerprint": "ea50831aec0e0783",
+  "computation": "33d14aa5d8c69d85",
+  "available": true,
+  "tolerance": {
+    "relative": 1e-06,
+    "absolute": 1e-09
+  },
+  "expected": {
+    "group_index": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "block_index": [
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "objective": -83.91074158431547,
+    "integrated_likelihood": -113.88045891084262,
+    "group_memberships": [
+      [
+        5.474055456582521e-38,
+        1.0
+      ],
+      [
+        3.557007751953689e-27,
+        1.0
+      ],
+      [
+        8.099472654974704e-22,
+        1.0
+      ],
+      [
+        2.9525412961887548e-33,
+        1.0
+      ],
+      [
+        1.558676467300913e-28,
+        1.0
+      ],
+      [
+        6.348639760182304e-32,
+        1.0
+      ],
+      [
+        1.0,
+        1.2789314240756203e-54
+      ],
+      [
+        1.0,
+        1.4171296572407846e-37
+      ],
+      [
+        1.0,
+        4.43956254968933e-36
+      ],
+      [
+        1.0,
+        4.827873094819807e-47
+      ],
+      [
+        1.0,
+        1.359928962794352e-47
+      ],
+      [
+        1.0,
+        6.397072283776971e-45
+      ]
+    ],
+    "block_memberships": [
+      [
+        1.201011045289139e-29,
+        1.0
+      ],
+      [
+        7.599030111043756e-70,
+        1.0
+      ],
+      [
+        5.679867435596215e-98,
+        1.0
+      ],
+      [
+        1.080186065237458e-28,
+        1.0
+      ],
+      [
+        1.0,
+        6.517984739672731e-25
+      ],
+      [
+        1.0,
+        2.5565160149443694e-23
+      ],
+      [
+        0.9999999999999485,
+        5.150337918382563e-14
+      ],
+      [
+        1.0,
+        2.5125252356631973e-24
+      ],
+      [
+        1.0,
+        1.735120911176134e-28
+      ]
+    ]
+  }
+}

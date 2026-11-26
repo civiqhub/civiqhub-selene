@@ -86,6 +86,7 @@ A result describes a group and decides nothing. Every result carries its value o
 
 Accueil <self>
 Premiers pas <getting-started>
+Échelles par proposition <scales>
 Plan de la bibliothèque <library-map>
 Architecture <architecture>
 Exemples <examples>

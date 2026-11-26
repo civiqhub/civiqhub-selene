@@ -19,6 +19,8 @@ A co-clustering result is a description of a collective: groups of voters, block
 
 These are the parameters of the response model at the end of the estimation ([The response models](response-models.md)): a description of how the group answers the block, not a test of a difference between groups.
 
+When the items use several scales, the co-cluster keeps one vote rate and one opinion, and its distribution of votes is given scale by scale: {py:attr}`~civiqhub_selene.blocks.CoclusterTable.vote_shares_by_scale` holds $p_{qlg1}, \dots, p_{qlgK_g}$ for each scale $g$, and {py:attr}`~civiqhub_selene.blocks.CoclusterTable.thresholds` the grid of each scale under the ordinal probit, whose $\mu_{ql}$ and $\sigma_{ql}$ then read on the unit axis by default. {py:attr}`~civiqhub_selene.blocks.CoclusterTable.has_fixed_spread` marks the co-clusters whose spread was held, their votes all being on scales of two levels. The readings of one scale, such as {py:attr}`~civiqhub_selene.blocks.CoclusterTable.vote_shares`, refuse a table of several. The agreement between two groups below averages the distance of their votes over the scales of each block.
+
 ### Memberships and main groups
 
 {py:attr}`~civiqhub_selene.blocks.results.Coclustering.group_index` gives each voter its main group, the largest of its memberships {py:attr}`~civiqhub_selene.blocks.results.Coclustering.group_memberships`; likewise for the items. The memberships mean different things in the two models:
