@@ -56,6 +56,8 @@ class IterativeEstimator(
     A step must not lower the objective. A start stops as soon as its gain of
     objective goes under ``tolerance``, or after ``max_iterations`` steps.
 
+    See the mathematical model: :doc:`/model/estimation`.
+
     Fields a concrete subclass declares:
 
     Attributes:

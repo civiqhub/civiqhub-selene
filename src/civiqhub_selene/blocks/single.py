@@ -137,23 +137,23 @@ class LatentBlockModel(BlockModel[_HardState, SingleCoclustering]):
     group ``R[i]`` and the item ``j`` a block ``C[j]``. Given the arrangement, the
     shown cells are independent, and the state ``s`` of the cell ``(i, j)`` (shown
     without a vote, or a vote at one rank) follows the response model of its
-    co-cluster, with probability ``p[R[i], C[j], s]``. Groups have shares
-    ``group_shares`` and blocks have shares ``block_shares``. A cell that is not shown
-    carries no information and enters nowhere.
+    co-cluster, with probability ``F[R[i], C[j], s]``. Groups have shares ``pi[q]``
+    and blocks have shares ``rho[l]``. A cell that is not shown carries no
+    information and enters nowhere.
 
     The model is estimated by classification expectation-maximisation: it maximises
     the classified log-likelihood, where ``S`` is the indicator of the state of each
     shown cell::
 
-        objective = sum_ij sum_s S[i, j, s] * log p[R[i], C[j], s]
-                    + sum_i log group_shares[R[i]] + sum_j log block_shares[C[j]]
+        objective = sum_ij sum_s S[i, j, s] * log F[R[i], C[j], s]
+                    + sum_i log pi[R[i]] + sum_j log rho[C[j]]
 
     With optional mean-one survey weights ``w[i]``, this becomes the weighted
     pseudo-likelihood of Skinner (1989) and Pfeffermann (1993)::
 
-        objective = sum_i w[i] * (sum_j sum_s S[i, j, s] * log p[R[i], C[j], s]
-                                  + log group_shares[R[i]])
-                    + sum_j log block_shares[C[j]]
+        objective = sum_i w[i] * (sum_j sum_s S[i, j, s] * log F[R[i], C[j], s]
+                                  + log pi[R[i]])
+                    + sum_j log rho[C[j]]
 
     When every weight is 1 this is the unweighted objective. The block-share term is
     not multiplied by ``w[i]``: with a single block it is zero, and the response
@@ -174,10 +174,21 @@ class LatentBlockModel(BlockModel[_HardState, SingleCoclustering]):
                                 - 0.5 * (Q - 1) * log(M) - 0.5 * (L - 1) * log(P)
 
     Using that same penalty on the weighted objective is a Hypothesis: a weighted ICL
-    is not a settled model-selection criterion. A shown cell of item ``j`` has
-    ``K_j + 1`` modalities; this estimator reads one scale of ``K`` scores, shared by
-    every item. A matrix whose items use several scales gets an absence of value,
-    ``UNSUPPORTED_INPUT``, until the response models give each scale its grid (SEL-8.3).
+    is not a settled model-selection criterion.
+
+    Items on several scales. The model reads a matrix whose items use several scales
+    (``accepts_several_scales`` is true). A shown cell of the item ``j`` has
+    ``K_g + 1`` states, ``g = g_j`` the scale of the item, and its probability under
+    the co-cluster ``(q, l)`` is ``F[q, l, g_j, s]``, which the response model gives
+    scale by scale (``log_probabilities_by_scale``). Each iteration counts the cells
+    scale by scale, ``N[q, l, g, s]``, and every cell reads the table of the scale of
+    its item, in the scores of the voters and of the items and in the objective::
+
+        objective = sum_ij sum_s S[i, j, s] * log F[R[i], C[j], g_j, s]
+                    + sum_i log pi[R[i]] + sum_j log rho[C[j]]
+
+    With one scale, ``F[q, l, g_j, s]`` is ``F[q, l, s]`` and this is the objective
+    above.
 
     The memberships of the value are soft readings of the final arrangement: the
     scores of each voter for each group, turned into shares that sum to 1.
@@ -188,6 +199,12 @@ class LatentBlockModel(BlockModel[_HardState, SingleCoclustering]):
     Transactions on Pattern Analysis and Machine Intelligence 22(7); Corneli,
     Bouveyron and Latouche (2020) for the ordinal response model; Skinner (1989)
     and Pfeffermann (1993) for the weighted pseudo-likelihood.
+
+    See the mathematical model: :doc:`/model/latent-block-model`, equations
+    :eq:`eq-lbm-objective` to :eq:`eq-lbm-memberships`; :doc:`/model/choosing-the-shape`,
+    equation :eq:`eq-shape-icl`; :doc:`/model/response-models`, equations
+    :eq:`eq-response-probit-by-scale` and :eq:`eq-response-opinion-by-scale`, for the
+    items on several scales.
 
     The settings are those of :class:`~civiqhub_selene.blocks.base.BlockModel`.
     """

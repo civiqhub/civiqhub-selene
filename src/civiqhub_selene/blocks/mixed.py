@@ -31,7 +31,10 @@ from civiqhub_selene.errors import InvalidParameterError
 __all__ = ["MAX_PROFILES", "MixedMembershipBlockModel"]
 
 MAX_PROFILES = 4096
-"""Largest number of profiles ``n_groups ** n_blocks`` the exact expectation enumerates."""
+"""Largest number of profiles ``n_groups ** n_blocks`` the exact expectation enumerates.
+
+See the mathematical model: :doc:`/model/complexity`.
+"""
 
 _MIN_PROBABILITY = 1e-300
 # Cells read at once by the expectation step: voters x items x profiles.
@@ -125,20 +128,22 @@ def _expect(
 ) -> _Expectation:
     """The exact expectation step over the profiles.
 
-    With ``F[q, l, c, s]`` the probability of the state ``s`` of a cell of an item of the
-    scale ``c`` in the co-cluster ``(q, l)``, and ``den[i, j, p] = sum_l
-    item_memberships[j, l] * F[p_l, l, c_j, s_ij]`` the probability of the cell
-    ``(i, j)`` under the profile ``p``, ``c_j`` the scale of the item ``j``, the
-    posterior of a profile is proportional to ``prod_l voter_memberships[i, p_l] *
-    prod_j den[i, j, p]`` over the shown cells, and the cell takes the block ``l`` with
-    the probability ``item_memberships[j, l] * F[p_l, l, c_j, s_ij] / den[i, j, p]``
-    under that profile. Voter weights multiply contributions to the shared counts and
-    likelihood.
+    With ``F[q, l, g, s]`` the probability of the state ``s`` of a cell of an item of the
+    scale ``g`` in the co-cluster ``(q, l)``, ``g_j`` the scale of the item ``j``, and
+    ``G[i, j, c] = sum_l item_memberships[j, l] * F[c_l, l, g_j, s_ij]`` the
+    probability of the cell ``(i, j)`` under the profile ``c``, whose role on the block
+    ``l`` is ``c_l``, the posterior ``eta[i, c]`` of a profile is proportional to
+    ``prod_l voter_memberships[i, c_l] * prod_j G[i, j, c]`` over the shown cells, and
+    the cell takes the block ``l`` with the probability
+    ``item_memberships[j, l] * F[c_l, l, g_j, s_ij] / G[i, j, c]`` under that profile.
+    Voter weights multiply contributions to the shared counts and likelihood. The
+    letters are those of the mathematical model: :doc:`/model/mixed-membership`.
 
-    ``logs`` has the shape (Q, L, C, S), with ``scale_index`` the scale of each item;
-    probabilities of one scale may come without the axis of scales, (Q, L, S), and the
-    counts then come back without it too. The items of each scale are read on the
-    table of their scale, one scale at a time; the voters are read by chunks.
+    ``logs`` has the shape (Q, L, G, S), G the number of scales, with ``scale_index``
+    the scale of each item; probabilities of one scale may come without the axis of
+    scales, (Q, L, S), and the counts then come back without it too. The items of
+    each scale are read on the table of their scale, one scale at a time; the voters
+    are read by chunks.
     """
     one_scale_input = logs.ndim == 3
     by_scale = logs[:, :, np.newaxis, :] if one_scale_input else logs
@@ -245,11 +250,12 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
     The value reports this weighted ``log_likelihood``. The co-cluster counts on the
     value stay the raw, unweighted number of survey rows.
 
-    Items on several scales. A shown cell of item ``j`` has ``K_j + 1`` modalities, on
-    the scale ``c_j`` of the item, and its probability under the co-cluster ``(q, l)``
-    is ``F[q, l, c_j, s]``, which the response model gives scale by scale (see
-    :class:`~civiqhub_selene.blocks.responses.OrdinalProbit`); everything else is
-    unchanged, and the expected counts are kept by scale.
+    Items on several scales. A shown cell of the item ``j`` has ``K_g + 1`` states,
+    ``g = g_j`` the scale of the item, and its probability under the co-cluster
+    ``(q, l)`` is ``F[q, l, g_j, s]``, which the response model gives scale by scale
+    (see :class:`~civiqhub_selene.blocks.responses.OrdinalProbit`): ``F[c_l, l, s_ij]``
+    above becomes ``F[c_l, l, g_j, s_ij]``. Everything else is unchanged, and the
+    expected counts are kept by scale. The letter ``c`` names a profile, ``g`` a scale.
 
     The model is estimated by expectation-maximisation, regularised by symmetric
     Dirichlet priors on the memberships, of concentrations ``voter_concentration``
@@ -262,12 +268,14 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
     weighted by voter; the prior on ``phi`` is not.
 
     The expectation step is exact: it enumerates the profiles and gives the posterior
-    probability of each profile of each voter, the probability of each role on each
-    block, and the expected number of cells of each co-cluster in each state. The
+    probability ``eta[i, c]`` of each profile of each voter, the probability
+    ``kappa[i, l, q]`` that the voter follows the group ``q`` on the block ``l``, the
+    expected number ``H[j, l]`` of shown cells of the item ``j`` that take the block
+    ``l``, and the expected number of cells of each co-cluster in each state. The
     maximisation step then sets::
 
-        theta[i, q] proportional to  sum_l P(role on block l = q) + alpha - 1
-        phi[j, l]   proportional to  expected cells of item j in block l + beta - 1
+        theta[i, q] proportional to  sum_l kappa[i, l, q] + alpha - 1
+        phi[j, l]   proportional to  H[j, l] + beta - 1
 
     and updates the response model from the expected counts, which are fractional.
     The objective never decreases when the response model updates by maximum
@@ -297,6 +305,9 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
     Pfeffermann (1993) for the weighted pseudo-likelihood. The role per block and the
     exact expectation over the profiles follow the reference engine of the CiviqHub
     explainer "LBM and MM-OLBM step by step".
+
+    See the mathematical model: :doc:`/model/mixed-membership`, equations
+    :eq:`eq-mm-cell` to :eq:`eq-mm-mstep`.
 
     Attributes:
         voter_concentration: The concentration alpha of the Dirichlet prior on the
