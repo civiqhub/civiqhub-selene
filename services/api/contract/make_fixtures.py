@@ -36,7 +36,7 @@ from civiqhub_selene.blocks import (
     SpectralStart,
     VoteMatrix,
 )
-from civiqhub_selene.blocks.responses import Categorical, OrdinalProbit
+from civiqhub_selene.blocks.responses import Categorical, OrdinalProbit, Thresholds
 from selene_contract import canonical_value
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -75,6 +75,44 @@ PLANTED_GROUPS = (0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1)
 PLANTED_BLOCKS = (0, 0, 0, 1, 1, 1)
 SEED = 20261125
 
+# Payload schema 2: a planted survey whose items use three scales. Questions of two
+# answers (0 no, 1 yes), of four (1 to 4) and of five (-2 to +2) alternate. Group A agrees
+# with block X (q1 to q4) and disagrees with block Y (q5 to q9); group B does the opposite.
+RESULT_SCHEMA_V2 = "selene.coclustering.single.result/2"
+SURVEY_SCALES = (
+    ("yes-no", (0, 1)),
+    ("agree-4", (1, 2, 3, 4)),
+    ("agree-5", (-2, -1, 0, 1, 2)),
+)
+SURVEY_ITEMS = (
+    ("q1", "yes-no"),
+    ("q2", "agree-4"),
+    ("q3", "agree-5"),
+    ("q4", "yes-no"),
+    ("q5", "agree-4"),
+    ("q6", "agree-5"),
+    ("q7", "yes-no"),
+    ("q8", "agree-4"),
+    ("q9", "agree-5"),
+)
+SURVEY_TABLE = (
+    ("vtr-01", (1, 4, 2, 1, 1, -2, 0, 1, -2)),
+    ("vtr-02", (1, 3, 2, "A", 2, -1, 0, 1, -2)),
+    ("vtr-03", (1, 4, 1, 1, 1, "-", 0, 2, -1)),
+    ("vtr-04", ("A", 4, 2, 1, 1, -2, 0, 1, -1)),
+    ("vtr-05", (1, "-", 2, 1, 2, -2, "A", 1, -2)),
+    ("vtr-06", (1, 4, 2, 0, 1, -1, 0, 1, -2)),
+    ("vtr-07", (0, 1, -2, 0, 4, 2, 1, 4, 2)),
+    ("vtr-08", (0, 2, -1, "A", 4, 2, 1, 3, 1)),
+    ("vtr-09", (0, 1, -2, 0, 3, "-", 1, 4, 2)),
+    ("vtr-10", ("A", 1, -2, 0, 4, 1, 1, 4, 2)),
+    ("vtr-11", (0, "-", -1, 0, 4, 2, "A", 4, 2)),
+    ("vtr-12", (1, 1, -2, 0, 4, 2, 1, 3, 2)),
+)
+SURVEY_PLANTED_GROUPS = (0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1)
+SURVEY_PLANTED_BLOCKS = (0, 0, 0, 0, 1, 1, 1, 1, 1)
+SURVEY_SEED = 20261126
+
 
 def contract_version() -> str:
     """Return ``info.version`` of openapi.yaml."""
@@ -82,11 +120,20 @@ def contract_version() -> str:
     return version
 
 
-def contract_defaults() -> dict[str, Any]:
-    """Return the parameter defaults that openapi.yaml declares."""
+def contract_defaults(schema_version: int = 1) -> dict[str, Any]:
+    """Return the parameter defaults that openapi.yaml declares for a payload schema."""
     document = yaml.safe_load(CONTRACT.read_text(encoding="utf-8"))
-    properties = document["components"]["schemas"]["CoclusteringSingleV1Parameters"]["properties"]
-    return {name: spec["default"] for name, spec in properties.items()}
+    name = f"CoclusteringSingleV{schema_version}Parameters"
+    properties = document["components"]["schemas"][name]["properties"]
+    defaults: dict[str, Any] = {}
+    for setting, spec in properties.items():
+        if "default" in spec:
+            defaults[setting] = spec["default"]
+        else:
+            defaults[setting] = {
+                inner: inner_spec["default"] for inner, inner_spec in spec["properties"].items()
+            }
+    return defaults
 
 
 def reference_submission() -> dict[str, Any]:
@@ -146,7 +193,18 @@ def normalised(submission: dict[str, Any]) -> dict[str, Any]:
     reference are not content.
     """
     payload = copy.deepcopy(submission["payload"])
-    payload["parameters"] = {**contract_defaults(), **payload.get("parameters", {})}
+    version = submission["schema_version"]
+    parameters = {**contract_defaults(version), **payload.get("parameters", {})}
+    if version == 2:
+        parameters["thresholds"] = {
+            **contract_defaults(2)["thresholds"],
+            **payload.get("parameters", {}).get("thresholds", {}),
+        }
+        declared = {scale["id"]: scale["scores"] for scale in payload["scales"]}
+        used = list(dict.fromkeys(item["scale"] for item in payload["items"]))
+        payload["scales"] = [{"id": scale, "scores": declared[scale]} for scale in used]
+    parameters["tolerance"] = float(parameters["tolerance"])
+    payload["parameters"] = parameters
     payload["votes"] = sorted(payload["votes"])
     if payload["exposure"]["mode"] == "listed":
         payload["exposure"]["shown_without_vote"] = sorted(
@@ -184,19 +242,36 @@ def engine_estimate(submission: dict[str, Any]) -> Any:
         shown = [(voters[row], items[column]) for row, column in exposure["shown_without_vote"]]
     else:
         raise ValueError(f"exposure {exposure['mode']!r} has no local computation")
-    votes = VoteMatrix.from_records(
-        records, shown=shown, voters=voters, items=items, scale=OrdinalScale(PRODUCT_SCORES)
-    )
     parameters = payload["parameters"]
+    response_model: Any = {"ordinal_probit": OrdinalProbit, "categorical": Categorical}[
+        parameters["response_model"]
+    ]()
+    if submission["schema_version"] == 2:
+        scales = {scale["id"]: OrdinalScale(tuple(scale["scores"])) for scale in payload["scales"]}
+        votes = VoteMatrix.from_records(
+            records,
+            shown=shown,
+            voters=voters,
+            items=items,
+            item_scales={item["id"]: scales[item["scale"]] for item in payload["items"]},
+        )
+        thresholds = parameters["thresholds"]
+        if parameters["response_model"] == "ordinal_probit" and thresholds != {
+            "axis": "auto",
+            "mode": "fixed",
+        }:
+            response_model = OrdinalProbit(thresholds=Thresholds(**thresholds))
+    else:
+        votes = VoteMatrix.from_records(
+            records, shown=shown, voters=voters, items=items, scale=OrdinalScale(PRODUCT_SCORES)
+        )
     model = LatentBlockModel(
         n_groups=parameters["n_groups"],
         n_blocks=parameters["n_blocks"],
         n_starts=parameters["n_starts"],
         max_iterations=parameters["max_iterations"],
         tolerance=parameters["tolerance"],
-        response_model={"ordinal_probit": OrdinalProbit, "categorical": Categorical}[
-            parameters["response_model"]
-        ](),
+        response_model=response_model,
         initialization={"random": RandomStart, "spectral": SpectralStart}[
             parameters["initialization"]
         ](),
@@ -259,9 +334,174 @@ def result_document(result: Any) -> dict[str, Any]:
     return document
 
 
+def result_document_v2(result: Any, submission: dict[str, Any]) -> dict[str, Any]:
+    """Return the engine result in the shape of CoclusteringSingleV2Result.
+
+    Written here from the engine value, apart from the adapter of the service, so that
+    the fixture checks the adapter rather than copies it.
+    """
+    data = result.to_dict()
+    provenance = data["provenance"]
+    document: dict[str, Any] = {
+        "schema": RESULT_SCHEMA_V2,
+        "available": data["available"],
+        "provenance": {
+            name: provenance[name]
+            for name in (
+                "method",
+                "engine_version",
+                "parameters",
+                "input_fingerprint",
+                "randomness",
+                "dependencies",
+                "fingerprint",
+            )
+        },
+    }
+    if not data["available"]:
+        document["unavailable"] = data["unavailable"]
+        return document
+    value = data["value"]
+    table = value["coclusters"]
+    identifiers = {tuple(scale["scores"]): scale["id"] for scale in submission["payload"]["scales"]}
+    if "scales" in value:
+        scores = [tuple(one) for one in value["scales"]]
+        scale_index = value["scale_index"]
+        shares = table["vote_shares_by_scale"]
+    else:
+        scores = [tuple(value["scores"])]
+        scale_index = [0] * len(value["items"])
+        shares = [table["vote_shares"]]
+    coclusters = {
+        name: table[name]
+        for name in (
+            "vote_rate",
+            "n_votes",
+            "latent_mean",
+            "latent_spread",
+            "thresholds",
+            "has_fixed_spread",
+        )
+        if name in table
+    }
+    coclusters["vote_shares_by_scale"] = shares
+    names = (
+        "voters",
+        "items",
+        "group_index",
+        "block_index",
+        "group_memberships",
+        "block_memberships",
+        "objective",
+        "integrated_likelihood",
+        "history",
+        "computation",
+    )
+    document["value"] = {
+        **{name: value[name] for name in names},
+        "scales": [{"id": identifiers[one], "scores": list(one)} for one in scores],
+        "scale_index": scale_index,
+        "coclusters": coclusters,
+    }
+    return document
+
+
+def survey_submission() -> dict[str, Any]:
+    """Return the reference submission of payload schema 2: items on three scales."""
+    votes: list[list[int]] = []
+    shown_without_vote: list[list[int]] = []
+    for row, (_voter, cells) in enumerate(SURVEY_TABLE):
+        for column, cell in enumerate(cells):
+            if cell == "A":
+                shown_without_vote.append([row, column])
+            elif isinstance(cell, int):
+                votes.append([row, column, cell])
+    return {
+        "kind": KIND,
+        "schema_version": 2,
+        "submission_key": "test-only:survey:0001",
+        "caller_reference": "test-only/survey-1",
+        "payload": {
+            "scope": {"project": "prj-test-only"},
+            "scales": [{"id": scale, "scores": list(scores)} for scale, scores in SURVEY_SCALES],
+            "voters": [voter for voter, _cells in SURVEY_TABLE],
+            "items": [
+                {"id": item, "revision": f"{item}-rev-1", "scale": scale}
+                for item, scale in SURVEY_ITEMS
+            ],
+            "votes": votes,
+            "exposure": {"mode": "listed", "shown_without_vote": shown_without_vote},
+            "parameters": {"n_groups": 2, "n_blocks": 2, "initialization": "spectral"},
+            "seed": SURVEY_SEED,
+        },
+    }
+
+
+def invalid_survey_submissions(base: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Return the negative submissions proper to payload schema 2."""
+
+    def variant(change: Any) -> dict[str, Any]:
+        body = copy.deepcopy(base)
+        change(body)
+        return body
+
+    def unknown_scale(body: dict[str, Any]) -> None:
+        body["payload"]["items"][0]["scale"] = "agree-7"
+
+    def repeated_scale_id(body: dict[str, Any]) -> None:
+        body["payload"]["scales"][1]["id"] = body["payload"]["scales"][0]["id"]
+
+    def repeated_scores(body: dict[str, Any]) -> None:
+        body["payload"]["scales"].append({"id": "yes-no-again", "scores": [0, 1]})
+
+    def unused_scale(body: dict[str, Any]) -> None:
+        body["payload"]["scales"].append({"id": "agree-7", "scores": [1, 2, 3, 4, 5, 6, 7]})
+
+    def off_its_scale(body: dict[str, Any]) -> None:
+        # A score of the scale of five answers, on an item of two.
+        row, column, _score = next(vote for vote in body["payload"]["votes"] if vote[1] == 0)
+        body["payload"]["votes"] = [
+            vote for vote in body["payload"]["votes"] if (vote[0], vote[1]) != (row, column)
+        ] + [[row, column, -2]]
+
+    def scores_not_increasing(body: dict[str, Any]) -> None:
+        body["payload"]["scales"][1]["scores"] = [1, 3, 2, 4]
+
+    def one_score(body: dict[str, Any]) -> None:
+        body["payload"]["scales"][0]["scores"] = [1]
+
+    def unknown_axis(body: dict[str, Any]) -> None:
+        body["payload"]["parameters"]["thresholds"] = {"axis": "log"}
+
+    cases: dict[str, tuple[bool, int, str, Any]] = {
+        # name: (valid against the JSON schema, status, code, change)
+        "unknown-scale": (True, 422, "invalid_request", unknown_scale),
+        "repeated-scale-id": (True, 422, "invalid_request", repeated_scale_id),
+        "repeated-scores": (True, 422, "invalid_request", repeated_scores),
+        "unused-scale": (True, 422, "invalid_request", unused_scale),
+        "score-off-its-scale": (True, 422, "invalid_request", off_its_scale),
+        "scores-not-increasing": (True, 422, "invalid_request", scores_not_increasing),
+        "one-score": (False, 422, "invalid_request", one_score),
+        "unknown-axis": (False, 422, "invalid_request", unknown_axis),
+    }
+    return {
+        name: {
+            "description": f"TEST ONLY. Negative case {name!r} of payload schema 2.",
+            "schema_valid": schema_valid,
+            "expect": {"status": status, "code": code},
+            "body": variant(change),
+        }
+        for name, (schema_valid, status, code, change) in cases.items()
+    }
+
+
 def reference_document(submission: dict[str, Any], result: Any) -> dict[str, Any]:
     """Return what a computation of ``submission`` must reproduce, within ``tolerance``."""
-    document = result_document(result)
+    document = (
+        result_document_v2(result, submission)
+        if submission["schema_version"] == 2
+        else result_document(result)
+    )
     reference: dict[str, Any] = {
         "description": (
             "TEST ONLY. Synthetic reference computed locally with the engine. A service "
@@ -550,6 +790,36 @@ def rendered() -> dict[pathlib.Path, str]:
         put(f"examples/{name}.json", job)
     for name, error in example_errors().items():
         put(f"examples/{name}.json", error)
+
+    survey = survey_submission()
+    survey_result = engine_estimate(survey)
+    survey_value = survey_result.value
+    if not (
+        same_partition(survey_value.group_index.tolist(), SURVEY_PLANTED_GROUPS)
+        and same_partition(survey_value.block_index.tolist(), SURVEY_PLANTED_BLOCKS)
+    ):
+        sys.exit("the engine does not recover the planted groups and blocks of the survey")
+    put("coclustering-single-2/reference.submission.json", survey)
+    put(
+        "coclustering-single-2/reference.expected.json",
+        reference_document(survey, survey_result),
+    )
+    put(
+        "examples/job-succeeded-scales.json",
+        {
+            **example_jobs(reference_document(reference, result), result_document(result))[
+                "job-succeeded"
+            ],
+            "id": "job_TESTONLY0000000000000002",
+            "schema_version": 2,
+            "submission_key": survey["submission_key"],
+            "caller_reference": survey["caller_reference"],
+            "content_fingerprint": content_fingerprint(survey),
+            "result": result_document_v2(survey_result, survey),
+        },
+    )
+    for name, case in invalid_survey_submissions(survey).items():
+        put(f"coclustering-single-2/invalid/{name}.json", case)
     return files
 
 

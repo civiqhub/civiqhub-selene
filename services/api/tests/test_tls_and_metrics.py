@@ -17,6 +17,7 @@ import warnings
 import pytest
 
 import selene_contract
+from selene_api.schemas import CONTRACT_VERSION
 from servicetest import (
     AUTH,
     TOKEN,
@@ -181,7 +182,12 @@ class TestHealthAndMetrics:
             assert metric(text, "selene_compute_slots") == 1
             assert metric(text, "selene_worker_memory_limit_bytes") == 1024**3
             assert (
-                metric(text, "selene_build_info", environment="test-only", contract_version="1.1.0")
+                metric(
+                    text,
+                    "selene_build_info",
+                    environment="test-only",
+                    contract_version=CONTRACT_VERSION,
+                )
                 == 1
             )
             on_application_port = server.client().request("GET", "/metrics")
@@ -197,7 +203,7 @@ class TestHealthAndMetrics:
                 metric(
                     text, "selene_jobs_finished_total", kind=kind, state="succeeded", reason="value"
                 )
-                == 1
+                == 2  # the reference of schema 1 and the survey of schema 2
             )
             assert (
                 metric(
@@ -209,12 +215,13 @@ class TestHealthAndMetrics:
                 )
                 == 1
             )
-            assert metric(text, "selene_submissions_total", kind=kind, outcome="accepted") == 2
+            # The two references and the matrix without votes.
+            assert metric(text, "selene_submissions_total", kind=kind, outcome="accepted") == 3
             assert metric(text, "selene_submissions_total", kind=kind, outcome="replayed") == 2
             assert metric(text, "selene_submissions_total", kind=kind, outcome="conflict") == 1
             assert metric(text, "selene_submissions_total", kind=kind, outcome="refused") >= 15
             assert (
-                metric(text, "selene_job_duration_seconds_count", kind=kind, state="succeeded") == 2
+                metric(text, "selene_job_duration_seconds_count", kind=kind, state="succeeded") == 3
             )
             assert metric(text, "selene_worker_peak_rss_bytes") > 10 * 1024 * 1024
             assert (
