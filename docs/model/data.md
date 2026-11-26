@@ -58,7 +58,7 @@ A co-clustering of $Q$ groups and $L$ blocks exists on a matrix only if the matr
 
 ## The votes of a group on a block
 
-{py:meth}`~civiqhub_selene.blocks.VoteMatrix.group_by` reads the matrix through a partition of the voters and a partition of the items ({py:class}`~civiqhub_selene.blocks.Partition`), from a model or from anywhere else, and returns {py:class}`~civiqhub_selene.blocks.GroupedVotes`. Its {py:meth}`~civiqhub_selene.blocks.GroupedVotes.counts` are the counts {eq}`eq-data-counts` without weights, and {py:meth}`~civiqhub_selene.blocks.GroupedVotes.vote_counts` gives the votes of one co-cluster, $(N_{ql1}, \dots, N_{qlK})$, as the {py:class}`~civiqhub_selene.ordinal.VoteCounts` of the ordinal family, on a scale of five scores.
+{py:meth}`~civiqhub_selene.blocks.VoteMatrix.group_by` reads the matrix through a partition of the voters and a partition of the items ({py:class}`~civiqhub_selene.blocks.Partition`), from a model or from anywhere else, and returns {py:class}`~civiqhub_selene.blocks.GroupedVotes`. Its {py:meth}`~civiqhub_selene.blocks.GroupedVotes.counts` are the counts {eq}`eq-data-counts` without weights, and {py:meth}`~civiqhub_selene.blocks.GroupedVotes.vote_counts` gives the votes of one co-cluster, $(N_{ql1}, \dots, N_{qlK})$, as the {py:class}`~civiqhub_selene.ordinal.VoteCounts` of the ordinal family, on a scale of five scores ([The ordinal family](ordinal.md)).
 
 The matrix below has three voters and four items. Two cells are not shown: the item `i3` to the voter `v2`, and the item `i2` to the voter `v3`, whose level $2$ is kept in the matrix but is not read. Three shown cells carry no vote.
 

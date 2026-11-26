@@ -109,6 +109,7 @@ Cost and numerical safeguards <model/complexity>
 From the API to the formulas <model/api-to-formulas>
 Glossary <model/glossary>
 References <model/references>
+The ordinal family <model/ordinal>
 ```
 
 ```{toctree}

@@ -102,8 +102,8 @@ The memberships, the roles and the posterior of the profiles of a mixed result a
 
 | Name | Symbol | Equations | Section | Code |
 | --- | --- | --- | --- | --- |
-| {py:data}`~civiqhub_selene.ordinal.SCORES` | The five scores, from $-2$ to $+2$: a scale with $K = 5$ | — | [The data: the scale](data.md#the-scale) | `ordinal/counts.py:20` |
-| {py:class}`~civiqhub_selene.ordinal.VoteCounts` | $N_{ql1}, \dots, N_{qlK}$ with $K = 5$, for one co-cluster or one item | The data {eq}`eq-data-counts` | [The data: the votes of a group on a block](data.md#the-votes-of-a-group-on-a-block) | `ordinal/counts.py:34-161` |
+| {py:data}`~civiqhub_selene.ordinal.SCORES` | The five scores, from $-2$ to $+2$: a scale with $K = 5$ | — | [The ordinal family: the five counts](ordinal.md#the-five-counts) | `ordinal/counts.py:20` |
+| {py:class}`~civiqhub_selene.ordinal.VoteCounts` | $N_k$, $n$, $f_k$, $f_{\leq k}$, for one item or one co-cluster | The data {eq}`eq-data-counts`; The ordinal family {eq}`eq-ordinal-shares`, {eq}`eq-ordinal-cumulative` | [The ordinal family](ordinal.md) | `ordinal/counts.py:34-161` |
 
 ## `civiqhub_selene.viz`
 
