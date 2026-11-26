@@ -36,7 +36,7 @@ counting from $0$ as the code does. The items are dealt to the blocks in the sam
 $$
 \mathbf{X}_{i,(j,0)} = S_{ij0}, \qquad
 \mathbf{X}_{i,(j,b)} = \sum_{k=1}^{K_{g_j}} S_{ijk} \; K_{g_j} \, \Big\lvert \Big(\tfrac{k-1}{K_{g_j}}, \tfrac{k}{K_{g_j}}\Big] \cap \Big(\tfrac{b-1}{K}, \tfrac{b}{K}\Big] \Big\rvert,
-$$
+$$ (eq-starts-unit-axis)
 
 where $\lvert \cdot \rvert$ is the length of an interval: the weights of a vote sum to $1$, so that the degree of a voter is still its number of shown cells. Under `"scores"`, the centred level of a vote is stretched to the levels of the longest scale, $\mathbf{X}_{ij} = \big(s_{ij} - (K_{g_j} + 1)/2\big) \, K / K_{g_j}$: $K$ times the distance from $\tfrac{1}{2}$ to the centre of its interval. With one scale, both encodings are those above.
 
@@ -116,7 +116,7 @@ The spectral arrangement agrees with the planted groups for 58 voters out of 60 
 | Spectral start, settings and their defaults | `blocks/starts.py:87-176` |
 | Fixed start, `from_coclustering`, checks | `blocks/starts.py:179-254` |
 | The matrix of each encoding | `_decomposition`, `blocks/spectral.py:327-369` |
-| Votes of several scales on the unit axis, the stretch of `"scores"` | `_aligned_states`, `blocks/spectral.py:372-396`; `_decomposition`, `:349-356` |
+| {eq}`eq-starts-unit-axis`, the stretch of `"scores"` | `_aligned_states`, `blocks/spectral.py:372-396`; `_decomposition`, `:349-356` |
 | {eq}`eq-starts-laplacian` | `_laplacian`, `blocks/spectral.py:399-413`; `_inverse_root`, `:416-420` |
 | Number of components | `n_singular_values`, `blocks/spectral.py:309-321`; `SpectralStart.arrangement`, `blocks/starts.py:151-176` |
 | Projection, leverage, k-means++, Lloyd, empty clusters | `SpectralEmbedding.labels`, `blocks/spectral.py:141-197`; `:432-554` |

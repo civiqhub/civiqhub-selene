@@ -33,7 +33,7 @@ The names imported from `civiqhub_selene.blocks`.
 | {py:class}`~civiqhub_selene.blocks.OrdinalScale` | $K$, and the levels $k = 1, \dots, K$ of the scores | — | [The data: the scale](data.md#the-scale) | `blocks/data.py:45-110` |
 | {py:class}`~civiqhub_selene.blocks.Partition` | $T_{qr}$, $\chi$, $\operatorname{match}$ | Reading the results {eq}`eq-results-match` | [Reading the results: how much two partitions agree](reading-results.md#how-much-two-partitions-agree) | `blocks/partition.py:117-398`; `agreement_with`, `:330-361` |
 | {py:class}`~civiqhub_selene.blocks.RandomStart` | $R_i = \psi(i) \bmod Q$, and likewise $C_j$ | — | [The starts: the random start](initialization.md#the-random-start) | `blocks/starts.py:65-83` |
-| {py:class}`~civiqhub_selene.blocks.SpectralStart` | $\mathbf{X}_\tau$, $\tau$, $\gamma$ | The starts {eq}`eq-starts-laplacian` | [The starts: the spectral start](initialization.md#the-spectral-start) | `blocks/starts.py:86-175` |
+| {py:class}`~civiqhub_selene.blocks.SpectralStart` | $\mathbf{X}_\tau$, $\tau$, $\gamma$ | The starts {eq}`eq-starts-unit-axis`, {eq}`eq-starts-laplacian` | [The starts: the spectral start](initialization.md#the-spectral-start) | `blocks/starts.py:86-175` |
 | {py:class}`~civiqhub_selene.blocks.Vote` | One vote, whose score gives the level $s_{ij}$ | The data {eq}`eq-data-states` | [The data: three states per cell](data.md#three-states-per-cell) | `blocks/data.py:370-375` |
 | {py:class}`~civiqhub_selene.blocks.VoteMatrix` | $M$, $P$, $K$, $s_{ij}$, $\Omega$, $S_{ijs}$, $w_i$ | The data {eq}`eq-data-states` | [The data: three states per cell](data.md#three-states-per-cell) | `blocks/data.py:487-1166`; $S_{ijs}$, `:1120-1144`; $w_i$, `:946-955` |
 | {py:class}`~civiqhub_selene.blocks.VoterCovariates` | — | — | No formula: attributes of the voters, aligned on the matrix, that no model of the engine reads | `blocks/covariates.py:22-86` |
@@ -83,10 +83,10 @@ The memberships, the roles and the posterior of the profiles of a mixed result a
 
 | Name | Symbol | Equations | Section | Code |
 | --- | --- | --- | --- | --- |
-| {py:data}`~civiqhub_selene.blocks.spectral.Encoding` | How the votes are written as $\mathbf{X}$ | — | [The starts: the spectral start](initialization.md#the-spectral-start) | `blocks/spectral.py:41-42` |
+| {py:data}`~civiqhub_selene.blocks.spectral.Encoding` | How the votes are written as $\mathbf{X}$ | The starts {eq}`eq-starts-unit-axis`, with several scales | [The starts: the spectral start](initialization.md#the-spectral-start) | `blocks/spectral.py:41-42` |
 | {py:data}`~civiqhub_selene.blocks.spectral.ENCODINGS` | The encodings of $\mathbf{X}$, `"states"` and `"scores"` | — | [The starts: the spectral start](initialization.md#the-spectral-start) | `blocks/spectral.py:44-45` |
 | {py:class}`~civiqhub_selene.blocks.spectral.SpectralEmbedding` | $\mathbf{U}$, $\mathbf{V}$, $\delta_k$ | The starts {eq}`eq-starts-laplacian` | [The starts: the spectral start](initialization.md#the-spectral-start) | `blocks/spectral.py:51-211` |
-| {py:func}`~civiqhub_selene.blocks.spectral.spectral_embedding` | $\mathbf{X}$, $\mathbf{X}_\tau$, $\mathbf{U}$, $\mathbf{V}$ | The starts {eq}`eq-starts-laplacian` | [The starts: the spectral start](initialization.md#the-spectral-start) | `blocks/spectral.py:214-306` |
+| {py:func}`~civiqhub_selene.blocks.spectral.spectral_embedding` | $\mathbf{X}$, $\mathbf{X}_\tau$, $\mathbf{U}$, $\mathbf{V}$ | The starts {eq}`eq-starts-unit-axis`, {eq}`eq-starts-laplacian` | [The starts: the spectral start](initialization.md#the-spectral-start) | `blocks/spectral.py:214-306` |
 | {py:func}`~civiqhub_selene.blocks.spectral.n_singular_values` | $\min(M, P (K + 1))$ and $\min(P, M (K + 1))$ under `"states"`, $\min(M, P)$ on both sides under `"scores"` | — | [The starts: the spectral start](initialization.md#the-spectral-start) | `blocks/spectral.py:309-321` |
 
 ## `civiqhub_selene.blocks.synthetic`
