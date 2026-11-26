@@ -1,0 +1,14 @@
+# Runtime dependencies of the service image, locked with their hashes in
+# requirements.lock. Regenerate the lock from the root of the repository with:
+#
+#   uv pip compile services/api/requirements.in --generate-hashes --python-version 3.13 \
+#     --python-platform x86_64-manylinux_2_28 --output-file services/api/requirements.lock
+#
+# The engine is not listed: the image installs the wheel built from the same commit. The
+# dependency of its `blocks` extra (NumPy) is locked here. A test keeps this list equal to
+# the dependencies of services/api/pyproject.toml and of the extra.
+numpy>=2.0
+prometheus-client>=0.26
+pydantic>=2.14
+starlette>=1.10
+uvicorn>=0.54

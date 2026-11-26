@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import ast
+import itertools
 import math
 import pathlib
 
@@ -272,3 +273,33 @@ def test_no_function_draws_a_random_number_except_initial_parameters() -> None:
     source = pathlib.Path(responses.__file__).read_text(encoding="utf-8")
     assert "default_rng" not in source
     assert "np.random.seed" not in source
+
+
+# The inner thresholds of a scale ------------------------------------------------------
+
+
+def test_a_threshold_step_keeps_the_order_and_never_lowers_the_objective() -> None:
+    from civiqhub_selene.blocks._numerics import (
+        fit_thresholds,
+        level_probabilities,
+        threshold_objective,
+    )
+
+    rng = np.random.default_rng(0)
+    planted = np.array([1 / 6, 0.25, 0.45, 0.7, 5 / 6])
+    mean = rng.uniform(0.2, 0.8, size=(3, 2))
+    spread = np.full((3, 2), 0.15)
+    counts = 2000 * level_probabilities(mean, spread, planted)
+    grid = np.array([1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6])
+    values = [threshold_objective(counts, mean, spread, grid)]
+    for _ in range(8):
+        grid = fit_thresholds(counts, mean, spread, grid, max_steps=1)
+        assert (np.diff(grid) > 0).all()
+        assert grid[0] == 1 / 6
+        assert grid[-1] == 5 / 6
+        values.append(threshold_objective(counts, mean, spread, grid))
+    assert all(after >= before for before, after in itertools.pairwise(values))
+    assert grid == pytest.approx(planted, abs=1e-6)
+    # Two thresholds have no inner one: nothing moves.
+    two = np.array([0.3, 0.6])
+    assert np.array_equal(fit_thresholds(counts[..., :3], mean, spread, two, max_steps=5), two)

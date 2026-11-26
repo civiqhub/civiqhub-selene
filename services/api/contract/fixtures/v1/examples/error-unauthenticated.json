@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "unauthenticated",
+    "message": "A valid machine token is required.",
+    "retryable": false
+  }
+}

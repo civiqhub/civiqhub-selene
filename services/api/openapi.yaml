@@ -1,17 +1,1370 @@
-# Internal HTTP contract of the SELENE service. Shell, no operations yet.
-# info.version is the version of this contract, distinct from the engine version.
+# Internal HTTP contract of the SELENE service, version 1.
+#
+# This file is the normative contract: the server, the contract client and the fixtures
+# under services/api/contract follow it, and the contract tests check that they agree.
+# info.version is the version of this contract. It is distinct from the version of the
+# service (selene-api), of the engine (civiqhub-selene) and of the image digest.
+#
+# Compatibility policy of /v1 (see services/api/README.md):
+# - additive changes only: new optional request fields, new response fields, new
+#   operations, new job kinds or payload schema versions, new error codes (each carries
+#   `retryable`), relaxed request limits;
+# - a request field, a response field marked required, a status code, a job state or the
+#   meaning of a value never changes or disappears under /v1;
+# - clients ignore response fields they do not know; the server refuses request fields it
+#   does not know;
+# - a breaking change opens /v2, served next to /v1 during a coexistence window.
 openapi: 3.1.1
 info:
   title: SELENE service API
-  version: 0.0.1
+  version: 1.2.0
   summary: Internal HTTP contract of the SELENE computation service.
   description: |
-    Early scaffold, not functional yet.
+    The SELENE service runs computations of the open-source engine `civiqhub-selene` on a
+    pseudonymised snapshot that a trusted backend pushes. It keeps no durable state: a job
+    and its result live in memory for a bounded time, and are lost when the service
+    restarts. The backend owns durable tracking, retries and publication.
 
-    This contract is consumed by trusted backends, not by end users or browsers. It
-    is distinct from the public CiviqHub API. Operations are added together with
-    their implementation and contract tests.
+    The contract is consumed by trusted backends and by synthetic acceptance tests, never
+    by end users or browsers. It is distinct from the public CiviqHub API.
+
+    Every operation except the probes needs a machine token (`Authorization: Bearer`).
+    The service is served over HTTPS inside the private network; the private network is
+    not treated as authentication.
   license:
     name: Apache-2.0
     identifier: Apache-2.0
-paths: {}
+security:
+  - machineToken: []
+tags:
+  - name: jobs
+    description: Submit a computation, follow it and read its temporary result.
+  - name: service
+    description: Versions, limits and capacity of this instance.
+  - name: probes
+    description: Liveness and readiness, without data and without authentication.
+paths:
+  /healthz:
+    get:
+      tags: [probes]
+      operationId: getHealth
+      summary: Liveness of the server process.
+      description: |
+        Answers 200 as long as the server process can answer HTTP requests, including
+        while a computation runs or after one failed. It never reports whether the
+        service accepts a new computation: see `GET /v1/service`.
+      security: []
+      responses:
+        "200":
+          description: The server process is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /readyz:
+    get:
+      tags: [probes]
+      operationId: getReadiness
+      summary: Readiness to receive requests.
+      description: |
+        Answers 200 once the configuration is loaded and the computation worker has
+        passed its start-up check, and until the server starts shutting down. A running
+        computation does not make the service unready: a busy service still answers
+        `GET /v1/jobs/{job_id}`.
+      security: []
+      responses:
+        "200":
+          description: The service receives requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Readiness"
+        "503":
+          description: The service is starting or shutting down.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Readiness"
+  /v1/service:
+    get:
+      tags: [service]
+      operationId: getService
+      summary: Versions, supported kinds, limits and capacity of this instance.
+      responses:
+        "200":
+          description: The description of this instance.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceInfo"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /v1/jobs:
+    post:
+      tags: [jobs]
+      operationId: submitJob
+      summary: Submit a computation.
+      description: |
+        Validates the submission (envelope, payload schema, sizes and budget) before any
+        computation, then starts it and answers at once with a job in the state
+        `running`.
+
+        The `submission_key` is bound to the content of the first submission that used
+        it while that job is retained:
+
+        - same key and same content: the same job is returned (200), no second
+          computation starts, even when the service is busy;
+        - same key and different content: 409 `submission_conflict`;
+        - after the job expired or the service restarted, the key is free again and a
+          new job starts. Idempotency is volatile: it is not a durable guarantee.
+
+        The service runs one computation at a time. A new submission while the slot is
+        taken is refused with 503 `busy` and a `Retry-After` header; there is no queue.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JobSubmission"
+      responses:
+        "200":
+          description: The submission replays a retained job with the same key and content.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "202":
+          description: The computation is accepted and running.
+          headers:
+            Location:
+              description: Path of the job, `/v1/jobs/{job_id}`.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "409":
+          description: The key is bound to a retained job with different content.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: The request body is larger than `limits.max_body_bytes`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "415":
+          description: The request body is not `application/json`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: |
+            The submission is well-formed JSON but is refused before any computation:
+            `invalid_request`, `unsupported_kind`, `unsupported_schema_version`,
+            `unsupported_exposure` or `limit_exceeded`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "503":
+          description: |
+            `busy`: the computation slot is taken (retry after `Retry-After` seconds).
+            `shutting_down` or `not_ready`: the instance does not accept computations.
+          headers:
+            Retry-After:
+              description: Seconds after which a new submission may succeed.
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/jobs/{job_id}:
+    parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          $ref: "#/components/schemas/JobId"
+    get:
+      tags: [jobs]
+      operationId: getJob
+      summary: Read the state of a job and, once it succeeded, its temporary result.
+      description: |
+        A job is retained in memory until `expires_at`, or less if the instance needs
+        the room for newer jobs or restarts. A job that is unknown, expired, deleted or
+        lost at a restart answers 404 `job_not_found`: the service cannot tell these
+        cases apart, and the backend applies its own recovery policy.
+      responses:
+        "200":
+          description: The job.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/JobNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags: [jobs]
+      operationId: deleteJob
+      summary: Forget a job, and stop its computation if it still runs.
+      description: |
+        Removes the job, its input and its result from memory. A running computation is
+        stopped and its process ended before the answer. The key of the job is free
+        again.
+      responses:
+        "204":
+          description: The job is forgotten.
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "404":
+          $ref: "#/components/responses/JobNotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  securitySchemes:
+    machineToken:
+      type: http
+      scheme: bearer
+      description: |
+        A machine token proper to each environment, shared by the backend of that
+        environment and its synthetic acceptance test. It is never a user token.
+  responses:
+    MalformedRequest:
+      description: The request body is not a JSON document.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthenticated:
+      description: The machine token is missing or invalid.
+      headers:
+        WWW-Authenticate:
+          description: Always `Bearer`.
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    JobNotFound:
+      description: The job is unknown, expired, deleted or lost at a restart.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalError:
+      description: An unexpected error of the service. Nothing of the request is echoed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    # Shared types ----------------------------------------------------------------------
+    OpaqueId:
+      description: |
+        An opaque identifier the service never interprets: a pseudonym, a project or a
+        revision reference. It is not a name, an e-mail address or a database key.
+      type: string
+      pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$"
+    SubmissionKey:
+      description: |
+        Identity of a submission, chosen by the caller and bound to the content of the
+        first submission that used it, while that job is retained.
+      type: string
+      pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$"
+    JobId:
+      description: Opaque identifier of a job, chosen by the service.
+      type: string
+      pattern: "^job_[A-Za-z0-9_-]{16,64}$"
+    ContentFingerprint:
+      description: |
+        `sha256:` and 64 hexadecimal characters: the SHA-256 of the canonical JSON of
+        the normalised submission (kind, schema version and payload with every
+        parameter at its effective value, votes and listed cells sorted). The service
+        computes it; the caller stores it and compares it.
+      type: string
+      pattern: "^sha256:[0-9a-f]{64}$"
+    Timestamp:
+      description: An instant, RFC 3339 in UTC.
+      type: string
+      format: date-time
+    Cell:
+      description: The position of a cell, `[row, column]`, from 0, in the order of `voters` and `items`.
+      type: array
+      prefixItems:
+        - type: integer
+          minimum: 0
+        - type: integer
+          minimum: 0
+      minItems: 2
+      maxItems: 2
+    ProductScore:
+      description: A score of the product scale, from -2 (disagree) to +2 (agree); 0 is a neutral vote.
+      type: integer
+      minimum: -2
+      maximum: 2
+    # Envelope --------------------------------------------------------------------------
+    JobSubmission:
+      description: |
+        The envelope of a computation. `kind` and `schema_version` choose the payload
+        schema; each supported pair is one branch below.
+      oneOf:
+        - $ref: "#/components/schemas/CoclusteringSingleV1Submission"
+        - $ref: "#/components/schemas/CoclusteringSingleV2Submission"
+    Job:
+      description: A computation and its temporary outcome.
+      type: object
+      required:
+        - id
+        - kind
+        - schema_version
+        - submission_key
+        - caller_reference
+        - content_fingerprint
+        - state
+        - created_at
+        - started_at
+        - finished_at
+        - expires_at
+        - result
+        - error
+        - service
+      properties:
+        id:
+          $ref: "#/components/schemas/JobId"
+        kind:
+          type: string
+          description: The kind of the submission.
+        schema_version:
+          type: integer
+          description: The payload schema version of the submission.
+        submission_key:
+          $ref: "#/components/schemas/SubmissionKey"
+        caller_reference:
+          description: The `caller_reference` of the submission, echoed, or null.
+          oneOf:
+            - $ref: "#/components/schemas/CallerReference"
+            - type: "null"
+        content_fingerprint:
+          $ref: "#/components/schemas/ContentFingerprint"
+        state:
+          description: |
+            `running`: the computation runs. `succeeded`: it ended and `result` holds
+            its outcome, which may be an explained absence (`result.available` false).
+            `failed`: it ended without an outcome and `error` says why. The set of
+            states is closed under /v1.
+          type: string
+          enum: [running, succeeded, failed]
+        created_at:
+          $ref: "#/components/schemas/Timestamp"
+        started_at:
+          oneOf:
+            - $ref: "#/components/schemas/Timestamp"
+            - type: "null"
+        finished_at:
+          oneOf:
+            - $ref: "#/components/schemas/Timestamp"
+            - type: "null"
+        expires_at:
+          description: |
+            When the finished job will be forgotten at the latest; null while it runs.
+            The service may forget it earlier to make room, or at a restart.
+          oneOf:
+            - $ref: "#/components/schemas/Timestamp"
+            - type: "null"
+        result:
+          description: The outcome, when `state` is `succeeded`; null otherwise.
+          oneOf:
+            - $ref: "#/components/schemas/CoclusteringSingleV1Result"
+            - type: "null"
+            - $ref: "#/components/schemas/CoclusteringSingleV2Result"
+        error:
+          description: Why the job failed, when `state` is `failed`; null otherwise.
+          oneOf:
+            - $ref: "#/components/schemas/JobError"
+            - type: "null"
+        service:
+          $ref: "#/components/schemas/InstanceVersions"
+    CallerReference:
+      description: |
+        An opaque reference of the caller, for example its job and generation, echoed in
+        the job. The service never interprets it and it does not enter the content.
+      type: string
+      pattern: "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
+    JobError:
+      type: object
+      required: [code, message, retryable]
+      properties:
+        code:
+          description: |
+            `timeout`: the computation exceeded `limits.job_timeout_seconds` and was
+            stopped. `worker_crashed`: the computation process ended abnormally.
+            `interrupted`: the instance was shutting down. `result_too_large`: the
+            outcome exceeded `limits.max_result_bytes`. `engine_error`: the engine
+            refused the input. `memory_exceeded` (since 1.1.0): the computation needed
+            more memory than the limit of the instance. Codes may be added; a client
+            reads `retryable`.
+          type: string
+        message:
+          description: One English sentence. It never echoes the input.
+          type: string
+        retryable:
+          description: Whether resubmitting the same content may succeed.
+          type: boolean
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          $ref: "#/components/schemas/Error"
+    Error:
+      type: object
+      required: [code, message, retryable]
+      properties:
+        code:
+          description: |
+            `malformed_request`, `unauthenticated`, `not_found`, `method_not_allowed`,
+            `job_not_found`, `submission_conflict`, `payload_too_large`,
+            `unsupported_media_type`, `invalid_request`, `unsupported_kind`,
+            `unsupported_schema_version`, `unsupported_exposure`, `limit_exceeded`,
+            `busy`, `shutting_down`, `not_ready`, `internal_error`. Codes may be added;
+            a client reads the status code and `retryable`.
+          type: string
+        message:
+          description: One English sentence. It never echoes a value of the request.
+          type: string
+        retryable:
+          description: Whether the same request may succeed later.
+          type: boolean
+        fields:
+          description: For `invalid_request` and `limit_exceeded`, where the problems are, without their values.
+          type: array
+          items:
+            $ref: "#/components/schemas/FieldIssue"
+    FieldIssue:
+      type: object
+      required: [path, issue]
+      properties:
+        path:
+          description: Location in the request body, for example `payload.votes[12][2]`.
+          type: string
+        issue:
+          description: What is wrong, in a few English words, without the value.
+          type: string
+    # Service ---------------------------------------------------------------------------
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: ok
+    Readiness:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ready, starting, shutting_down]
+    InstanceVersions:
+      description: The versions of the instance that handled the job.
+      type: object
+      required: [service_version, contract_version, engine_version]
+      properties:
+        service_version:
+          type: string
+        contract_version:
+          type: string
+        engine_version:
+          type: string
+    ServiceInfo:
+      type: object
+      required: [service, contract, engine, build, deployment, kinds, limits, capacity]
+      properties:
+        service:
+          type: object
+          required: [name, version]
+          properties:
+            name:
+              type: string
+              const: selene-api
+            version:
+              description: Version of the selene-api package.
+              type: string
+        contract:
+          type: object
+          required: [version]
+          properties:
+            version:
+              description: The `info.version` of this contract.
+              type: string
+        engine:
+          type: object
+          required: [distribution, version, wheel_sha256]
+          properties:
+            distribution:
+              type: string
+              const: civiqhub-selene
+            version:
+              description: The installed engine version, `civiqhub_selene.__version__`.
+              type: string
+            wheel_sha256:
+              description: SHA-256 of the engine wheel the image installed; null outside an image.
+              oneOf:
+                - type: string
+                  pattern: "^[0-9a-f]{64}$"
+                - type: "null"
+        build:
+          description: Where the running code comes from; null fields outside an image.
+          type: object
+          required: [commit, source]
+          properties:
+            commit:
+              oneOf:
+                - type: string
+                  pattern: "^[0-9a-f]{40}$"
+                - type: "null"
+            source:
+              oneOf:
+                - type: string
+                - type: "null"
+        deployment:
+          type: object
+          required: [environment]
+          properties:
+            environment:
+              description: The label the deployment configures, for example `dev`; null when unset.
+              oneOf:
+                - $ref: "#/components/schemas/OpaqueId"
+                - type: "null"
+        kinds:
+          description: The job kinds and payload schema versions this instance accepts.
+          type: array
+          items:
+            type: object
+            required: [kind, schema_versions, method]
+            properties:
+              kind:
+                type: string
+              schema_versions:
+                type: array
+                items:
+                  type: integer
+              method:
+                type: object
+                required: [name, version]
+                properties:
+                  name:
+                    type: string
+                  version:
+                    type: string
+        limits:
+          $ref: "#/components/schemas/Limits"
+        capacity:
+          type: object
+          required: [slots, running, accepting]
+          properties:
+            slots:
+              description: Computations this instance runs at a time.
+              type: integer
+              minimum: 1
+            running:
+              description: Computations running now.
+              type: integer
+              minimum: 0
+            accepting:
+              description: Whether a new submission would be accepted now.
+              type: boolean
+    Limits:
+      description: |
+        Technical limits of this deployment. They are configuration, may differ between
+        environments, never exceed the bounds of this contract, and are not privacy
+        thresholds nor a scientific calibration.
+      type: object
+      required:
+        - max_body_bytes
+        - max_voters
+        - max_items
+        - max_cells
+        - max_work
+        - job_timeout_seconds
+        - result_ttl_seconds
+        - max_retained_jobs
+        - max_result_bytes
+      properties:
+        max_body_bytes:
+          description: Largest request body read, in bytes.
+          type: integer
+        max_voters:
+          type: integer
+        max_items:
+          type: integer
+        max_cells:
+          description: Largest `voters x items`.
+          type: integer
+        max_work:
+          description: |
+            Largest computation budget, `n_starts x max_iterations x cells x
+            (n_levels + 1) x (n_groups + n_blocks)`, where `cells` is `voters x items`.
+          type: integer
+        job_timeout_seconds:
+          description: A computation still running after this time is stopped and fails with `timeout`.
+          type: integer
+        result_ttl_seconds:
+          description: How long a finished job is retained at most.
+          type: integer
+        max_retained_jobs:
+          description: How many finished jobs are retained at most; the oldest finished go first.
+          type: integer
+        max_result_bytes:
+          description: Largest outcome of a computation, in bytes of JSON.
+          type: integer
+    # Kind coclustering.single, payload schema 1 ----------------------------------------
+    CoclusteringSingleV1Submission:
+      type: object
+      additionalProperties: false
+      required: [kind, schema_version, submission_key, payload]
+      properties:
+        kind:
+          type: string
+          const: coclustering.single
+        schema_version:
+          type: integer
+          const: 1
+        submission_key:
+          $ref: "#/components/schemas/SubmissionKey"
+        caller_reference:
+          $ref: "#/components/schemas/CallerReference"
+        payload:
+          $ref: "#/components/schemas/CoclusteringSingleV1Input"
+    CoclusteringSingleV1Input:
+      description: |
+        A pseudonymised snapshot of votes on the current revisions of the items of one
+        project, and the settings of a latent block model where each voter belongs to
+        one group and each item to one block.
+
+        A cell `(row, column)` has one of these states:
+
+        - voted: it appears in `votes`, with its product score; 0 is a neutral vote;
+        - shown without a vote: the item was shown to the voter, who did not vote;
+        - not shown: the item was not shown to the voter, and the cell carries no
+          information.
+
+        `exposure` says how the shown cells are known. The service never derives
+        exposure from the absence of a vote.
+      type: object
+      additionalProperties: false
+      required: [scope, scale, voters, items, votes, exposure, seed]
+      properties:
+        scope:
+          type: object
+          additionalProperties: false
+          required: [project]
+          properties:
+            project:
+              $ref: "#/components/schemas/OpaqueId"
+        scale:
+          description: The product scale. Schema 1 accepts the five-score scale only.
+          type: object
+          additionalProperties: false
+          required: [scores]
+          properties:
+            scores:
+              type: array
+              const: [-2, -1, 0, 1, 2]
+        voters:
+          description: Pseudonyms of the voters, unique, in the order of the rows.
+          type: array
+          minItems: 1
+          maxItems: 20000
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/OpaqueId"
+        items:
+          description: |
+            The items in the order of the columns, each at the exact revision whose
+            votes the snapshot holds. Identifiers are unique.
+          type: array
+          minItems: 1
+          maxItems: 5000
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, revision]
+            properties:
+              id:
+                $ref: "#/components/schemas/OpaqueId"
+              revision:
+                $ref: "#/components/schemas/OpaqueId"
+        votes:
+          description: |
+            The votes, `[row, column, score]`, at most one per cell, in any order.
+            `score` is a product score from -2 to +2, never an engine rank.
+          type: array
+          maxItems: 2000000
+          items:
+            type: array
+            prefixItems:
+              - type: integer
+                minimum: 0
+              - type: integer
+                minimum: 0
+              - $ref: "#/components/schemas/ProductScore"
+            minItems: 3
+            maxItems: 3
+        exposure:
+          $ref: "#/components/schemas/Exposure"
+        parameters:
+          $ref: "#/components/schemas/CoclusteringSingleV1Parameters"
+        seed:
+          description: Seed of every random draw. The same snapshot, parameters and seed give the same result.
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+    Exposure:
+      description: |
+        `complete`: every item was shown to every voter; a cell without a vote was shown
+        without a vote. `listed`: the cells of `shown_without_vote` and the voted cells
+        were shown, every other cell was not shown. `unknown`: the caller does not know
+        which items were shown; schema 1 refuses it with `unsupported_exposure` rather
+        than invent an exposure.
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [mode]
+          properties:
+            mode:
+              type: string
+              const: complete
+        - type: object
+          additionalProperties: false
+          required: [mode, shown_without_vote]
+          properties:
+            mode:
+              type: string
+              const: listed
+            shown_without_vote:
+              type: array
+              maxItems: 2000000
+              items:
+                $ref: "#/components/schemas/Cell"
+        - type: object
+          additionalProperties: false
+          required: [mode]
+          properties:
+            mode:
+              type: string
+              const: unknown
+    CoclusteringSingleV1Parameters:
+      description: |
+        Settings of the latent block model. A missing setting takes the default written
+        here, which the contract tests keep equal to the engine default; the effective
+        value enters the content fingerprint and the provenance of the result.
+      type: object
+      additionalProperties: false
+      properties:
+        n_groups:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 2
+        n_blocks:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 2
+        n_starts:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 6
+        max_iterations:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          default: 200
+        tolerance:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.000001
+        response_model:
+          description: "`ordinal_probit`: OrdinalProbit(); `categorical`: Categorical(), each with its engine defaults."
+          type: string
+          enum: [ordinal_probit, categorical]
+          default: ordinal_probit
+        initialization:
+          description: "`random`: RandomStart(); `spectral`: SpectralStart(), each with its engine defaults."
+          type: string
+          enum: [random, spectral]
+          default: random
+    CoclusteringSingleV1Result:
+      description: |
+        The outcome of a latent block model, mapped from the engine result. It holds
+        individual group memberships: it is temporary, for the backend only, and never a
+        view to publish as it is.
+      type: object
+      required: [schema, available, provenance]
+      properties:
+        schema:
+          type: string
+          const: selene.coclustering.single.result/1
+        available:
+          description: Whether the engine found a value; false is an explained absence, not an error.
+          type: boolean
+        unavailable:
+          description: Present when `available` is false.
+          type: object
+          required: [reason, detail]
+          properties:
+            reason:
+              type: string
+              enum: [no_votes, not_enough_data, unsupported_input]
+            detail:
+              description: One English sentence with the numbers at stake, from the engine.
+              type: string
+        provenance:
+          $ref: "#/components/schemas/EngineProvenance"
+        value:
+          $ref: "#/components/schemas/SingleCoclusteringValue"
+    EngineProvenance:
+      type: object
+      required: [method, engine_version, parameters, input_fingerprint, randomness, fingerprint]
+      properties:
+        method:
+          type: object
+          required: [name, version]
+          properties:
+            name:
+              type: string
+            version:
+              type: string
+            reference:
+              type: string
+        engine_version:
+          type: string
+        parameters:
+          description: The effective settings of the estimator, as the engine records them.
+          type: object
+        input_fingerprint:
+          description: The engine fingerprint of the vote matrix.
+          type: string
+        randomness:
+          type: object
+          required: [generator, seed]
+          properties:
+            generator:
+              type: string
+            seed:
+              description: The seed, as text.
+              type: string
+        dependencies:
+          type: object
+          additionalProperties:
+            type: string
+        fingerprint:
+          description: The engine identity of the computation. It is not the submission key.
+          type: string
+    Number:
+      description: A number; null when the engine value is not finite.
+      type: [number, "null"]
+    SingleCoclusteringValue:
+      description: Groups of voters, blocks of items and their co-clusters, in the order of the submission.
+      type: object
+      required:
+        - voters
+        - items
+        - scores
+        - group_index
+        - block_index
+        - group_memberships
+        - block_memberships
+        - coclusters
+        - objective
+        - integrated_likelihood
+        - history
+        - computation
+      properties:
+        voters:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpaqueId"
+        items:
+          description: The item identifiers, in the order of the columns.
+          type: array
+          items:
+            $ref: "#/components/schemas/OpaqueId"
+        scores:
+          description: The scale of scores.
+          type: array
+          items:
+            type: integer
+        group_index:
+          description: For each voter, its group, from 0.
+          type: array
+          items:
+            type: integer
+            minimum: 0
+        block_index:
+          description: For each item, its block, from 0.
+          type: array
+          items:
+            type: integer
+            minimum: 0
+        group_memberships:
+          description: Shape (voters, groups), rows summing to 1.
+          type: array
+          items:
+            type: array
+            items:
+              $ref: "#/components/schemas/Number"
+        block_memberships:
+          description: Shape (items, blocks), rows summing to 1.
+          type: array
+          items:
+            type: array
+            items:
+              $ref: "#/components/schemas/Number"
+        coclusters:
+          type: object
+          required: [scores, vote_rate, vote_shares, n_votes]
+          properties:
+            scores:
+              type: array
+              items:
+                type: integer
+            vote_rate:
+              description: Shape (groups, blocks), the share of shown cells that carry a vote.
+              type: array
+              items:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Number"
+            vote_shares:
+              description: Shape (groups, blocks, scores), the distribution of the votes over the scores.
+              type: array
+              items:
+                type: array
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Number"
+            n_votes:
+              description: Shape (groups, blocks), the votes in each co-cluster.
+              type: array
+              items:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Number"
+            latent_mean:
+              type: array
+              items:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Number"
+            latent_spread:
+              type: array
+              items:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Number"
+        objective:
+          $ref: "#/components/schemas/Number"
+        integrated_likelihood:
+          $ref: "#/components/schemas/Number"
+        history:
+          type: object
+          required: [objectives, converged]
+          properties:
+            objectives:
+              type: array
+              items:
+                $ref: "#/components/schemas/Number"
+            converged:
+              type: boolean
+        computation:
+          description: The engine fingerprint of the computation.
+          type: string
+    # Kind coclustering.single, payload schema 2 (since 1.2.0) ---------------------------
+    CoclusteringSingleV2Submission:
+      description: |
+        A submission of payload schema 2, since contract 1.2.0: the items of a snapshot
+        may use different scales, as the questions of a survey do.
+      type: object
+      additionalProperties: false
+      required: [kind, schema_version, submission_key, payload]
+      properties:
+        kind:
+          type: string
+          const: coclustering.single
+        schema_version:
+          type: integer
+          const: 2
+        submission_key:
+          $ref: "#/components/schemas/SubmissionKey"
+        caller_reference:
+          $ref: "#/components/schemas/CallerReference"
+        payload:
+          $ref: "#/components/schemas/CoclusteringSingleV2Input"
+    DeclaredScale:
+      description: |
+        A scale of answers: an identifier, and its scores in the order of agreement,
+        strictly increasing. Two declared scales never have the same identifier nor the
+        same scores.
+      type: object
+      additionalProperties: false
+      required: [id, scores]
+      properties:
+        id:
+          $ref: "#/components/schemas/OpaqueId"
+        scores:
+          type: array
+          minItems: 2
+          maxItems: 11
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ScaleScore"
+    ScaleScore:
+      description: A score of a declared scale; its meaning is the rank it has on its scale.
+      type: integer
+      minimum: -1000
+      maximum: 1000
+    CoclusteringSingleV2Input:
+      description: |
+        A pseudonymised snapshot of votes on items that may use different scales, and
+        the settings of a latent block model. As in schema 1, a cell is voted, shown
+        without a vote or not shown, and `exposure` says how the shown cells are known.
+
+        Each item names one of the declared `scales`, and each vote is a score of the
+        scale of its item. The engine reads each item on its scale: the level of one
+        scale is never read as the level of another, and the ordinal probit gives each
+        scale its own grid of thresholds on one common axis (see `thresholds`). The
+        server refuses with `invalid_request` an item whose scale is not declared, a
+        declared scale used by no item, and a vote off the scale of its item.
+      type: object
+      additionalProperties: false
+      required: [scope, scales, voters, items, votes, exposure, seed]
+      properties:
+        scope:
+          type: object
+          additionalProperties: false
+          required: [project]
+          properties:
+            project:
+              $ref: "#/components/schemas/OpaqueId"
+        scales:
+          description: The scales of the items, each declared once.
+          type: array
+          minItems: 1
+          maxItems: 64
+          items:
+            $ref: "#/components/schemas/DeclaredScale"
+        voters:
+          description: Pseudonyms of the voters, unique, in the order of the rows.
+          type: array
+          minItems: 1
+          maxItems: 20000
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/OpaqueId"
+        items:
+          description: |
+            The items in the order of the columns, each at the exact revision whose
+            votes the snapshot holds, with the identifier of its declared scale.
+            Identifiers are unique.
+          type: array
+          minItems: 1
+          maxItems: 5000
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, revision, scale]
+            properties:
+              id:
+                $ref: "#/components/schemas/OpaqueId"
+              revision:
+                $ref: "#/components/schemas/OpaqueId"
+              scale:
+                $ref: "#/components/schemas/OpaqueId"
+        votes:
+          description: |
+            The votes, `[row, column, score]`, at most one per cell, in any order.
+            `score` is a score of the scale of the item of the column, never an engine
+            rank.
+          type: array
+          maxItems: 2000000
+          items:
+            type: array
+            prefixItems:
+              - type: integer
+                minimum: 0
+              - type: integer
+                minimum: 0
+              - $ref: "#/components/schemas/ScaleScore"
+            minItems: 3
+            maxItems: 3
+        exposure:
+          $ref: "#/components/schemas/Exposure"
+        parameters:
+          $ref: "#/components/schemas/CoclusteringSingleV2Parameters"
+        seed:
+          description: Seed of every random draw. The same snapshot, parameters and seed give the same result.
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+    CoclusteringSingleV2Parameters:
+      description: |
+        The settings of schema 1, and where the thresholds of the ordinal probit lie.
+        A missing setting takes the default written here; the effective value enters
+        the content fingerprint and the provenance of the result.
+      type: object
+      additionalProperties: false
+      properties:
+        n_groups:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 2
+        n_blocks:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 2
+        n_starts:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 6
+        max_iterations:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          default: 200
+        tolerance:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.000001
+        response_model:
+          description: "`ordinal_probit`: OrdinalProbit(); `categorical`: Categorical(), one free distribution per scale."
+          type: string
+          enum: [ordinal_probit, categorical]
+          default: ordinal_probit
+        initialization:
+          description: "`random`: RandomStart(); `spectral`: SpectralStart(), the votes of several scales placed on the unit axis."
+          type: string
+          enum: [random, spectral]
+          default: random
+        thresholds:
+          description: |
+            Where the grids of thresholds of the ordinal probit lie (engine
+            `Thresholds`); not read by `categorical`. `axis`: `levels` puts the
+            thresholds of a scale of K levels at k + 1/2, `unit` at k / K, every scale
+            covering the axis from 0 to 1 in equal shares (a convention, not a
+            measurement), and `auto` takes `levels` when every item has the same scale
+            and `unit` otherwise. `mode`: `fixed` holds the grids, `estimated`
+            estimates the inner thresholds of each scale of four levels or more, its
+            first and last held.
+          type: object
+          additionalProperties: false
+          properties:
+            axis:
+              type: string
+              enum: [auto, levels, unit]
+              default: auto
+            mode:
+              type: string
+              enum: [fixed, estimated]
+              default: fixed
+    CoclusteringSingleV2Result:
+      description: |
+        The outcome of payload schema 2. As in schema 1, it holds individual group
+        memberships: it is temporary, for the backend only. Everything read per answer
+        is given scale by scale, even when every item has the same scale.
+      type: object
+      required: [schema, available, provenance]
+      properties:
+        schema:
+          type: string
+          const: selene.coclustering.single.result/2
+        available:
+          description: Whether the engine found a value; false is an explained absence, not an error.
+          type: boolean
+        unavailable:
+          description: Present when `available` is false.
+          type: object
+          required: [reason, detail]
+          properties:
+            reason:
+              type: string
+              enum: [no_votes, not_enough_data, unsupported_input]
+            detail:
+              description: One English sentence with the numbers at stake, from the engine.
+              type: string
+        provenance:
+          $ref: "#/components/schemas/EngineProvenance"
+        value:
+          $ref: "#/components/schemas/SingleCoclusteringByScaleValue"
+    SingleCoclusteringByScaleValue:
+      description: |
+        Groups of voters, blocks of items and their co-clusters, in the order of the
+        submission, with the scales of the items.
+      type: object
+      required:
+        - voters
+        - items
+        - scales
+        - scale_index
+        - group_index
+        - block_index
+        - group_memberships
+        - block_memberships
+        - coclusters
+        - objective
+        - integrated_likelihood
+        - history
+        - computation
+      properties:
+        voters:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpaqueId"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpaqueId"
+        scales:
+          description: The declared scales, in the order in which the items first use them.
+          type: array
+          items:
+            type: object
+            required: [id, scores]
+            properties:
+              id:
+                $ref: "#/components/schemas/OpaqueId"
+              scores:
+                type: array
+                items:
+                  type: integer
+        scale_index:
+          description: For each item, the position of its scale in `scales`, from 0.
+          type: array
+          items:
+            type: integer
+            minimum: 0
+        group_index:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+        block_index:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+        group_memberships:
+          description: Shape (voters, groups), rows summing to 1.
+          type: array
+          items:
+            type: array
+            items:
+              $ref: "#/components/schemas/Number"
+        block_memberships:
+          description: Shape (items, blocks), rows summing to 1.
+          type: array
+          items:
+            type: array
+            items:
+              $ref: "#/components/schemas/Number"
+        coclusters:
+          type: object
+          required: [vote_rate, vote_shares_by_scale, n_votes]
+          properties:
+            vote_rate:
+              description: Shape (groups, blocks), the share of shown cells that carry a vote.
+              type: array
+              items:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Number"
+            vote_shares_by_scale:
+              description: One table per scale, in the order of `scales`, of shape (groups, blocks, scores of the scale).
+              type: array
+              items:
+                type: array
+                items:
+                  type: array
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Number"
+            n_votes:
+              description: Shape (groups, blocks), the votes in each co-cluster, on every scale.
+              type: array
+              items:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Number"
+            latent_mean:
+              description: Under the ordinal probit, shape (groups, blocks), the mean of the opinion on the axis of the thresholds.
+              type: array
+              items:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Number"
+            latent_spread:
+              type: array
+              items:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Number"
+            thresholds:
+              description: Under the ordinal probit, the grid of each scale, in the order of `scales`, fixed or estimated.
+              type: array
+              items:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Number"
+            has_fixed_spread:
+              description: Under the ordinal probit, shape (groups, blocks), whether the spread was held because every vote is on a scale of two scores.
+              type: array
+              items:
+                type: array
+                items:
+                  type: boolean
+        objective:
+          $ref: "#/components/schemas/Number"
+        integrated_likelihood:
+          $ref: "#/components/schemas/Number"
+        history:
+          type: object
+          required: [objectives, converged]
+          properties:
+            objectives:
+              type: array
+              items:
+                $ref: "#/components/schemas/Number"
+            converged:
+              type: boolean
+        computation:
+          description: The engine fingerprint of the computation.
+          type: string
