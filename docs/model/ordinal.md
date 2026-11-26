@@ -1,6 +1,6 @@
 # The ordinal family
 
-Checked against the code of `develop` at commit `d80da06`.
+Checked against the code of `develop` at commit `c29d115`.
 
 ## In plain words
 
@@ -44,7 +44,7 @@ The counts never change in place. {py:meth}`~civiqhub_selene.ordinal.VoteCounts.
 
 ### The votes of a co-cluster
 
-{py:meth}`~civiqhub_selene.blocks.GroupedVotes.vote_counts` turns the votes of the co-cluster $(q, l)$ into five counts: $N_k = N_{qlk}$, counted without survey weights, as {eq}`eq-data-counts` writes them ([The data](data.md#the-votes-of-a-group-on-a-block)). The matrix must have a scale of five scores. The counts follow the ranks: the count of the $k$-th score of the scale of the matrix becomes the count of the score $k - 3$ of {py:data}`~civiqhub_selene.ordinal.SCORES`, whatever the scores of the matrix are.
+{py:meth}`~civiqhub_selene.blocks.GroupedVotes.vote_counts` turns the votes of the co-cluster $(q, l)$ into five counts: $N_k = N_{qlk}$, counted without survey weights, as {eq}`eq-data-counts` writes them ([The data](data.md#the-votes-of-a-group-on-a-block)). The matrix must have one scale, of five scores: a matrix whose items are on several scales is refused with {py:class}`~civiqhub_selene.errors.InvalidInputError`, as every reading of one scale ([The data: items on different scales](data.md#items-on-different-scales)). The counts follow the ranks: the count of the $k$-th score of the scale of the matrix becomes the count of the score $k - 3$ of {py:data}`~civiqhub_selene.ordinal.SCORES`, whatever the scores of the matrix are.
 
 The counts leave out the abstentions of the co-cluster, $N_{ql0}$: they know nothing of its vote rate $\nu_{ql}$. They are named after the co-cluster, with the indices of the code, which start at $0$.
 
@@ -114,7 +114,7 @@ The two votes at the score $5$ of the matrix are counted at the score $+2$. The 
 | No share without a vote | `_positive_total`, `ordinal/counts.py:151-155` |
 | `from_scores`, `with_vote`, `without_vote`, indexing | `ordinal/counts.py:80-94`, `:128-140`, `:146-149` |
 | Fingerprint of the counts and the name | `ordinal/counts.py:142-144` |
-| Counts of a co-cluster, by rank, five scores only | `GroupedVotes.vote_counts`, `src/civiqhub_selene/blocks/data.py:783-803` |
+| Counts of a co-cluster, by rank, one scale of five scores only | `GroupedVotes.vote_counts`, `src/civiqhub_selene/blocks/data.py:1282-1303` |
 
 ## Limits
 
