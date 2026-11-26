@@ -103,18 +103,24 @@ or a missing value (`None` or NaN). A boolean `shown` mask distinguishes an
 unshown question from an abstention. By default every question is shown. A score
 in a cell marked as not shown is refused.
 
-The model that SEL-8.2 (`ItemScales`) and SEL-8.3 aim at is a continuous Gaussian
-latent, of parameters μ and σ, for each co-cluster of
-{py:class}`~civiqhub_selene.blocks.responses.OrdinalProbit`. Each item `j` would
-then have its own observation scale, with `K_j` ranks and its own thresholds, so
-a shown cell has `K_j + 1` modalities. The CEM or EM loop would run on those
-latents. Today the thresholds of `OrdinalProbit` are fixed and common to every
-item. `from_responses` keeps the original ranks of each column and the direction
-of agreement; it does not recode them onto a common grid.
+Each item $j$ has its own scale $g_j$, with its $K_{g_j}$ levels, so that a shown
+cell has $K_{g_j} + 1$ states: an abstention, or a vote at one of the levels of its
+scale. Two items whose scales have the same scores share one scale
+({py:class}`~civiqhub_selene.blocks.ItemScales`). In a co-cluster of
+{py:class}`~civiqhub_selene.blocks.responses.OrdinalProbit`, the latent opinion,
+normal of mean $\mu_{ql}$ and standard deviation $\sigma_{ql}$, is common to every
+item, whatever its scale, and each scale cuts it by its own grid of thresholds.
+{py:class}`~civiqhub_selene.blocks.responses.Thresholds` fixes the grid of each
+scale, on the axis of levels or on the unit axis, or by hand; with
+`mode="estimated"`, the inner thresholds of each scale are estimated. See
+[Échelles par proposition](scales.md) and [The response models: items on several
+scales](model/response-models.md#items-on-several-scales), equations
+{eq}`eq-response-probit-by-scale` and {eq}`eq-response-axes`. `from_responses`
+keeps the original ranks of each column and the direction of agreement; it does not
+recode them onto a common grid.
 
-The response models still use one shared `K`. Distinct observation scales are
-refused, naming the first item that differs, until SEL-8.2 (`ItemScales`). A
-homogeneous table matches `from_records` on the same scores, voters and items.
+A table whose items share one scale matches `from_records` on the same scores,
+voters and items.
 
 Give the optional `voter_weights` in row order, using one finite positive weight
 per respondent. A survey row with zero weight can be removed before creating
