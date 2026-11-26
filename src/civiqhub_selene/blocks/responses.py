@@ -99,8 +99,14 @@ class ResponseModel(Protocol[ParametersT]):
     def log_probabilities_by_scale(self, params: ParametersT) -> FloatArray:
         """Return the log-probability of each state of each scale, shape (Q, L, C, K + 1).
 
-        A state past the levels of a scale has a probability floored at 1e-300, so its
-        logarithm is finite; a block model never reads it, since no cell is in it.
+        Entry ``[q, l, c, s]`` is ``log F[q, l, c, s]``, the probability of the state
+        ``s`` of a shown cell of an item of the scale ``c`` in the co-cluster
+        ``(q, l)``. A state past the levels of a scale has a probability floored at
+        1e-300, so its logarithm is finite; a block model never reads it, since no cell
+        is in it.
+
+        See the mathematical model: :doc:`/model/response-models`, equations
+        :eq:`eq-response-states` and :eq:`eq-response-probit-by-scale`.
         """
         ...
 
@@ -112,6 +118,9 @@ class ResponseModel(Protocol[ParametersT]):
         ``(q, l)`` in the state ``s``; with one scale, ``counts[q, l, s]`` is accepted
         too. The expected likelihood of each co-cluster is
         ``sum_c sum_s N[q, l, c, s] * log F[q, l, c, s]``.
+
+        See the mathematical model: :doc:`/model/response-models`, equations
+        :eq:`eq-response-expected` and :eq:`eq-response-opinion-by-scale`.
         """
         ...
 

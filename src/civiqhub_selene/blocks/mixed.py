@@ -250,11 +250,12 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
     The value reports this weighted ``log_likelihood``. The co-cluster counts on the
     value stay the raw, unweighted number of survey rows.
 
-    Items on several scales. A shown cell of item ``j`` has ``K_j + 1`` modalities, on
-    the scale ``c_j`` of the item, and its probability under the co-cluster ``(q, l)``
-    is ``F[q, l, c_j, s]``, which the response model gives scale by scale (see
-    :class:`~civiqhub_selene.blocks.responses.OrdinalProbit`); everything else is
-    unchanged, and the expected counts are kept by scale.
+    Items on several scales. A shown cell of the item ``j`` has ``K_g + 1`` states,
+    ``g = g_j`` the scale of the item, and its probability under the co-cluster
+    ``(q, l)`` is ``F[q, l, g_j, s]``, which the response model gives scale by scale
+    (see :class:`~civiqhub_selene.blocks.responses.OrdinalProbit`): ``F[c_l, l, s_ij]``
+    above becomes ``F[c_l, l, g_j, s_ij]``. Everything else is unchanged, and the
+    expected counts are kept by scale. The letter ``c`` names a profile, ``g`` a scale.
 
     The model is estimated by expectation-maximisation, regularised by symmetric
     Dirichlet priors on the memberships, of concentrations ``voter_concentration``
