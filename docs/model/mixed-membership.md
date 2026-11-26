@@ -75,6 +75,8 @@ computed in logarithms, and the denominator gives the term of the voter in {eq}`
 - the expected counts of each co-cluster in each state, fractional:
   $N_{qls} = \sum_{i} w_i \sum_{j} S_{ijs} \sum_{\boldsymbol{c}} \eta_{i\boldsymbol{c}} \, \mathbf{1}\{c_l = q\} \, \phi_{jl} F_{qls} / G_{ij\boldsymbol{c}}$.
 
+When the items use several scales, a cell reads the probabilities of the scale of its item: $F_{c_l l s_{ij}}$ becomes $F_{c_l l g_j s_{ij}}$ in {eq}`eq-mm-cell` and in the expectations, and the counts are kept by scale, $N_{qlgs}$, the sum over the items $j$ of the scale $g$ only. The code computes the probability of a cell under each profile scale by scale, the voters by chunks as before; with one scale, it computes exactly what it computed before items could have several.
+
 ### Maximisation
 
 Given these expectations, {eq}`eq-mm-objective` separates into a part for each $\boldsymbol{\theta}_i$, a part for each $\boldsymbol{\phi}_j$ and a part for the response model. Maximising $\sum_{q} \big(\sum_l \kappa_{ilq} + \alpha - 1\big) \log \theta_{iq}$ under $\sum_q \theta_{iq} = 1$, and the same for the items, gives

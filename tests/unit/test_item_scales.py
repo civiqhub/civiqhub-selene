@@ -25,7 +25,6 @@ from civiqhub_selene.blocks import (
     VoteMatrix,
 )
 from civiqhub_selene.errors import InvalidInputError
-from civiqhub_selene.types import UnavailableReason
 
 pytestmark = pytest.mark.blocks
 
@@ -360,13 +359,10 @@ def test_a_table_of_several_scales_checks_each_of_them() -> None:
 
 
 @pytest.mark.parametrize("model", [LatentBlockModel(), MixedMembershipBlockModel()])
-def test_a_model_of_one_scale_answers_several_with_an_explained_absence(
+def test_the_block_models_of_the_engine_read_several_scales(
     model: LatentBlockModel | MixedMembershipBlockModel,
 ) -> None:
+    assert type(model).accepts_several_scales
     result = model.estimate(survey(), seed=0)
-    if type(model).accepts_several_scales:
-        pytest.skip(f"{type(model).__name__} reads several scales")
-    assert not result.is_available
-    assert result.unavailable is not None
-    assert result.unavailable.reason is UnavailableReason.UNSUPPORTED_INPUT
-    assert "3 scales" in result.unavailable.detail
+    assert result.is_available
+    assert result.value.scales == survey().scales

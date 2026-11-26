@@ -15,6 +15,7 @@ from civiqhub_selene.blocks import (
     FixedStart,
     LatentBlockModel,
     MixedMembershipBlockModel,
+    OrdinalScale,
     Partition,
     SpectralStart,
     VoteMatrix,
@@ -323,3 +324,112 @@ class TestMixedMembershipBlockModel(EstimatorContract):
 
     def make_empty_data(self) -> VoteMatrix:
         return VoteMatrix.from_records([], voters=["a", "b"], items=["x", "y"])
+
+
+# Items on several scales --------------------------------------------------------------
+# TEST ONLY. Synthetic collectives whose items mix scales of two to eleven answers.
+
+
+def several_scales(seed: int) -> tuple[VoteMatrix, Any]:
+    two, four, five, six = (OrdinalScale(tuple(range(1, size + 1))) for size in (2, 4, 5, 6))
+    return make_votes(
+        single_memberships((40, 35, 30)),
+        single_memberships((12, 12)),
+        latent_mean=[[0.8, 0.25], [0.2, 0.75], [0.5, 0.5]],
+        latent_spread=[[0.12, 0.14], [0.14, 0.12], [0.2, 0.2]],
+        item_scales=[(two, four, five, six)[item % 4] for item in range(24)],
+        seed=seed,
+    )
+
+
+@pytest.mark.parametrize("seed", [1, 2])
+def test_planted_groups_are_found_on_items_of_four_scales(seed: int) -> None:
+    votes, truth = several_scales(seed)
+    value = MixedMembershipBlockModel(n_groups=3, n_blocks=2).estimate(votes, seed=0).value
+    groups = Partition.from_voter_labels(votes.voters, truth.roles[:, 0])
+    blocks = Partition.from_item_labels(votes.items, np.repeat([0, 1], 12))
+    assert value.groups.agreement_with(groups) >= 0.95
+    assert value.blocks.agreement_with(blocks) >= 0.95
+    assert (np.diff(value.history.objectives) >= -1e-9).all()
+    assert value.coclusters.scales == votes.scales
+    assert value.coclusters.n_votes.sum() == pytest.approx(votes.n_votes)
+    # The value predicts each cell on the table of the scale of its item.
+    logs = value.log_probability(votes)
+    assert logs.shape == votes.shape
+    assert np.isfinite(logs).all()
+    assert (logs <= 0).all()
+
+
+def test_the_expectation_reads_each_item_on_its_scale() -> None:
+    votes, _ = several_scales(3)
+    model = MixedMembershipBlockModel(n_groups=2, n_blocks=2)
+    rng = np.random.default_rng(0)
+    params = model.response_model.initial_parameters((2, 2), votes, rng)
+    theta = rng.dirichlet(np.ones(2), size=votes.shape[0])
+    phi = rng.dirichlet(np.ones(2), size=votes.shape[1])
+    logs = model.response_model.log_probabilities_by_scale(params)
+    expectation = _expect(
+        votes._states(),
+        votes.shown,
+        theta,
+        phi,
+        logs,
+        _profiles(2, 2),
+        scale_index=votes.item_scales.scale_index,
+    )
+    assert expectation.counts.shape == (2, 2, 4, 7)
+    # Every shown cell is counted once, on its scale, never past the levels of its scale.
+    assert expectation.counts.sum() == pytest.approx(votes.n_shown)
+    possible = votes.item_scales._possible_states
+    assert np.abs(expectation.counts[:, :, ~possible]).max() < 1e-9
+    by_item = np.bincount(votes.item_scales.scale_index, weights=votes.shown.sum(axis=0))
+    assert expectation.counts.sum(axis=(0, 1, 3)) == pytest.approx(by_item)
+    # On one scale, the expectation without an axis of scales is the same computation.
+    one, _ = make_votes(VOTER_MEMBERSHIPS, ITEM_MEMBERSHIPS, seed=0)
+    params_one = model.response_model.initial_parameters((2, 2), one, np.random.default_rng(1))
+    flat = _expect(
+        one._states(),
+        one.shown,
+        np.full((one.shape[0], 2), 0.5),
+        np.full((one.shape[1], 2), 0.5),
+        model.response_model.log_probabilities(params_one),
+        _profiles(2, 2),
+    )
+    by_scale = _expect(
+        one._states(),
+        one.shown,
+        np.full((one.shape[0], 2), 0.5),
+        np.full((one.shape[1], 2), 0.5),
+        model.response_model.log_probabilities_by_scale(params_one),
+        _profiles(2, 2),
+        scale_index=one.item_scales.scale_index,
+    )
+    assert np.array_equal(flat.counts, by_scale.counts[:, :, 0, :])
+    assert flat.log_likelihood == by_scale.log_likelihood
+
+
+def test_the_memory_stays_bounded_at_the_size_of_a_national_survey() -> None:
+    import tracemalloc
+
+    # TEST ONLY. 4,000 voters and 270 items on seven scales of 2 to 11 answers: the shape
+    # of a national opinion barometer, with synthetic votes.
+    sizes = (2, 3, 4, 5, 6, 7, 11)
+    scales = [OrdinalScale(tuple(range(1, sizes[item % 7] + 1))) for item in range(270)]
+    votes, _ = make_votes(
+        single_memberships((1500, 1500, 1000)),
+        single_memberships((135, 135)),
+        latent_mean=[[0.8, 0.25], [0.2, 0.75], [0.5, 0.5]],
+        latent_spread=[[0.12, 0.14], [0.14, 0.12], [0.2, 0.2]],
+        item_scales=scales,
+        seed=3,
+    )
+    model = MixedMembershipBlockModel(n_groups=3, n_blocks=2, n_starts=1, max_iterations=2)
+    tracemalloc.start()
+    try:
+        result = model.estimate(votes, seed=0)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert result.is_available
+    # The states of the cells take 99 MiB; the whole computation stays under 512 MiB.
+    assert peak < 512 * 2**20
