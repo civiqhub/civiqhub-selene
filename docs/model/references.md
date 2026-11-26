@@ -59,7 +59,7 @@ Pfeffermann, D. (1993). The code cites the author and the year only, for the wei
 
 ### Pratt (1981)
 
-Pratt, J. W. (1981). Concavity of the log likelihood. *Journal of the American Statistical Association*, 76(373), 103–106. [doi:10.1080/01621459.1981.10477614](https://doi.org/10.1080/01621459.1981.10477614)
+Pratt, J. W. (1981). Concavity of the log likelihood. *Journal of the American Statistical Association*, 76(373), 103–106. [doi:10.1080/01621459.1981.10477613](https://doi.org/10.1080/01621459.1981.10477613)
 
 - Code: `fit_thresholds` of `civiqhub_selene.blocks._numerics`, docstring, for the concavity of the likelihood of an ordinal probit in its thresholds, which makes the Newton steps on the estimated thresholds safe.
 - Pages: [The response models](response-models.md#estimated-thresholds).
