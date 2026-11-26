@@ -127,6 +127,7 @@ files = [
   "tests",
   ".github/scripts/check-version.py",
   ".github/scripts/build-docs-site.py",
+  ".github/scripts/check-no-external-resources.py",
 ]
 mypy_path = ["src", "services/api/src", "services/api/contract", "services/api/tests"]
 explicit_package_bases = true

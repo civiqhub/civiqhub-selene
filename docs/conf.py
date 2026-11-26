@@ -31,6 +31,7 @@ extensions = [
     "sphinxcontrib.mermaid",
     "sphinxext.opengraph",
     "selene_docs",
+    "katex_local",
 ]
 
 # docs/README.md is read on GitHub; it explains the site and is not a page of it.
@@ -44,6 +45,17 @@ myst_enable_extensions = ["amsmath", "colon_fence", "deflist", "dollarmath"]
 myst_heading_anchors = 3
 # A ```mermaid fence is a diagram, on the site as on GitHub.
 myst_fence_as_directive = ["mermaid"]
+
+# -- Formulas -------------------------------------------------------------------------
+
+# KaTeX renders the formulas in the browser, from the copy under _static/katex/, on the
+# pages that hold one only (_ext/katex_local.py). MathJax is not used.
+html_math_renderer = "katex_local"
+# MyST need not configure MathJax, nor mark the sections of a page for MathJax to skip.
+myst_update_mathjax = False
+# Macros shared by every formula, as {"\\command": "TeX"}. A macro may not link to or
+# load a resource (\href, \url, \includegraphics): the build refuses it.
+katex_macros: dict[str, str] = {}
 
 # -- Reference (generated from the docstrings) ----------------------------------------
 
