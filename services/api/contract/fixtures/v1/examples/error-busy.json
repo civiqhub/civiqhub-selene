@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "busy",
+    "message": "The computation slot is taken; retry later.",
+    "retryable": true
+  }
+}
