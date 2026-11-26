@@ -35,6 +35,7 @@ from numpy.typing import ArrayLike
 from civiqhub_selene.blocks._arrays import BoolArray, FloatArray
 from civiqhub_selene.blocks._numerics import (
     fit_latent_normal_by_scale,
+    fit_thresholds,
     level_probabilities_by_scale,
     scale_bounds,
 )
@@ -361,6 +362,9 @@ class Categorical:
 ThresholdAxis: TypeAlias = Literal["auto", "levels", "unit"]
 """The axis on which the regular thresholds of the ordinal probit are placed."""
 
+ThresholdMode: TypeAlias = Literal["fixed", "estimated"]
+"""Whether the inner thresholds of each scale are held or estimated."""
+
 
 def _check_grid(scale: OrdinalScale, grid: Sequence[float]) -> tuple[float, ...]:
     try:
@@ -403,26 +407,47 @@ class Thresholds:
     start of the spread, so that the two axes give the same arrangements on a matrix of
     one scale.
 
+    ``mode="estimated"`` estimates the inner thresholds of each scale, those that lie
+    between its first and its last: a scale of ``K_c`` levels has ``K_c - 3`` of them,
+    so that only scales of four levels or more have any. The grids above give their
+    start; the first and the last thresholds of each scale stay where the grid puts
+    them. They anchor the scale on the axis, and fix the location and the unit that the
+    opinions would otherwise share with the thresholds (two scales whose ends were free
+    could slide against each other). The estimate tests the convention of the axis: on
+    data where the answers of a scale are not regular, its inner thresholds move away
+    from the regular grid. Each update of the ordinal probit then takes, after the
+    opinions, Newton steps on the inner thresholds of each scale, at the opinions found,
+    each step kept only if it keeps the order and does not lower the likelihood: a
+    generalised expectation-maximisation, whose objective never decreases. Each inner
+    threshold adds half a logarithm of the number of votes to the penalty of the
+    integrated likelihood (a Hypothesis: the thresholds are shared by every co-cluster).
+
     Attributes:
         axis: ``"auto"``, ``"levels"`` or ``"unit"``. Defaults to ``"auto"``.
         grids: The thresholds of some scales, given by hand: a mapping from an
             :class:`~civiqhub_selene.blocks.OrdinalScale` to its ``K_c - 1``
             thresholds, strictly increasing. Kept as pairs sorted by scores.
+        mode: ``"fixed"``, the default, or ``"estimated"``.
 
     Raises:
-        InvalidParameterError: If the axis is unknown, or if a grid is not a strictly
-            increasing grid of ``K_c - 1`` finite numbers.
+        InvalidParameterError: If the axis or the mode is unknown, or if a grid is not
+            a strictly increasing grid of ``K_c - 1`` finite numbers.
     """
 
     axis: ThresholdAxis = "auto"
     grids: (
         Mapping[OrdinalScale, Sequence[float]] | tuple[tuple[OrdinalScale, tuple[float, ...]], ...]
     ) = ()
+    mode: ThresholdMode = "fixed"
 
     def __post_init__(self) -> None:
         if self.axis not in ("auto", "levels", "unit"):
             raise InvalidParameterError(
                 f"the axis of the thresholds is 'auto', 'levels' or 'unit', got {self.axis!r}"
+            )
+        if self.mode not in ("fixed", "estimated"):
+            raise InvalidParameterError(
+                f"the mode of the thresholds is 'fixed' or 'estimated', got {self.mode!r}"
             )
         received = self.grids
         pairs = received.items() if isinstance(received, Mapping) else received
@@ -450,6 +475,11 @@ class Thresholds:
         if axis == "levels":
             return tuple(level + 0.5 for level in range(1, levels))
         return tuple(level / levels for level in range(1, levels))
+
+    @property
+    def is_estimated(self) -> bool:
+        """Whether the inner thresholds are estimated."""
+        return self.mode == "estimated"
 
     def axis_for(self, votes: VoteMatrix) -> Literal["levels", "unit"]:
         """Return the axis used on ``votes``: ``"auto"`` resolved by its number of scales."""
@@ -698,11 +728,23 @@ class OrdinalProbit:
             fixed_spread=previous.spread_unit,
         )
         vote_rate = _vote_rate(by_scale, previous.vote_rate, self.min_probability)
+        grids = previous.thresholds_by_scale
+        if self._is_estimated:
+            grids = tuple(
+                fit_thresholds(
+                    by_scale[:, :, position, 1 : grid.shape[0] + 2],
+                    latent_mean,
+                    latent_spread,
+                    grid,
+                    max_steps=self.max_inner_iterations,
+                )
+                for position, grid in enumerate(grids)
+            )
         return OrdinalProbitParameters(
             vote_rate,
             latent_mean,
             latent_spread,
-            previous.thresholds_by_scale,
+            grids,
             spread_unit=previous.spread_unit,
         )
 
@@ -710,14 +752,19 @@ class OrdinalProbit:
         """Return half a logarithm of the sample size per free parameter.
 
         Two parameters of opinion and one vote rate per co-cluster:
-        ``Q * L * log(max(n_votes, 1)) + 0.5 * Q * L * log(max(n_shown, 1))``. The
-        grids are fixed: they add no parameter, whatever the number of scales.
+        ``Q * L * log(max(n_votes, 1)) + 0.5 * Q * L * log(max(n_shown, 1))``. Fixed
+        grids add no parameter, whatever the number of scales; estimated ones add
+        ``0.5 * log(max(n_votes, 1))`` per inner threshold, ``K_c - 3`` for a scale of
+        ``K_c`` levels (a Hypothesis).
         """
         n_groups, n_blocks = shape
         n_coclusters = n_groups * n_blocks
         opinions = n_coclusters * math.log(max(votes.n_votes, 1))
         vote_rates = 0.5 * n_coclusters * math.log(max(votes.n_shown, 1))
-        return opinions + vote_rates
+        if not self._is_estimated:
+            return opinions + vote_rates
+        inner = sum(max(scale.n_levels - 3, 0) for scale in votes.scales)
+        return opinions + vote_rates + 0.5 * inner * math.log(max(votes.n_votes, 1))
 
     def to_table(
         self, params: OrdinalProbitParameters, counts: FloatArray, scale: ScalesOfTable
@@ -757,6 +804,10 @@ class OrdinalProbit:
             thresholds=params.thresholds_by_scale,
             has_fixed_spread=fixed,
         )
+
+    @property
+    def _is_estimated(self) -> bool:
+        return isinstance(self.thresholds, Thresholds) and self.thresholds.is_estimated
 
     def _grids(
         self, votes: VoteMatrix

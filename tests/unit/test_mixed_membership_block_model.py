@@ -433,3 +433,31 @@ def test_the_memory_stays_bounded_at_the_size_of_a_national_survey() -> None:
     assert result.is_available
     # The states of the cells take 99 MiB; the whole computation stays under 512 MiB.
     assert peak < 512 * 2**20
+
+
+def test_estimated_thresholds_keep_the_objective_from_decreasing() -> None:
+    from civiqhub_selene.blocks.responses import OrdinalProbit, Thresholds
+
+    six = OrdinalScale(tuple(range(1, 7)))
+    planted = (1 / 6, 0.25, 0.45, 0.7, 5 / 6)
+    votes, _ = make_votes(
+        single_memberships((80, 80)),
+        single_memberships((10, 10)),
+        vote_rate=[[0.9, 0.9], [0.9, 0.9]],
+        latent_mean=[[0.75, 0.35], [0.3, 0.65]],
+        latent_spread=[[0.2, 0.2], [0.2, 0.2]],
+        item_scales=[six, OrdinalScale((1, 2))] * 10,
+        thresholds={six: planted},
+        seed=0,
+    )
+    model = MixedMembershipBlockModel(
+        n_groups=2,
+        n_blocks=2,
+        max_iterations=60,
+        response_model=OrdinalProbit(thresholds=Thresholds(mode="estimated")),
+    )
+    value = model.estimate(votes, seed=0).value
+    assert (np.diff(value.history.objectives) >= -1e-7).all()
+    assert value.coclusters.thresholds is not None
+    grid = value.coclusters.thresholds[value.coclusters.scales.index(six)]
+    assert grid == pytest.approx(planted, abs=0.03)
