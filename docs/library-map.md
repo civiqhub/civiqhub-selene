@@ -24,10 +24,11 @@ Importing `civiqhub_selene` or `civiqhub_selene.ordinal` never loads NumPy. Impo
 | Load a wide survey CSV into a vote matrix | {py:func}`~civiqhub_selene.blocks.survey.read_survey_csv` | [`blocks.survey`](reference/civiqhub_selene.blocks.survey.md) | [The data](model/data.md#three-states-per-cell) |
 | Align voter attributes to the matrix | {py:class}`~civiqhub_selene.blocks.covariates.VoterCovariates` | [`blocks.covariates`](reference/civiqhub_selene.blocks.covariates.md) | — |
 | Use another scale than -2 to +2 | {py:class}`~civiqhub_selene.blocks.data.OrdinalScale` | [`blocks.data`](reference/civiqhub_selene.blocks.data.md) | [The data](model/data.md#the-scale) |
+| Give each item its own scale | The `item_scales` argument of the constructors of {py:class}`~civiqhub_selene.blocks.data.VoteMatrix`, {py:class}`~civiqhub_selene.blocks.data.ItemScales` | [`blocks.data`](reference/civiqhub_selene.blocks.data.md) | [The data](model/data.md#items-on-different-scales) |
 | Draw synthetic votes with a known truth | {py:func}`~civiqhub_selene.blocks.synthetic.make_votes` | [`blocks.synthetic`](reference/civiqhub_selene.blocks.synthetic.md) | [The data](model/data.md#a-generative-process-make_votes) |
 | Read a matrix through groups and blocks | {py:meth}`VoteMatrix.group_by <civiqhub_selene.blocks.data.VoteMatrix.group_by>`, {py:class}`~civiqhub_selene.blocks.data.GroupedVotes` | [`blocks.data`](reference/civiqhub_selene.blocks.data.md) | [The data](model/data.md#the-votes-of-a-group-on-a-block) |
 
-In a vote matrix, a cell is voted, shown without a vote, or not shown. An empty cell is never a zero nor a neutral answer.
+In a vote matrix, a cell is voted, shown without a vote, or not shown. An empty cell is never a zero nor a neutral answer. [Échelles par proposition](scales.md) follows items on several scales, from the declaration of their scales to the reading of a result.
 
 ### Run a method
 
@@ -39,6 +40,7 @@ In a vote matrix, a cell is voted, shown without a vote, or not shown. An empty 
 | Start a model from a previous result, or from random arrangements | {py:class}`~civiqhub_selene.blocks.starts.FixedStart`, {py:class}`~civiqhub_selene.blocks.starts.RandomStart` | [`blocks.starts`](reference/civiqhub_selene.blocks.starts.md) | [The starts](model/initialization.md#the-fixed-start) |
 | Read the spectrum of the votes before choosing a shape | {py:func}`~civiqhub_selene.blocks.spectral.spectral_embedding`, {py:class}`~civiqhub_selene.blocks.spectral.SpectralEmbedding` | [`blocks.spectral`](reference/civiqhub_selene.blocks.spectral.md) | [The starts](model/initialization.md#a-reading-of-the-number-of-groups) |
 | Choose how the votes of a co-cluster are modelled | {py:class}`~civiqhub_selene.blocks.responses.OrdinalProbit`, {py:class}`~civiqhub_selene.blocks.responses.Categorical` | [`blocks.responses`](reference/civiqhub_selene.blocks.responses.md) | [The response models](model/response-models.md) |
+| Choose where the thresholds of each scale lie, or estimate them | {py:class}`~civiqhub_selene.blocks.responses.Thresholds` | [`blocks.responses`](reference/civiqhub_selene.blocks.responses.md) | [The response models](model/response-models.md#items-on-several-scales) |
 | Get a model from a plain word such as `"single"` or `"mixed"` | {py:func}`~civiqhub_selene.blocks.base.estimator_for`, {py:func}`~civiqhub_selene.blocks.base.memberships` | [`blocks.base`](reference/civiqhub_selene.blocks.base.md) | — |
 | List the methods that are installed | {py:func}`~civiqhub_selene.registry.default_registry` | [`registry`](reference/civiqhub_selene.registry.md) | — |
 
@@ -103,7 +105,7 @@ Import from the package when the name is exported there: it is the shorter path,
 | [`tests/`](https://github.com/civiqhub/civiqhub-selene/tree/develop/tests) | Unit tests (one file per module), property-based tests, and reference vectors with their tolerance |
 | [`docs/`](https://github.com/civiqhub/civiqhub-selene/tree/develop/docs) | The pages of this site |
 | [`examples/`](https://github.com/civiqhub/civiqhub-selene/tree/develop/examples) | Notebooks that run the block models from end to end, on synthetic data: see [Examples](examples.md) |
-| [`services/api/`](https://github.com/civiqhub/civiqhub-selene/tree/develop/services/api) | The HTTP wrapper of the engine. It installs the library and never reimplements it |
+| [`services/api/`](https://github.com/civiqhub/civiqhub-selene/tree/develop/services/api) | The HTTP wrapper of the engine. It installs the library and never reimplements it. [Service de calcul](service.md) says how a submission becomes a computation of the engine, with the symbols of the model |
 
 In the reference, the **[source]** link next to a name opens the code that defines it.
 

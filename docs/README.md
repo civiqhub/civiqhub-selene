@@ -32,7 +32,7 @@ This builds the documentation of the code you have, as one site without versions
 | `_static/civiqhub-logo-light.svg`, `_static/civiqhub-logo-dark.svg`, `_static/civiqhub-symbol-light.svg`, `_static/civiqhub-symbol-dark.svg` | The CiviqHub wordmark and symbol, light and dark |
 | `_static/logo.svg`, `_static/favicon.ico` | Former glyph and ICO, unused until NOTICE is updated |
 | `index.md` | The home page and the table of contents of the site |
-| `getting-started.md`, `library-map.md`, `architecture.md`, `examples.md` | The guide: pages written by hand. `examples.md` presents the notebooks of `examples/`, which live outside the site |
+| `getting-started.md`, `scales.md`, `service.md`, `library-map.md`, `architecture.md`, `examples.md` | The guide: pages written by hand. `examples.md` presents the notebooks of `examples/`, which live outside the site |
 | `model/` | The mathematical model: the formulas the code computes, in one notation (`model/notation.md`); see [Write a page of the mathematical model](#write-a-page-of-the-mathematical-model) |
 | `reference/` | The reference: one page per public module, generated from the docstrings |
 | `changelog.md` | Includes `CHANGELOG.md` from the root of the repository |
