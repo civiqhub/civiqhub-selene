@@ -448,6 +448,9 @@ class Thresholds:
     threshold adds half a logarithm of the number of votes to the penalty of the
     integrated likelihood (a Hypothesis: the thresholds are shared by every co-cluster).
 
+    See the mathematical model: :doc:`/model/response-models`, equations
+    :eq:`eq-response-axes` and :eq:`eq-response-thresholds-estimated`.
+
     Attributes:
         axis: ``"auto"``, ``"levels"`` or ``"unit"``. Defaults to ``"auto"``.
         grids: The thresholds of some scales, given by hand: a mapping from an
@@ -607,10 +610,12 @@ class OrdinalProbit:
     where ``Phi`` is the standard normal distribution function. Two numbers then sum
     up how a group answers a block: where the opinion stands and how spread it is.
 
-    The thresholds default to ``k + 1/2`` for ``k`` from 1 to K - 1. They are fixed,
-    not estimated: ``latent_mean`` then reads directly on the axis of levels, from 1
-    to K. The mean and the spread are estimated by expectation-maximisation on the
-    hidden opinion (see ``fit_latent_normal_by_scale``).
+    On items of one scale, the thresholds default to ``k + 1/2`` for ``k`` from 1 to
+    K - 1: ``latent_mean`` then reads directly on the axis of levels, from 1 to K.
+    They are fixed unless :class:`Thresholds` sets ``mode="estimated"``, which
+    estimates the inner thresholds of each scale. The mean and the spread are
+    estimated by expectation-maximisation on the hidden opinion (see
+    ``fit_latent_normal_by_scale``).
 
     Items on several scales. Each scale ``c`` has its own grid ``t_{c,1} < ... <
     t_{c,K_c-1}`` (see :class:`Thresholds`), and a vote on an item of the scale ``c``
@@ -632,8 +637,9 @@ class OrdinalProbit:
     latent continuous random variables and not missing at random entries.
 
     See the mathematical model: :doc:`/model/response-models`, equations
-    :eq:`eq-response-probit`, :eq:`eq-response-rate`, :eq:`eq-response-moments` and
-    :eq:`eq-response-opinion`.
+    :eq:`eq-response-probit`, :eq:`eq-response-probit-by-scale`, :eq:`eq-response-axes`,
+    :eq:`eq-response-rate`, :eq:`eq-response-moments`, :eq:`eq-response-opinion`,
+    :eq:`eq-response-opinion-by-scale` and :eq:`eq-response-thresholds-estimated`.
 
     Attributes:
         thresholds: Where the thresholds lie. ``None`` for the default ones (see
@@ -744,7 +750,8 @@ class OrdinalProbit:
         ``spread_unit``.
 
         See the mathematical model: :doc:`/model/response-models`, equations
-        :eq:`eq-response-rate`, :eq:`eq-response-moments` and :eq:`eq-response-opinion`.
+        :eq:`eq-response-rate`, :eq:`eq-response-moments`, :eq:`eq-response-opinion`,
+        :eq:`eq-response-opinion-by-scale` and :eq:`eq-response-thresholds-estimated`.
         """
         by_scale = _by_scale(counts)
         bounds, possible = previous._grid
