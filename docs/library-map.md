@@ -105,7 +105,7 @@ Import from the package when the name is exported there: it is the shorter path,
 | [`tests/`](https://github.com/civiqhub/civiqhub-selene/tree/develop/tests) | Unit tests (one file per module), property-based tests, and reference vectors with their tolerance |
 | [`docs/`](https://github.com/civiqhub/civiqhub-selene/tree/develop/docs) | The pages of this site |
 | [`examples/`](https://github.com/civiqhub/civiqhub-selene/tree/develop/examples) | Notebooks that run the block models from end to end, on synthetic data: see [Examples](examples.md) |
-| [`services/api/`](https://github.com/civiqhub/civiqhub-selene/tree/develop/services/api) | The HTTP wrapper of the engine. It installs the library and never reimplements it |
+| [`services/api/`](https://github.com/civiqhub/civiqhub-selene/tree/develop/services/api) | The HTTP wrapper of the engine. It installs the library and never reimplements it. [Service de calcul](service.md) says how a submission becomes a computation of the engine, with the symbols of the model |
 
 In the reference, the **[source]** link next to a name opens the code that defines it.
 
