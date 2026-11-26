@@ -1,0 +1,39 @@
+{
+  "kind": "coclustering.single",
+  "schema_version": 1,
+  "submission_key": "test-only:no-votes:0001",
+  "payload": {
+    "scope": {
+      "project": "prj-test-only"
+    },
+    "scale": {
+      "scores": [
+        -2,
+        -1,
+        0,
+        1,
+        2
+      ]
+    },
+    "voters": [
+      "vtr-01",
+      "vtr-02",
+      "vtr-03"
+    ],
+    "items": [
+      {
+        "id": "itm-a",
+        "revision": "itm-a-rev-1"
+      },
+      {
+        "id": "itm-b",
+        "revision": "itm-b-rev-1"
+      }
+    ],
+    "votes": [],
+    "exposure": {
+      "mode": "complete"
+    },
+    "seed": 0
+  }
+}
