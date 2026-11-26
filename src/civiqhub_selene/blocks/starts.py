@@ -66,10 +66,13 @@ class Initialization(Protocol):
 class RandomStart:
     """A random arrangement where every group and every block has members.
 
-    Definition. The voters are shuffled and dealt in turn to the groups: the group of
-    the voter ``i`` is ``permutation(M)[i] mod Q``. The items are dealt to the blocks in
-    the same way. The groups then differ in size by one at most. The two permutations
-    are drawn in this order with the generator of the start.
+    Definition. The voters are shuffled and dealt in turn to the groups: with ``psi``
+    a random permutation of the M voters (``rng.permutation(M)``), the group of the
+    voter ``i`` is ``R[i] = psi(i) mod Q``, counted from 0. The items are dealt to the
+    blocks in the same way. The groups then differ in size by one at most. The two
+    permutations are drawn in this order with the generator of the start.
+
+    See the mathematical model: :doc:`/model/initialization`.
     """
 
     def arrangement(
@@ -105,6 +108,9 @@ class SpectralStart:
     Co-clustering directed graphs to discover asymmetries and directional communities,
     PNAS 113(45).
 
+    See the mathematical model: :doc:`/model/initialization`, equation
+    :eq:`eq-starts-laplacian`.
+
     Attributes:
         encoding: ``"states"`` (default: one column per item and state, so that the
             abstentions and the spread of the votes count) or ``"scores"`` (one column
@@ -116,8 +122,9 @@ class SpectralStart:
             sphere before k-means. Defaults to True.
         leverage_threshold: The threshold ``gamma`` of thresholded spectral clustering
             (t-RSC): k-means only reads the rows of leverage at least
-            ``gamma / sqrt(n)``, and the others take the nearest centroid. A finite
-            number of at least 0. Defaults to 0, every row.
+            ``gamma / sqrt(M)`` for the voters and ``gamma / sqrt(P)`` for the items,
+            and the others take the nearest centroid. A finite number of at least 0.
+            Defaults to 0, every row.
         n_init: The number of runs of k-means in each start, at least 1. Defaults to 10.
 
     Raises:

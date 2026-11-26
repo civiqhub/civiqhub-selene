@@ -44,8 +44,10 @@ class OrdinalScale:
     """An ordered scale of scores. Defaults to the five-score agreement scale.
 
     A score is the answer of a vote, for example from -2 to +2. A level is the rank of
-    a score on the scale, from 1 to ``n_levels``; level 0 means "no vote" and is
+    a score on the scale, from 1 to ``n_levels`` (K); level 0 means "no vote" and is
     internal to matrices.
+
+    See the mathematical model: :doc:`/model/data`.
 
     Attributes:
         scores: The scores, strictly increasing integers, at least two.
@@ -183,6 +185,14 @@ class VoteMatrix(Displayable):
     A cell has three states. It is *not shown* when ``shown`` is false, whatever
     ``levels`` holds; an *abstention* when it is shown and ``levels`` is 0; *voted*
     when it is shown and ``levels`` is positive. A vote at the neutral score is a vote.
+    The models read the state ``s[i, j]`` of each shown cell, 0 for an abstention and
+    ``k`` for a vote at rank ``k``, through its indicator::
+
+        S[i, j, s] = 1 if the cell (i, j) is shown and s[i, j] = s, else 0
+
+    so that a cell that is not shown is zero in every state.
+
+    See the mathematical model: :doc:`/model/data`, equation :eq:`eq-data-states`.
 
     The arrays are copied and made read-only. Two matrices with the same content are
     equal: equality and hash follow :meth:`fingerprint`.
@@ -194,7 +204,8 @@ class VoteMatrix(Displayable):
         voters: Opaque identifiers of the rows, unique.
         items: Opaque identifiers of the columns, unique.
         scale: The scale of scores. Defaults to the five-score agreement scale.
-        voter_weights: Optional finite, positive survey weights, in row order.
+        voter_weights: Optional finite, positive survey weights, in row order. The
+            models read them scaled to average 1, as ``w[i]``.
 
     Raises:
         InvalidInputError: If the arrays are not two matrices of the same shape, if a
@@ -623,6 +634,9 @@ class VoteMatrix(Displayable):
 
         Their votes stay in ``levels``, to be predicted; this matrix is unchanged.
 
+        See the mathematical model: :doc:`/model/choosing-the-shape`, equations
+        :eq:`eq-shape-held-out-single` and :eq:`eq-shape-held-out-mixed`.
+
         Raises:
             InvalidInputError: If ``cells`` is not a boolean array of the same shape.
         """
@@ -754,7 +768,11 @@ class GroupedVotes(Displayable):
         """Count the shown cells of each co-cluster in each state.
 
         Shape (Q, L, K + 1). Index 0: shown without a vote; index ``k``: vote at rank
-        ``k``. A cell that is not shown is counted nowhere.
+        ``k``. A cell that is not shown is counted nowhere. Without survey weights::
+
+            N[q, l, s] = sum_{i in group q} sum_{j in block l} S[i, j, s]
+
+        See the mathematical model: :doc:`/model/data`, equation :eq:`eq-data-counts`.
         """
         return count_states(
             self.votes._states(), self.groups.labels, self.blocks.labels, self.shape
@@ -784,7 +802,10 @@ class GroupedVotes(Displayable):
         """Return the five vote counts of a co-cluster, ready for the ordinal family.
 
         The counts are named ``"group {group} x block {block}"``. They follow the rank
-        of the scores on the scale.
+        of the scores on the scale: ``N[q, l, 1]`` to ``N[q, l, 5]``, without the
+        abstentions ``N[q, l, 0]``.
+
+        See the mathematical model: :doc:`/model/data`, equation :eq:`eq-data-counts`.
 
         Raises:
             InvalidInputError: If the scale does not have five scores, or if the group

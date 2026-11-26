@@ -44,7 +44,11 @@ _MIN_PROBABILITY = 1e-300
 
 @runtime_checkable
 class HasIntegratedLikelihood(Protocol):
-    """A value that carries an integrated likelihood, for the criterion of that name."""
+    """A value that carries an integrated likelihood, for the criterion of that name.
+
+    See the mathematical model: :doc:`/model/choosing-the-shape`, equation
+    :eq:`eq-shape-icl`.
+    """
 
     @property
     def integrated_likelihood(self) -> float:
@@ -54,7 +58,11 @@ class HasIntegratedLikelihood(Protocol):
 
 @runtime_checkable
 class PredictsVotes(Protocol):
-    """A value that gives the probability of the state of each cell of a vote matrix."""
+    """A value that gives the probability of the state of each cell of a vote matrix.
+
+    See the mathematical model: :doc:`/model/choosing-the-shape`, equations
+    :eq:`eq-shape-held-out-single` and :eq:`eq-shape-held-out-mixed`.
+    """
 
     def log_probability(self, votes: VoteMatrix) -> FloatArray:
         """Return, for each cell, the log-probability of its state, of shape (M, P)."""
@@ -177,6 +185,8 @@ class Coclustering(Displayable):
 
     ``coclustering[q, l]`` is the co-cluster of the group ``q`` and the block ``l``.
     Arrays are copied and made read-only.
+
+    See the mathematical model: :doc:`/model/reading-results`.
 
     Attributes:
         computation: Fingerprint of the computation that produced the value.
@@ -398,6 +408,13 @@ def _plain_dict(data: dict[str, Any]) -> dict[str, Any]:
 class SingleCoclustering(Coclustering):
     """A co-clustering where each voter belongs to one group and each item to one block.
 
+    Its memberships are the soft reading ``theta_hat[i, q]`` and ``phi_hat[j, l]`` of
+    the final arrangement, and its objective the classified log-likelihood.
+
+    See the mathematical model: :doc:`/model/latent-block-model`, equations
+    :eq:`eq-lbm-objective` and :eq:`eq-lbm-memberships`; :doc:`/model/choosing-the-shape`,
+    equation :eq:`eq-shape-icl`.
+
     Attributes:
         integrated_likelihood: The integrated completed likelihood criterion (ICL,
             Biernacki, Celeux and Govaert 2000); larger is better.
@@ -410,7 +427,12 @@ class SingleCoclustering(Coclustering):
 
         Shape (M, P). The state of a cell is its vote or its absence of vote, read
         without ``shown``; its probability is the one of the co-cluster of its voter
-        and of its item.
+        and of its item, from the table of co-clusters::
+
+            log F[R[i], C[j], s[i, j]]
+
+        See the mathematical model: :doc:`/model/choosing-the-shape`, equation
+        :eq:`eq-shape-held-out-single`.
 
         Raises:
             InvalidInputError: If ``votes`` does not have the voters, the items and the
@@ -435,15 +457,19 @@ class MixedCoclustering(Coclustering):
     """A co-clustering where a voter can follow different groups on different blocks.
 
     A profile is one choice of a group per block; with Q groups and L blocks there are
-    Q**L of them.
+    Q**L of them. Its memberships are ``theta[i, q]`` and ``phi[j, l]``, and its
+    objective the log-likelihood plus the log-densities of the priors.
+
+    See the mathematical model: :doc:`/model/mixed-membership`, equations
+    :eq:`eq-mm-likelihood` to :eq:`eq-mm-profiles`.
 
     Attributes:
         role_by_block: Shape (M, L, Q): for each voter and each block, the probability
-            that the voter follows each group on this block.
-        profiles: Shape (Q**L, L), integers: every profile, the group followed on each
-            block, in the order of ``itertools.product(range(Q), repeat=L)``.
-        profile_probabilities: Shape (M, Q**L): for each voter, the probability of
-            each profile.
+            ``kappa[i, l, q]`` that the voter follows each group on this block.
+        profiles: Shape (Q**L, L), integers: every profile ``c``, the group followed on
+            each block, in the order of ``itertools.product(range(Q), repeat=L)``.
+        profile_probabilities: Shape (M, Q**L): for each voter, the probability
+            ``eta[i, c]`` of each profile.
         log_likelihood: The observed log-likelihood.
     """
 
@@ -477,8 +503,11 @@ class MixedCoclustering(Coclustering):
     def mixedness(self) -> FloatArray:
         """Shape (M,): one minus the largest membership of each voter.
 
-        0 for a voter who belongs to a single group. It is published as a histogram
-        over the voters, never as a list by voter.
+        ``1 - max_q theta[i, q]``: 0 for a voter who belongs to a single group. It is
+        published as a histogram over the voters, never as a list by voter.
+
+        See the mathematical model: :doc:`/model/reading-results`, equation
+        :eq:`eq-results-mixedness`.
         """
         if self.group_memberships.shape[1] == 0:
             return np.zeros(self.group_memberships.shape[0])
@@ -490,8 +519,8 @@ class MixedCoclustering(Coclustering):
 
         Returns:
             Integers of shape (Q, Q): entry ``[q, r]`` is the number of voters whose
-            most probable group is ``q`` on ``block_a`` and ``r`` on ``block_b``.
-            Off the diagonal, a voter changes role.
+            most probable group is ``q`` on ``block_a`` and ``r`` on ``block_b``, by
+            ``role_by_block``. Off the diagonal, a voter changes role.
 
         Raises:
             InvalidInputError: If a block does not exist.
@@ -511,11 +540,15 @@ class MixedCoclustering(Coclustering):
         Shape (M, P). For the cell of the voter ``i`` and the item ``j``, in the state
         ``s`` (its vote or its absence of vote, read without ``shown``)::
 
-            log( sum_c profile_probabilities[i, c]
-                       * sum_l block_memberships[j, l] * P(s | co-cluster (c_l, l)) )
+            log( sum_c eta[i, c] * sum_l phi[j, l] * F[c_l, l, s] )
 
-        where ``c`` runs over the profiles and ``c_l`` is the group of the profile on
-        the block ``l``.
+        where ``c`` runs over the profiles, ``c_l`` is the group of the profile on the
+        block ``l``, ``eta`` is ``profile_probabilities``, ``phi`` is
+        ``block_memberships`` and ``F`` the probabilities of the table of co-clusters.
+        The probability is floored at 1e-300 before the logarithm.
+
+        See the mathematical model: :doc:`/model/choosing-the-shape`, equation
+        :eq:`eq-shape-held-out-mixed`.
 
         Raises:
             InvalidInputError: If ``votes`` does not have the voters, the items and the

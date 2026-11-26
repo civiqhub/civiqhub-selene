@@ -221,7 +221,11 @@ class CoclusterTable(Displayable):
 
         Shape (Q, L, K + 1). State 0 (shown without a vote): ``log(1 - vote_rate)``;
         state ``k``: ``log(vote_rate) + log(vote_shares[k])``. Probabilities are
-        floored at 1e-300 before the logarithm.
+        floored at 1e-300 before the logarithm. With ``nu`` the vote rate and ``p``
+        the vote shares, this is ``log F[q, l, s]``.
+
+        See the mathematical model: :doc:`/model/response-models`, equation
+        :eq:`eq-response-states`.
         """
         return state_log_probabilities(self.vote_rate, self.vote_shares)
 
