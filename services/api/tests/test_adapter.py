@@ -19,7 +19,11 @@ from jsonschema import Draft202012Validator
 import make_fixtures
 import selene_contract
 from selene_api.adapters import InstanceLimits, adapter_for, kinds
-from selene_api.adapters.coclustering_single import CoclusteringSingleV1, work_of
+from selene_api.adapters.coclustering_single import (
+    CoclusteringSingleV1,
+    CoclusteringSingleV2,
+    work_of,
+)
 from selene_api.errors import ApiError
 
 Reader = Callable[[str], Any]
@@ -43,10 +47,11 @@ def test_the_transfer_object_defaults_are_those_of_the_contract() -> None:
     assert CoclusteringSingleV1Parameters().model_dump() == make_fixtures.contract_defaults()
 
 
-def test_the_only_kind_is_coclustering_single_1() -> None:
-    assert kinds() == {"coclustering.single": [1]}
-    assert isinstance(adapter_for("coclustering.single", 1), CoclusteringSingleV1)
-    assert adapter_for("coclustering.single", 2) is None
+def test_the_kind_is_coclustering_single_at_schemas_1_and_2() -> None:
+    assert kinds() == {"coclustering.single": [1, 2]}
+    assert type(adapter_for("coclustering.single", 1)) is CoclusteringSingleV1
+    assert type(adapter_for("coclustering.single", 2)) is CoclusteringSingleV2
+    assert adapter_for("coclustering.single", 3) is None
     assert adapter_for("coclustering.mixed", 1) is None
 
 
@@ -277,3 +282,134 @@ def test_no_formula_of_the_engine_is_copied_into_the_service() -> None:
             assert relative in {"adapters/coclustering_single.py"}, relative
         if relative != "worker.py":
             assert "numpy" not in modules, relative
+
+
+# Payload schema 2: items on their declared scales ---------------------------------------
+
+V2 = CoclusteringSingleV2()
+
+
+def survey(read_fixture: Reader) -> dict[str, Any]:
+    body: dict[str, Any] = read_fixture("coclustering-single-2/reference.submission.json")
+    return body
+
+
+def test_schema_2_lists_the_scales_in_the_order_the_items_use_them(read_fixture: Reader) -> None:
+    body = survey(read_fixture)
+    task = V2.prepare(json.dumps(body).encode(), WIDE)
+    assert task.schema_version == 2
+    assert [scale["id"] for scale in task.payload["scales"]] == ["yes-no", "agree-4", "agree-5"]
+    assert task.payload["parameters"]["thresholds"] == {"axis": "auto", "mode": "fixed"}
+    # Another order of declaration is the same content.
+    reordered = json.loads(json.dumps(body))
+    reordered["payload"]["scales"].reverse()
+    assert V2.prepare(json.dumps(reordered).encode(), WIDE).content_fingerprint == (
+        task.content_fingerprint
+    )
+    assert (
+        task.content_fingerprint
+        == read_fixture("coclustering-single-2/reference.expected.json")["content_fingerprint"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("change", "path"),
+    [
+        (
+            lambda body: body["payload"]["items"][2].update(scale="agree-7"),
+            "payload.items[2].scale",
+        ),
+        (lambda body: body["payload"]["scales"][1].update(id="yes-no"), "payload.scales[1].id"),
+        (
+            lambda body: body["payload"]["scales"].append({"id": "extra", "scores": [1, 2, 3, 4]}),
+            "payload.scales[3].scores",
+        ),
+        (
+            lambda body: body["payload"]["scales"].append({"id": "extra", "scores": [1, 2, 3]}),
+            "payload.scales[3]",
+        ),
+        (lambda body: body["payload"]["votes"].__setitem__(0, [0, 0, 2]), "payload.votes[0][2]"),
+        (
+            lambda body: body["payload"]["scales"][2].update(scores=[2, 1, 0, -1, -2]),
+            "payload.scales[2].scores",
+        ),
+    ],
+)
+def test_schema_2_refuses_scales_that_do_not_follow_the_items(
+    read_fixture: Reader, change: Callable[[dict[str, Any]], None], path: str
+) -> None:
+    body = survey(read_fixture)
+    change(body)
+    with pytest.raises(ApiError) as refusal:
+        V2.prepare(json.dumps(body).encode(), WIDE)
+    assert refusal.value.code == "invalid_request"
+    assert path in [issue.path for issue in refusal.value.fields]
+
+
+def test_schema_2_counts_the_states_of_the_longest_scale_in_its_budget(
+    read_fixture: Reader,
+) -> None:
+    body = survey(read_fixture)
+    parameters = {**V2.prepare(json.dumps(body).encode(), WIDE).payload["parameters"]}
+    assert work_of(12, 9, parameters, 5) == work_of(12, 9, parameters)
+    assert work_of(12, 9, parameters, 2) < work_of(12, 9, parameters)
+    tight = InstanceLimits(max_voters=100, max_items=100, max_cells=10_000, max_work=1)
+    with pytest.raises(ApiError) as refusal:
+        V2.prepare(json.dumps(body).encode(), tight)
+    assert refusal.value.code == "limit_exceeded"
+
+
+def test_schema_2_computes_the_reference_survey(read_fixture: Reader) -> None:
+    body = survey(read_fixture)
+    task = V2.prepare(json.dumps(body).encode(), WIDE)
+    document = V2.compute(task.payload)
+    expected = read_fixture("coclustering-single-2/reference.expected.json")
+    assert document["schema"] == "selene.coclustering.single.result/2"
+    value = document["value"]
+    assert [scale["id"] for scale in value["scales"]] == ["yes-no", "agree-4", "agree-5"]
+    assert value["scale_index"] == [0, 1, 2, 0, 1, 2, 0, 1, 2]
+    assert [len(table[0][0]) for table in value["coclusters"]["vote_shares_by_scale"]] == [2, 4, 5]
+    assert value["coclusters"]["thresholds"] == [[0.5], [0.25, 0.5, 0.75], [0.2, 0.4, 0.6, 0.8]]
+    job = {
+        "content_fingerprint": task.content_fingerprint,
+        "state": "succeeded",
+        "result": document,
+    }
+    assert selene_contract.compare_with_reference(job, expected) == []
+    selene_contract.check_result(document)
+
+
+def test_schema_2_on_the_product_scale_is_the_computation_of_schema_1(
+    read_fixture: Reader,
+) -> None:
+    first = read_fixture("coclustering-single-1/reference.submission.json")
+    second = json.loads(json.dumps(first))
+    second["schema_version"] = 2
+    payload = second["payload"]
+    payload["scales"] = [{"id": "product", "scores": payload.pop("scale")["scores"]}]
+    for item in payload["items"]:
+        item["scale"] = "product"
+    one = ADAPTER.compute(ADAPTER.prepare(json.dumps(first).encode(), WIDE).payload)
+    two = V2.compute(V2.prepare(json.dumps(second).encode(), WIDE).payload)
+    # The same matrix and the same estimator: the same identity of the computation.
+    assert two["provenance"]["input_fingerprint"] == one["provenance"]["input_fingerprint"]
+    assert two["provenance"]["fingerprint"] == one["provenance"]["fingerprint"]
+    assert two["value"]["group_index"] == one["value"]["group_index"]
+    assert two["value"]["coclusters"]["vote_shares_by_scale"] == [
+        one["value"]["coclusters"]["vote_shares"]
+    ]
+    assert "thresholds" not in one["value"]["coclusters"]
+    assert two["value"]["scales"] == [{"id": "product", "scores": [-2, -1, 0, 1, 2]}]
+
+
+def test_schema_2_maps_the_threshold_settings_to_the_engine(read_fixture: Reader) -> None:
+    body = survey(read_fixture)
+    body["payload"]["parameters"]["thresholds"] = {"axis": "unit", "mode": "estimated"}
+    task = V2.prepare(json.dumps(body).encode(), WIDE)
+    model = V2._model(task.payload["parameters"])
+    assert model.response_model.thresholds.axis == "unit"
+    assert model.response_model.thresholds.mode == "estimated"
+    default = V2._model(
+        V2.prepare(json.dumps(survey(read_fixture)).encode(), WIDE).payload["parameters"]
+    )
+    assert default.response_model.thresholds is None

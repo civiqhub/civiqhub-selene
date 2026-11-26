@@ -17,7 +17,7 @@
 openapi: 3.1.1
 info:
   title: SELENE service API
-  version: 1.1.0
+  version: 1.2.0
   summary: Internal HTTP contract of the SELENE computation service.
   description: |
     The SELENE service runs computations of the open-source engine `civiqhub-selene` on a
@@ -329,6 +329,7 @@ components:
         schema; each supported pair is one branch below.
       oneOf:
         - $ref: "#/components/schemas/CoclusteringSingleV1Submission"
+        - $ref: "#/components/schemas/CoclusteringSingleV2Submission"
     Job:
       description: A computation and its temporary outcome.
       type: object
@@ -395,6 +396,7 @@ components:
           oneOf:
             - $ref: "#/components/schemas/CoclusteringSingleV1Result"
             - type: "null"
+            - $ref: "#/components/schemas/CoclusteringSingleV2Result"
         error:
           description: Why the job failed, when `state` is `failed`; null otherwise.
           oneOf:
@@ -985,6 +987,370 @@ components:
                 type: array
                 items:
                   $ref: "#/components/schemas/Number"
+        objective:
+          $ref: "#/components/schemas/Number"
+        integrated_likelihood:
+          $ref: "#/components/schemas/Number"
+        history:
+          type: object
+          required: [objectives, converged]
+          properties:
+            objectives:
+              type: array
+              items:
+                $ref: "#/components/schemas/Number"
+            converged:
+              type: boolean
+        computation:
+          description: The engine fingerprint of the computation.
+          type: string
+    # Kind coclustering.single, payload schema 2 (since 1.2.0) ---------------------------
+    CoclusteringSingleV2Submission:
+      description: |
+        A submission of payload schema 2, since contract 1.2.0: the items of a snapshot
+        may use different scales, as the questions of a survey do.
+      type: object
+      additionalProperties: false
+      required: [kind, schema_version, submission_key, payload]
+      properties:
+        kind:
+          type: string
+          const: coclustering.single
+        schema_version:
+          type: integer
+          const: 2
+        submission_key:
+          $ref: "#/components/schemas/SubmissionKey"
+        caller_reference:
+          $ref: "#/components/schemas/CallerReference"
+        payload:
+          $ref: "#/components/schemas/CoclusteringSingleV2Input"
+    DeclaredScale:
+      description: |
+        A scale of answers: an identifier, and its scores in the order of agreement,
+        strictly increasing. Two declared scales never have the same identifier nor the
+        same scores.
+      type: object
+      additionalProperties: false
+      required: [id, scores]
+      properties:
+        id:
+          $ref: "#/components/schemas/OpaqueId"
+        scores:
+          type: array
+          minItems: 2
+          maxItems: 11
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/ScaleScore"
+    ScaleScore:
+      description: A score of a declared scale; its meaning is the rank it has on its scale.
+      type: integer
+      minimum: -1000
+      maximum: 1000
+    CoclusteringSingleV2Input:
+      description: |
+        A pseudonymised snapshot of votes on items that may use different scales, and
+        the settings of a latent block model. As in schema 1, a cell is voted, shown
+        without a vote or not shown, and `exposure` says how the shown cells are known.
+
+        Each item names one of the declared `scales`, and each vote is a score of the
+        scale of its item. The engine reads each item on its scale: the level of one
+        scale is never read as the level of another, and the ordinal probit gives each
+        scale its own grid of thresholds on one common axis (see `thresholds`). The
+        server refuses with `invalid_request` an item whose scale is not declared, a
+        declared scale used by no item, and a vote off the scale of its item.
+      type: object
+      additionalProperties: false
+      required: [scope, scales, voters, items, votes, exposure, seed]
+      properties:
+        scope:
+          type: object
+          additionalProperties: false
+          required: [project]
+          properties:
+            project:
+              $ref: "#/components/schemas/OpaqueId"
+        scales:
+          description: The scales of the items, each declared once.
+          type: array
+          minItems: 1
+          maxItems: 64
+          items:
+            $ref: "#/components/schemas/DeclaredScale"
+        voters:
+          description: Pseudonyms of the voters, unique, in the order of the rows.
+          type: array
+          minItems: 1
+          maxItems: 20000
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/OpaqueId"
+        items:
+          description: |
+            The items in the order of the columns, each at the exact revision whose
+            votes the snapshot holds, with the identifier of its declared scale.
+            Identifiers are unique.
+          type: array
+          minItems: 1
+          maxItems: 5000
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, revision, scale]
+            properties:
+              id:
+                $ref: "#/components/schemas/OpaqueId"
+              revision:
+                $ref: "#/components/schemas/OpaqueId"
+              scale:
+                $ref: "#/components/schemas/OpaqueId"
+        votes:
+          description: |
+            The votes, `[row, column, score]`, at most one per cell, in any order.
+            `score` is a score of the scale of the item of the column, never an engine
+            rank.
+          type: array
+          maxItems: 2000000
+          items:
+            type: array
+            prefixItems:
+              - type: integer
+                minimum: 0
+              - type: integer
+                minimum: 0
+              - $ref: "#/components/schemas/ScaleScore"
+            minItems: 3
+            maxItems: 3
+        exposure:
+          $ref: "#/components/schemas/Exposure"
+        parameters:
+          $ref: "#/components/schemas/CoclusteringSingleV2Parameters"
+        seed:
+          description: Seed of every random draw. The same snapshot, parameters and seed give the same result.
+          type: integer
+          minimum: 0
+          maximum: 9007199254740991
+    CoclusteringSingleV2Parameters:
+      description: |
+        The settings of schema 1, and where the thresholds of the ordinal probit lie.
+        A missing setting takes the default written here; the effective value enters
+        the content fingerprint and the provenance of the result.
+      type: object
+      additionalProperties: false
+      properties:
+        n_groups:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 2
+        n_blocks:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 2
+        n_starts:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 6
+        max_iterations:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          default: 200
+        tolerance:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.000001
+        response_model:
+          description: "`ordinal_probit`: OrdinalProbit(); `categorical`: Categorical(), one free distribution per scale."
+          type: string
+          enum: [ordinal_probit, categorical]
+          default: ordinal_probit
+        initialization:
+          description: "`random`: RandomStart(); `spectral`: SpectralStart(), the votes of several scales placed on the unit axis."
+          type: string
+          enum: [random, spectral]
+          default: random
+        thresholds:
+          description: |
+            Where the grids of thresholds of the ordinal probit lie (engine
+            `Thresholds`); not read by `categorical`. `axis`: `levels` puts the
+            thresholds of a scale of K levels at k + 1/2, `unit` at k / K, every scale
+            covering the axis from 0 to 1 in equal shares (a convention, not a
+            measurement), and `auto` takes `levels` when every item has the same scale
+            and `unit` otherwise. `mode`: `fixed` holds the grids, `estimated`
+            estimates the inner thresholds of each scale of four levels or more, its
+            first and last held.
+          type: object
+          additionalProperties: false
+          properties:
+            axis:
+              type: string
+              enum: [auto, levels, unit]
+              default: auto
+            mode:
+              type: string
+              enum: [fixed, estimated]
+              default: fixed
+    CoclusteringSingleV2Result:
+      description: |
+        The outcome of payload schema 2. As in schema 1, it holds individual group
+        memberships: it is temporary, for the backend only. Everything read per answer
+        is given scale by scale, even when every item has the same scale.
+      type: object
+      required: [schema, available, provenance]
+      properties:
+        schema:
+          type: string
+          const: selene.coclustering.single.result/2
+        available:
+          description: Whether the engine found a value; false is an explained absence, not an error.
+          type: boolean
+        unavailable:
+          description: Present when `available` is false.
+          type: object
+          required: [reason, detail]
+          properties:
+            reason:
+              type: string
+              enum: [no_votes, not_enough_data, unsupported_input]
+            detail:
+              description: One English sentence with the numbers at stake, from the engine.
+              type: string
+        provenance:
+          $ref: "#/components/schemas/EngineProvenance"
+        value:
+          $ref: "#/components/schemas/SingleCoclusteringByScaleValue"
+    SingleCoclusteringByScaleValue:
+      description: |
+        Groups of voters, blocks of items and their co-clusters, in the order of the
+        submission, with the scales of the items.
+      type: object
+      required:
+        - voters
+        - items
+        - scales
+        - scale_index
+        - group_index
+        - block_index
+        - group_memberships
+        - block_memberships
+        - coclusters
+        - objective
+        - integrated_likelihood
+        - history
+        - computation
+      properties:
+        voters:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpaqueId"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpaqueId"
+        scales:
+          description: The declared scales, in the order in which the items first use them.
+          type: array
+          items:
+            type: object
+            required: [id, scores]
+            properties:
+              id:
+                $ref: "#/components/schemas/OpaqueId"
+              scores:
+                type: array
+                items:
+                  type: integer
+        scale_index:
+          description: For each item, the position of its scale in `scales`, from 0.
+          type: array
+          items:
+            type: integer
+            minimum: 0
+        group_index:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+        block_index:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+        group_memberships:
+          description: Shape (voters, groups), rows summing to 1.
+          type: array
+          items:
+            type: array
+            items:
+              $ref: "#/components/schemas/Number"
+        block_memberships:
+          description: Shape (items, blocks), rows summing to 1.
+          type: array
+          items:
+            type: array
+            items:
+              $ref: "#/components/schemas/Number"
+        coclusters:
+          type: object
+          required: [vote_rate, vote_shares_by_scale, n_votes]
+          properties:
+            vote_rate:
+              description: Shape (groups, blocks), the share of shown cells that carry a vote.
+              type: array
+              items:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Number"
+            vote_shares_by_scale:
+              description: One table per scale, in the order of `scales`, of shape (groups, blocks, scores of the scale).
+              type: array
+              items:
+                type: array
+                items:
+                  type: array
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Number"
+            n_votes:
+              description: Shape (groups, blocks), the votes in each co-cluster, on every scale.
+              type: array
+              items:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Number"
+            latent_mean:
+              description: Under the ordinal probit, shape (groups, blocks), the mean of the opinion on the axis of the thresholds.
+              type: array
+              items:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Number"
+            latent_spread:
+              type: array
+              items:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Number"
+            thresholds:
+              description: Under the ordinal probit, the grid of each scale, in the order of `scales`, fixed or estimated.
+              type: array
+              items:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Number"
+            has_fixed_spread:
+              description: Under the ordinal probit, shape (groups, blocks), whether the spread was held because every vote is on a scale of two scores.
+              type: array
+              items:
+                type: array
+                items:
+                  type: boolean
         objective:
           $ref: "#/components/schemas/Number"
         integrated_likelihood:

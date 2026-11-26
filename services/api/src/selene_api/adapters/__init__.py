@@ -10,12 +10,13 @@ import. Adding a payload schema version adds an adapter next to the previous one
 from collections.abc import Mapping
 
 from selene_api.adapters.base import Adapter, InstanceLimits, PreparedTask
-from selene_api.adapters.coclustering_single import CoclusteringSingleV1
+from selene_api.adapters.coclustering_single import CoclusteringSingleV1, CoclusteringSingleV2
 
 __all__ = ["ADAPTERS", "Adapter", "InstanceLimits", "PreparedTask", "adapter_for", "kinds"]
 
 ADAPTERS: Mapping[tuple[str, int], Adapter] = {
-    (adapter.kind, adapter.schema_version): adapter for adapter in (CoclusteringSingleV1(),)
+    (adapter.kind, adapter.schema_version): adapter
+    for adapter in (CoclusteringSingleV1(), CoclusteringSingleV2())
 }
 
 
