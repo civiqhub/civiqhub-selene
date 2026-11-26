@@ -1,6 +1,6 @@
 # The latent block model
 
-Checked against the code of `develop` at commit `97a0f15`.
+Checked against the code of `develop` at commit `c29d115`.
 
 ## In plain words
 
@@ -35,6 +35,8 @@ $$
 $$
 
 the expected log-likelihood that a response model maximises on each co-cluster.
+
+When the items use several scales, a cell reads the probabilities of the scale of its item: $F_{R_i C_j s}$ becomes $F_{R_i C_j g_j s}$ in {eq}`eq-lbm-objective` and in the scores below, and the first term becomes $\sum_{q,l} \sum_{g \in \mathcal{G}} \sum_{s=0}^{K_g} N_{qlgs} \log F_{qlgs}$, with the counts by scale ([The data](data.md)) and the probabilities by scale of the response model {eq}`eq-response-probit-by-scale`. The code scores the items scale by scale; with one scale, it computes exactly what it computed before items could have several.
 
 ## Estimation
 
@@ -131,18 +133,18 @@ The objective rose at every iteration of the start that was kept, and the groups
 
 | Formula or rule | Code |
 | --- | --- |
-| Model and {eq}`eq-lbm-objective`, weighted form | Docstring, `src/civiqhub_selene/blocks/single.py:104-130` |
-| One iteration | `LatentBlockModel._step`, `blocks/single.py:181-215` |
-| Weighted counts | `count_states`, `blocks/_numerics.py:47-77`; call at `blocks/single.py:186-188` |
-| $\pi_q$, $\rho_l$ | `blocks/single.py:190-192` |
-| {eq}`eq-lbm-voter-score` | `_voter_scores`, `blocks/single.py:48-54` |
-| {eq}`eq-lbm-item-score` | `_item_scores`, `blocks/single.py:57-71` |
-| The sweep | `_sweep`, `blocks/single.py:74-91` |
-| Objective after the moves | `blocks/single.py:199-212` |
-| {eq}`eq-lbm-memberships` | `_finish` and `_softmax`, `blocks/single.py:94-96`, `:217-248` |
-| Start: arrangement of `initialization`, equal shares | `_start`, `blocks/single.py:169-179` |
-| Starts, best start, stop rule | `IterativeEstimator._compute`, `blocks/iterative.py:83-98`; `iterate`, `blocks/_numerics.py:199-227` |
-| Value | {py:class}`~civiqhub_selene.blocks.results.SingleCoclustering`, `blocks/results.py:398-432` |
+| Model and {eq}`eq-lbm-objective`, weighted form | Docstring, `src/civiqhub_selene/blocks/single.py:136-161` |
+| One iteration | `LatentBlockModel._step`, `blocks/single.py:215-258` |
+| Weighted counts, scale by scale | `count_states` and `count_states_by_scale`, `blocks/_numerics.py:55-137`; call at `blocks/single.py:221-229` |
+| $\pi_q$, $\rho_l$ | `blocks/single.py:231-233` |
+| {eq}`eq-lbm-voter-score`, on the table of the scale of each item | `_voter_scores`, `blocks/single.py:53-67` |
+| {eq}`eq-lbm-item-score`, one scale at a time | `_item_scores`, `blocks/single.py:70-97` |
+| The sweep | `_sweep`, `blocks/single.py:100-117` |
+| Objective after the moves | `blocks/single.py:243-255` |
+| {eq}`eq-lbm-memberships` | `_finish` and `_softmax`, `blocks/single.py:126-128`, `:260-301` |
+| Start: arrangement of `initialization`, equal shares | `_start`, `blocks/single.py:203-213` |
+| Starts, best start, stop rule | `IterativeEstimator._compute`, `blocks/iterative.py:83-98`; `iterate`, `blocks/_numerics.py:334-362` |
+| Value | {py:class}`~civiqhub_selene.blocks.results.SingleCoclustering`, `blocks/results.py:448-484` |
 
 The code also does what the formulas do not say:
 

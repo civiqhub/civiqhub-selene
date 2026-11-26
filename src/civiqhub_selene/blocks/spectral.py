@@ -61,18 +61,21 @@ class SpectralEmbedding(Displayable):
 
     The arrays are copied and made read-only.
 
+    See the mathematical model: :doc:`/model/initialization`, equation
+    :eq:`eq-starts-laplacian`.
+
     Attributes:
         voters: The voters, in the order of the matrix.
         items: The items, in the order of the matrix.
         encoding: The encoding of the votes, ``"states"`` or ``"scores"``.
         regularization: The regulariser, as a multiple of the average degree of each
             side.
-        voter_vectors: Shape (M, d): the leading left singular vectors, one row per
-            voter.
-        item_vectors: Shape (P, d'): the leading singular vectors on the side of the
-            items, one row per item.
-        voter_singular_values: Every singular value of the Laplacian read on the side
-            of the voters, in decreasing order. A gap after the ``k``-th one suggests
+        voter_vectors: Shape (M, d): the leading left singular vectors ``U``, one row
+            per voter.
+        item_vectors: Shape (P, d'): the leading singular vectors ``V`` on the side of
+            the items, one row per item.
+        voter_singular_values: Every singular value ``delta_k`` of the Laplacian read
+            on the side of the voters, in decreasing order. A gap after the ``k``-th one suggests
             ``k`` groups.
         item_singular_values: Every singular value on the side of the items, likewise.
 
@@ -156,7 +159,8 @@ class SpectralEmbedding(Displayable):
            fewer: DI-SIM also clusters ``k`` columns in fewer dimensions), and each row is
            projected onto the unit sphere when ``project`` is true;
         2. k-means runs on the rows whose leverage, before projection, is at least
-           ``leverage_threshold / sqrt(n)``, where ``n`` is the number of rows: the
+           ``gamma / sqrt(M)`` for the voters and ``gamma / sqrt(P)`` for the items,
+           with ``gamma`` the ``leverage_threshold``: the
            thresholded spectral clustering t-RSC of Qin and Rohe (2013) when the
            threshold is positive. When fewer than ``k`` rows pass, every row is kept;
         3. k-means is seeded by k-means++ and refined by Lloyd's algorithm, ``n_init``
@@ -221,29 +225,30 @@ def spectral_embedding(
 ) -> SpectralEmbedding:
     """Return the leading singular vectors of the regularised Laplacian of the votes.
 
-    Definition. For a matrix ``A`` with nonnegative entries, of row degrees ``O`` (the
-    sums of its rows) and column degrees ``P`` (the sums of its columns), the
-    regularised graph Laplacian of DI-SIM (Rohe, Qin and Yu 2016, equation 1) is::
+    Definition. For a matrix ``X`` with nonnegative entries, with ``D_r`` the diagonal
+    matrix of its row degrees (the sums of its rows) and ``D_c`` that of its column
+    degrees (the sums of its columns), the regularised graph Laplacian of DI-SIM (Rohe,
+    Qin and Yu 2016, equation 1) is::
 
-        L = (O + tau_r I)^(-1/2) A (P + tau_c I)^(-1/2)
+        X_tau = (D_r + tau_r I)^(-1/2) X (D_c + tau_c I)^(-1/2)
 
     where each regulariser is ``regularization`` times the average degree of its side,
     as Qin and Rohe (2013) recommend (``tau = 0`` is the standard Laplacian of Dhillon
     2001). A degree of 0 with ``tau = 0`` gives a row or a column of zeros.
 
-    The encoding says what ``A`` is:
+    The encoding says what ``X`` is:
 
     ``"states"`` (default)
         Each shown cell is one of K + 1 states: shown without a vote, or a vote at one
-        of the K levels. For the voters, ``A`` has one row per voter and one column per
+        of the K levels. For the voters, ``X`` has one row per voter and one column per
         pair (item, state), with a 1 where the voter is in this state on this item; a
-        cell that is not shown is a row of zeros. ``A Aᵀ`` then counts the items on
+        cell that is not shown is a row of zeros. ``X Xᵀ`` then counts the items on
         which two voters gave the same answer. Under the latent block model, the
-        expectation of ``A`` is ``Z B`` with ``Z`` the groups: its rank can reach the
-        number of groups even when there are fewer blocks, and a group that splits
-        where another agrees (same mean, larger spread) changes ``B``. The same is done
-        on the transposed matrix for the items. The degree of a voter is its number of
-        shown cells.
+        expectation of ``X`` is the indicator matrix of the groups times a matrix of
+        the co-clusters: its rank can reach the number of groups even when there are
+        fewer blocks, and a group that splits where another agrees (same mean, larger
+        spread) changes that matrix. The same is done on the transposed matrix for the
+        items. The degree of a voter is its number of shown cells.
     ``"scores"``
         One matrix of centred scores: ``level - (K + 1) / 2`` on a voted cell, 0 on any
         other cell, so that a neutral vote, an abstention and a cell that is not shown
@@ -251,6 +256,21 @@ def spectral_embedding(
         of each row and column. The left singular vectors place the voters and the
         right ones the items, as in DI-SIM. Cheaper, but blind to a difference of
         spread at equal mean.
+
+    Items on several scales. A level means another answer from one scale to the next,
+    so both encodings first place the votes on one axis, the unit axis of
+    :class:`~civiqhub_selene.blocks.responses.Thresholds`, where every scale covers the
+    axis from 0 to 1 in equal shares, and K is the levels of the longest scale. Under
+    ``"states"``, the vote at the level ``k`` of a scale of ``K_c`` levels covers the
+    interval ``((k - 1) / K_c, k / K_c]`` of the axis, which is cut into K equal bins:
+    the vote is spread over the bins it covers, in proportion to the length it covers
+    in each, so that it still weighs 1; an abstention keeps its own state. Under
+    ``"scores"``, the centred level of a vote is stretched by ``K / K_c``, the centre of
+    its interval on the axis, measured in levels of the longest scale. With one scale,
+    both are the encodings above, unchanged.
+
+    See the mathematical model: :doc:`/model/initialization`, equation
+    :eq:`eq-starts-laplacian`.
 
     Args:
         votes: The vote matrix.
@@ -297,10 +317,13 @@ def spectral_embedding(
 def n_singular_values(votes: VoteMatrix, encoding: Encoding = "states") -> tuple[int, int]:
     """Return how many singular values each side of the embedding of ``votes`` has.
 
-    With M voters, P items and K levels: ``min(M, P * (K + 1))`` for the voters and
-    ``min(P, M * (K + 1))`` for the items under ``"states"``; ``min(M, P)`` on both
-    sides under ``"scores"``. These are the largest numbers of components
-    :func:`spectral_embedding` accepts. Nothing is decomposed.
+    With M voters, P items and K levels, those of the longest scale when the items use
+    several: ``min(M, P * (K + 1))`` for the voters and ``min(P, M * (K + 1))`` for the
+    items under ``"states"``; ``min(M, P)`` on both sides under ``"scores"``. These are
+    the largest numbers of components :func:`spectral_embedding` accepts. Nothing is
+    decomposed.
+
+    See the mathematical model: :doc:`/model/initialization`.
     """
     n_voters, n_items = votes.shape
     if encoding == "scores":
@@ -322,7 +345,7 @@ def _decomposition(
     same content share an entry. The arrays returned are read-only.
     """
     if encoding == "states":
-        states = votes._states()
+        states = _aligned_states(votes)
         n_voters, n_items, n_states = states.shape
         voter_basis, voter_values = _left_vectors(
             _laplacian(states.reshape(n_voters, n_items * n_states), regularization)
@@ -333,9 +356,15 @@ def _decomposition(
             )
         )
     else:
-        middle = (votes.n_levels + 1) / 2
         voted = votes.voted
-        centred = np.where(voted, votes.levels - middle, 0.0)
+        scales = votes.item_scales
+        if scales.is_uniform:
+            middle = (votes.n_levels + 1) / 2
+            centred = np.where(voted, votes.levels - middle, 0.0)
+        else:
+            levels = scales.levels_by_item
+            stretch = votes.n_levels / levels
+            centred = np.where(voted, (votes.levels - (levels + 1) / 2) * stretch, 0.0)
         laplacian = _laplacian(centred, regularization, degrees=voted.astype(np.float64))
         left, values, right_t = np.linalg.svd(laplacian, full_matrices=False)
         voter_basis, item_basis = left, right_t.T
@@ -349,6 +378,33 @@ def _decomposition(
         np.asarray(item_basis),
         np.asarray(item_values),
     )
+
+
+def _aligned_states(votes: VoteMatrix) -> FloatArray:
+    """Return the states of each cell, read on the unit axis: shape (M, P, K + 1).
+
+    With one scale, the states of the matrix. With several, state 0 stays the
+    abstention, and the vote at the level ``k`` of a scale of ``K_c`` levels is spread
+    over the K bins of the axis that its interval ``((k - 1) / K_c, k / K_c]`` covers,
+    each in proportion to the length it covers, times ``K_c``: the weights of a vote
+    sum to 1.
+    """
+    scales = votes.item_scales
+    states = votes._states()
+    if scales.is_uniform:
+        return states
+    n_levels = votes.n_levels
+    weights = np.zeros((scales.n_scales, n_levels + 1, n_levels + 1))
+    for position, scale in enumerate(scales.scales):
+        weights[position, 0, 0] = 1.0
+        own = scale.n_levels
+        for level in range(1, own + 1):
+            for bin_ in range(1, n_levels + 1):
+                low = max((level - 1) / own, (bin_ - 1) / n_levels)
+                high = min(level / own, bin_ / n_levels)
+                weights[position, level, bin_] = max(high - low, 0.0) * own
+    aligned: FloatArray = np.einsum("ijs,jst->ijt", states, weights[scales.scale_index])
+    return aligned
 
 
 def _laplacian(

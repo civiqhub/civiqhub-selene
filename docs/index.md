@@ -86,6 +86,8 @@ A result describes a group and decides nothing. Every result carries its value o
 
 Accueil <self>
 Premiers pas <getting-started>
+Échelles par proposition <scales>
+Service de calcul <service>
 Plan de la bibliothèque <library-map>
 Architecture <architecture>
 Exemples <examples>
@@ -107,6 +109,9 @@ Choosing the shape <model/choosing-the-shape>
 Reading the results <model/reading-results>
 Cost and numerical safeguards <model/complexity>
 From the API to the formulas <model/api-to-formulas>
+Glossary <model/glossary>
+References <model/references>
+The ordinal family <model/ordinal>
 ```
 
 ```{toctree}

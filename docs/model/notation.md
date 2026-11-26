@@ -1,6 +1,6 @@
 # Notation
 
-This page fixes the notation of the whole section. It was checked against the code of `develop` at commit `97a0f15`. Every other page of the section, and the formulas the docstrings and the notebooks write, use these letters with these meanings. A letter names one object only, everywhere.
+This page fixes the notation of the whole section. It was checked against the code of `develop` at commit `c29d115`. Every other page of the section, and the formulas the docstrings and the notebooks write, use these letters with these meanings. A letter names one object only, everywhere.
 
 Each symbol is followed by the name the code gives it, as a link to the reference. A name that starts with an underscore is internal to the code: it is cited, without a link, so that the reader can find it in the source.
 
@@ -20,7 +20,11 @@ Each symbol is followed by the name the code gives it, as a link to the referenc
 | $M$ | Number of voters | First entry of {py:attr}`~civiqhub_selene.blocks.VoteMatrix.shape` | |
 | $P$ | Number of items | Second entry of {py:attr}`~civiqhub_selene.blocks.VoteMatrix.shape` | |
 | $i$, $j$ | A voter, from $1$ to $M$; an item, from $1$ to $P$ | Rows of {py:attr}`~civiqhub_selene.blocks.VoteMatrix.voters`, columns of {py:attr}`~civiqhub_selene.blocks.VoteMatrix.items` | |
-| $K$ | Number of levels of the scale: the scores, in order | {py:attr}`~civiqhub_selene.blocks.OrdinalScale.n_levels` | |
+| $K$ | Number of levels of the scale: the scores, in order; with several scales, the levels of the longest one | {py:attr}`~civiqhub_selene.blocks.OrdinalScale.n_levels`, {py:attr}`~civiqhub_selene.blocks.VoteMatrix.n_levels` | |
+| $\mathcal{G}$ | The scales of the items, one for each distinct set of scores; a single scale when every item has the same | {py:attr}`~civiqhub_selene.blocks.ItemScales.scales`, {py:attr}`~civiqhub_selene.blocks.VoteMatrix.scales` | |
+| $g$ | A scale of $\mathcal{G}$ | | |
+| $g_j$ | The scale of the item $j$ | {py:attr}`~civiqhub_selene.blocks.ItemScales.scale_index`, {py:meth}`~civiqhub_selene.blocks.VoteMatrix.scale_of` | $(P,)$ |
+| $K_g$ | Number of levels of the scale $g$ | {py:attr}`~civiqhub_selene.blocks.ItemScales.levels_by_item`, item by item | |
 | $k$ | A level, from $1$ to $K$ | | |
 | $\Omega$ | The set of shown cells $(i, j)$: the item $j$ was shown to the voter $i$ | {py:attr}`~civiqhub_selene.blocks.VoteMatrix.shown` | $(M, P)$ |
 | $s$ | A state of a shown cell: $0$ for shown without a vote, $k$ for a vote at level $k$ | | |
@@ -40,6 +44,7 @@ A cell has three states that the notation keeps apart: not shown ($(i, j) \notin
 | $R_i$ | The group of the voter $i$, when each voter belongs to one group | {py:attr}`~civiqhub_selene.blocks.results.Coclustering.group_index` | $(M,)$ |
 | $C_j$ | The block of the item $j$, when each item belongs to one block | {py:attr}`~civiqhub_selene.blocks.results.Coclustering.block_index` | $(P,)$ |
 | $N_{qls}$ | Count of the co-cluster $(q, l)$ in the state $s$: the shown cells of its voters and items in that state, each weighted by $w_i$; an expected, fractional count in the mixed-membership model | {py:meth}`~civiqhub_selene.blocks.GroupedVotes.counts` (without weights); `_numerics.count_states` (internal) | $(Q, L, K + 1)$ |
+| $N_{qlgs}$ | The same count, on the items of the scale $g$ only; with one scale, $N_{qls}$ | {py:meth}`~civiqhub_selene.blocks.GroupedVotes.counts_by_scale` (without weights); `_numerics.count_states_by_scale` (internal) | $(Q, L, \lvert\mathcal{G}\rvert, K + 1)$ |
 | $A_{iq}$ | Score of the voter $i$ for the group $q$, the blocks being fixed, in the latent block model | `single._voter_scores` (internal) | $(M, Q)$ |
 | $B_{jl}$ | Score of the item $j$ for the block $l$, the groups being fixed, in the latent block model | `single._item_scores` (internal) | $(P, L)$ |
 | $\pi_q$ | Share of the voters in the group $q$ | `group_shares` of `single._HardState` (internal) | $(Q,)$ |
@@ -66,6 +71,10 @@ A cell has three states that the notation keeps apart: not shown ($(i, j) \notin
 | $\mu_{ql}$ | Mean of the hidden opinion in the co-cluster $(q, l)$, on the axis of levels | {py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbitParameters.latent_mean` | $(Q, L)$ |
 | $\sigma_{ql}$ | Standard deviation of the hidden opinion in the co-cluster $(q, l)$ | {py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbitParameters.latent_spread` | $(Q, L)$ |
 | $t_k$ | The thresholds that cut the hidden opinion into levels, $t_1 < \dots < t_{K-1}$, with $t_0 = -\infty$ and $t_K = +\infty$ | {py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbit.thresholds`, {py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbitParameters.thresholds` | $(K - 1,)$ |
+| $t_{gk}$ | The thresholds of the scale $g$, $t_{g1} < \dots < t_{g,K_g - 1}$, with $t_{g0} = -\infty$ and $t_{gK_g} = +\infty$; with one scale, $t_k$ | {py:class}`~civiqhub_selene.blocks.responses.Thresholds`, {py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbitParameters.thresholds_by_scale` | $(K_g - 1,)$ per scale |
+| $F_{qlgs}$, $p_{qlgk}$ | $F_{qls}$ and $p_{qlk}$ for a cell of an item of the scale $g$; with one scale, $F_{qls}$ and $p_{qlk}$ | {py:meth}`~civiqhub_selene.blocks.responses.ResponseModel.log_probabilities_by_scale`; {py:attr}`~civiqhub_selene.blocks.CoclusterTable.vote_shares_by_scale` | $(Q, L, \lvert\mathcal{G}\rvert, K + 1)$, $(Q, L, K_g)$ per scale |
+| $m^{(1)}_{qlgk}$, $m^{(2)}_{qlgk}$ | The moments of the hidden opinion of a vote at the level $k$ of the scale $g$ | `truncated_moments_by_scale` in `_numerics` (internal) | $(Q, L, \lvert\mathcal{G}\rvert, K)$ |
+| $\sigma_{\mathrm{u}}$ | One level of the longest scale on the axis of the thresholds: $1$ on the axis of levels, $1 / K$ on the unit axis | {py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbitParameters.spread_unit` | |
 | $\Phi$ | The standard normal distribution function | `_numerics.norm_cdf` (internal) | |
 | $\Phi'$ | The standard normal density | `_numerics.norm_pdf` (internal) | |
 | $y_{ij}$ | The hidden opinion behind the vote of the cell $(i, j)$, in the ordinal probit | | |
@@ -113,3 +122,12 @@ A cell has three states that the notation keeps apart: not shown ($(i, j) \notin
 | $\operatorname{match}$ | The share of identifiers two partitions arrange in the same way, after the best renumbering | {py:meth}`~civiqhub_selene.blocks.Partition.agreement_with` |
 
 The pages that define these quantities give their formulas and the lines of the code that compute them.
+
+## The ordinal family
+
+| Symbol | Meaning | Name in the code |
+| --- | --- | --- |
+| $N_k$ | The number of votes at the level $k$, from $1$ to $5$, of one item or of one co-cluster: $N_{qlk}$ when the co-cluster $(q, l)$ is meant | {py:attr}`~civiqhub_selene.ordinal.VoteCounts.counts` |
+| $n$ | The number of votes of the counts, $\sum_{k=1}^{5} N_k$ | {py:attr}`~civiqhub_selene.ordinal.VoteCounts.total` |
+| $f_k$ | The share of the votes at the level $k$, an exact fraction | {py:attr}`~civiqhub_selene.ordinal.VoteCounts.shares` |
+| $f_{\leq k}$ | The share of the votes at the level $k$ or below, for $k$ from $1$ to $4$ | {py:attr}`~civiqhub_selene.ordinal.VoteCounts.cumulative_shares` |

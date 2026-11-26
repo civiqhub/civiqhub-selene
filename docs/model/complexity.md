@@ -1,6 +1,6 @@
 # Cost and numerical safeguards
 
-Checked against the code of `develop` at commit `97a0f15`.
+Checked against the code of `develop` at commit `c29d115`.
 
 ## In plain words
 
@@ -20,9 +20,13 @@ An iteration of {py:class}`~civiqhub_selene.blocks.LatentBlockModel` reads the a
 
 An iteration therefore costs of the order of $M P (K + 1)(Q L + Q + L)$, and an estimation that times the number of iterations of each start and the number of starts {py:attr}`~civiqhub_selene.blocks.base.BlockModel.n_starts`. The memory is that of $S$: $M P (K + 1)$ floating-point numbers, computed once per matrix.
 
+### Items on several scales
+
+With several scales ([The data: items on different scales](data.md#items-on-different-scales)), $K$ is the number of levels of the longest scale. The array $S_{ijs}$ keeps that width in every column: in a column on a shorter scale, the states past its levels are zeros, held and read like the others. The cost and the memory above therefore count $K + 1$ states per cell, whatever the scale of the item. The counts $N_{qlgs}$ are taken on the columns of each scale in turn, and the scores of the items read each column on the table of its scale: the work stays of the same order, plus one pass per scale of $\mathcal{G}$. The update of the response model reads $Q L \, \lvert \mathcal{G} \rvert \, (K + 1)$ counts.
+
 ### The mixed-membership model
 
-The exact expectation step of {py:class}`~civiqhub_selene.blocks.MixedMembershipBlockModel` goes through the $Q^L$ profiles for every shown cell ([The mixed-membership model](mixed-membership.md)): the probabilities $G_{ij\boldsymbol{c}}$ and the expected counts cost of the order of $M P (K + 1) \, Q^L$ operations per iteration, plus terms of the order of $M L Q^{L+1}$ for the roles and $P (K + 1) L Q^{L+1}$ for the counts. The number of profiles is bounded by {py:data}`~civiqhub_selene.blocks.mixed.MAX_PROFILES`, $4096$; a shape with more is refused. The voters are read in batches, so that a batch holds about two million (voter, item, profile) triples: the memory of the expectation step stays of the order of $2 \times 10^6$ numbers per array, whatever $M$.
+The exact expectation step of {py:class}`~civiqhub_selene.blocks.MixedMembershipBlockModel` goes through the $Q^L$ profiles for every shown cell ([The mixed-membership model](mixed-membership.md)): the probabilities $G_{ij\boldsymbol{c}}$ and the expected counts cost of the order of $M P (K + 1) \, Q^L$ operations per iteration, plus terms of the order of $M L Q^{L+1}$ for the roles and $P (K + 1) L Q^{L+1}$ for the counts. The number of profiles is bounded by {py:data}`~civiqhub_selene.blocks.mixed.MAX_PROFILES`, $4096$; a shape with more is refused. With several scales, the probability of a cell under each profile is computed for the items of each scale on the table of their scale, one scale after the other, and the expected counts are gathered back scale by scale: the order of the cost is the one above, $K$ the levels of the longest scale. The voters are read in batches, so that a batch holds about two million (voter, item, profile) triples: the memory of the expectation step stays of the order of $2 \times 10^6$ numbers per array, whatever $M$.
 
 ### The spectral start
 
@@ -62,20 +66,22 @@ The mixed-membership model costs more, by its $Q^L = 9$ profiles and by its numb
 
 | Rule | Code |
 | --- | --- |
-| Contractions of an iteration of the latent block model | `src/civiqhub_selene/blocks/single.py:48-71`, `:181-215`; `count_states`, `blocks/_numerics.py:47-77` |
-| Expectation of the mixed model, batches | `_expect`, `blocks/mixed.py:103-161`; `_CHUNK_CELLS`, `:34-35`; `MAX_PROFILES`, `:28-29`, `:296-303` |
-| Decomposition, cache | `blocks/spectral.py:48`, `:315-375` |
-| Log-sum-exp | `logsumexp`, `blocks/_numerics.py:80-88` |
-| Floors $10^{-300}$ | `blocks/single.py:24`; `blocks/coclusters.py:88`; `blocks/mixed.py:31`; `blocks/results.py:531`; `blocks/_numerics.py:34` |
-| Floor $10^{-12}$, empty co-clusters | `blocks/responses.py:42-43`, `:84-95`, `:373-379`; `blocks/_numerics.py:35` |
-| Survival functions, `erfc` | `blocks/_numerics.py:91-97`, `:107-121` |
-| Truncated moments, `min_spread` | `blocks/_numerics.py:151-178`, `:230-297` |
-| Memberships of the mixed model | `blocks/mixed.py:95-100`, `:328-336` |
-| Zero degrees | `blocks/spectral.py:371-375` |
-| An objective that is not a number | `blocks/iterative.py:40-43` |
+| Contractions of an iteration of the latent block model | `_voter_scores` and `_item_scores`, `src/civiqhub_selene/blocks/single.py:53-97`; `LatentBlockModel._step`, `:215-258`; `count_states` and `count_states_by_scale`, `blocks/_numerics.py:55-137` |
+| $S_{ijs}$ of the width of the longest scale | `VoteMatrix._states`, `blocks/data.py:1120-1131` |
+| Expectation of the mixed model, scale by scale, batches | `_expect`, `blocks/mixed.py:116-209`, the loops over the scales `:157-162` and `:188-201`; `_CHUNK_CELLS`, `:37-38`; `MAX_PROFILES`, `:33-34`, `:352-358` |
+| Decomposition, cache | `blocks/spectral.py:48`, `:327-420` |
+| Log-sum-exp | `logsumexp`, `blocks/_numerics.py:140-150` |
+| Floors $10^{-300}$ | `blocks/single.py:29`; `blocks/coclusters.py:32`, `:204`; `blocks/mixed.py:36`; `blocks/results.py:42`, `:594`; `blocks/_numerics.py:43` |
+| Floor $10^{-12}$, empty co-clusters | `blocks/responses.py:57-58`, `:138-151`, `:831-841`; `blocks/_numerics.py:44` |
+| Survival functions, `erfc` | `norm_cdf` and `interval_mass`, `blocks/_numerics.py:153-183` |
+| Truncated moments, `min_spread` | `truncated_moments`, `blocks/_numerics.py:213-240`; `fit_latent_normal_by_scale`, `:416-498` |
+| Memberships of the mixed model | `_normalised`, `blocks/mixed.py:108-113`; `MixedMembershipBlockModel._step`, `:384-392` |
+| Zero degrees | `_inverse_root`, `blocks/spectral.py:416-420` |
+| An objective that is not a number | `_comparable`, `blocks/iterative.py:40-43` |
 
 ## Limits
 
 - The orders of growth count the operations as the code writes them; NumPy may run a contraction faster or slower than its count suggests.
 - The mixed-membership model is limited to $4096$ profiles, and its cost grows as $Q^L$.
 - The spectral start holds dense matrices: its memory grows as $M \cdot P \cdot (K + 1)$.
+- On several scales, $S_{ijs}$ and the dense matrices of the spectral start take the width of the longest scale in every column: a short scale costs as much as the longest. A test of the repository runs the mixed-membership model on $4{,}000$ voters and $270$ items on seven scales of $2$ to $11$ answers, with synthetic votes, and checks that its memory stays under $512$ MiB (`test_the_memory_stays_bounded_at_the_size_of_a_national_survey`, `tests/unit/test_mixed_membership_block_model.py:411-435`).

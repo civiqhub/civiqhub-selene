@@ -15,7 +15,7 @@ Four versions move separately:
 
 | Version | Where it lives | Changes when |
 | --- | --- | --- |
-| Contract | `info.version` of `openapi.yaml`, `1.1.0`; the path prefix `/v1` is its major | the HTTP contract changes |
+| Contract | `info.version` of `openapi.yaml`, `1.2.0`; the path prefix `/v1` is its major | the HTTP contract changes |
 | Service | `version` of [`pyproject.toml`](pyproject.toml) (`selene-api`) | the server changes, for example a compatible fix |
 | Engine | `civiqhub_selene.__version__`, and the SHA-256 of the wheel the image installs | the scientific package changes |
 | Image | the digest of `ghcr.io/civiqhub/civiqhub-selene` | any of the above, or a dependency, changes |
@@ -73,9 +73,9 @@ GET    /readyz             readiness, no token
   key, capacity.
 - **Content fingerprint.** `content_fingerprint` is `sha256:` and the SHA-256 of the
   canonical JSON (sorted keys, no spaces, UTF-8) of the kind, the schema version and the
-  payload with every parameter at its effective value, the votes sorted by cell and the
-  listed cells sorted, and the tolerance written as a number with a fraction (`0` and
-  `0.0` are the same content). The key and `caller_reference` are not content. The service
+  payload with every parameter at its effective value, the votes sorted by cell, the
+  listed cells sorted, the scales of schema 2 in the order of their first item, and the
+  tolerance written as a number with a fraction (`0` and `0.0` are the same content). The key and `caller_reference` are not content. The service
   computes it; the caller stores it.
 - **Volatile memory.** A finished job is kept until `expires_at` (at most
   `result_ttl_seconds`), or less when `max_retained_jobs` is reached (the oldest finished
@@ -124,6 +124,51 @@ project, and the settings of a latent block model (`LatentBlockModel` of the eng
   it is for the backend only and is never a view to publish as it is. No uncertainty is
   defined for this method, and none is invented.
 
+## Kind `coclustering.single`, schema 2
+
+The same computation on items that are not all asked on one scale (added in 1.2.0, SEL-8):
+a question of yes or no, a question of four answers and a question of five in one
+co-clustering. Schema 1 is unchanged and still served; a client that sends schema 1 gets
+the same job and the same result as before.
+
+- **Declared scales.** `scales` lists each scale once, `{id, scores}`: an opaque
+  identifier and from 2 to 11 integer scores, strictly increasing in the order of
+  agreement. Each item names its scale, `{id, revision, scale}`, and each vote
+  `[row, column, score]` gives a score of the scale of its item. The service refuses a
+  scale that no item uses, two scales with the same identifier or the same scores, an
+  item on a scale not declared and a score that is not one of its item's scale (`422
+  invalid_request`, with the path of the faulty field). The service lists the scales in
+  the order in which the items first use them: two submissions that differ only by the
+  order of declaration of their scales have the same `content_fingerprint` and the same
+  computation. The identifiers of the scales are content: another identifier gives
+  another `content_fingerprint`, and comes back in the result, but it does not change the
+  computation, whose input fingerprint and computation fingerprint stay the same.
+- **Settings.** The settings of schema 1, and `thresholds`: where the ordinal probit
+  cuts the opinion of a co-cluster into the answers of each scale. `axis` is `auto` (the
+  axis of levels with one scale, so that one scale is computed exactly as schema 1; the
+  unit axis with several, where each scale covers the axis from 0 to 1 in equal shares),
+  `levels` or `unit`; `mode` is `fixed` (the regular grid of each scale) or `estimated`
+  (the inner thresholds of each scale of four answers or more estimated with the
+  co-clusters). Both default to the engine defaults.
+- **Budget.** The budget of the computation counts the states of the longest scale.
+- **Result.** `selene.coclustering.single.result/2`, always written by scale, even for one
+  scale: `scales` (`{id, scores}` in the order of their first item) and `scale_index` (the
+  position in `scales` of the scale of each item) take the place of `scores`, and the
+  co-cluster table writes `vote_shares_by_scale` (for each group and block, one list of
+  shares per scale, as long as that scale), `thresholds` (the grid of each scale) and
+  `has_fixed_spread` (co-clusters whose votes are all on scales of two answers: their
+  spread is held, not estimated). Each co-cluster keeps one vote rate, one latent mean
+  and one latent spread for all its items. A client written for result/1 fails on a
+  missing key rather than reads the shares of one scale as another's.
+
+Schema 2 on one scale is the computation of schema 1: the same input fingerprint, the
+same computation fingerprint and the same numbers; only the form of the result changes.
+The guide [Échelles par proposition](../../docs/scales.md) explains the model and its
+readings on the engine side. The page [Service de calcul](../../docs/service.md) writes,
+with the symbols and the equations of the mathematical model, how a submission of
+`coclustering.single` becomes a computation of the engine, and its result the result of
+the contract.
+
 ## Fixtures and contract client
 
 [`contract/fixtures/v1`](contract/fixtures/v1) holds TEST ONLY vectors:
@@ -140,7 +185,12 @@ project, and the settings of a latent block model (`LatentBlockModel` of the eng
 - `coclustering-single-1/no-votes`: an explained absence.
 - `coclustering-single-1/invalid/*`: each refusal the contract requires, with its status
   and code, and whether the JSON schema alone refuses it.
-- `examples/*`: a job in each state and error bodies.
+- `coclustering-single-2/reference`: twelve invented voters and nine items on three
+  scales (yes or no, four answers, five scores), two planted groups and blocks, and its
+  expected result, reproduced under the same tolerances.
+- `coclustering-single-2/invalid/*`: each refusal of a scale, as for schema 1.
+- `examples/*`: a job in each state, a job of schema 2 (`job-succeeded-scales`) and error
+  bodies.
 
 [`contract/make_fixtures.py`](contract/make_fixtures.py) writes them from the engine and
 `openapi.yaml`, without the service; `--check` fails when they are stale. A change of the
@@ -156,7 +206,9 @@ python services/api/contract/selene_contract.py check --url https://HOST:8443 --
 
 `run` submits the reference, follows it, compares it with the local reference and prints
 a summary without votes, pseudonyms or memberships; `check` runs the consumer suite of
-v1 and exits 0 only if every check passes. Both are meant for the synthetic acceptance
+v1 and exits 0 only if every check passes. When the service advertises schema 2, `check`
+also submits the survey of three scales, compares it with its reference and checks each
+refusal of a scale. Both are meant for the synthetic acceptance
 test of a deployment as well.
 
 ## Run the service locally

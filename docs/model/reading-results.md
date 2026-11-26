@@ -1,6 +1,6 @@
 # Reading the results
 
-Checked against the code of `develop` at commit `97a0f15`.
+Checked against the code of `develop` at commit `c29d115`.
 
 ## In plain words
 
@@ -18,6 +18,8 @@ A co-clustering result is a description of a collective: groups of voters, block
 - under the ordinal probit, {py:attr}`~civiqhub_selene.blocks.CoclusterTable.latent_mean` and {py:attr}`~civiqhub_selene.blocks.CoclusterTable.latent_spread`, $\mu_{ql}$ and $\sigma_{ql}$, on the axis of levels.
 
 These are the parameters of the response model at the end of the estimation ([The response models](response-models.md)): a description of how the group answers the block, not a test of a difference between groups.
+
+When the items use several scales, the co-cluster keeps one vote rate and one opinion, and its distribution of votes is given scale by scale: {py:attr}`~civiqhub_selene.blocks.CoclusterTable.vote_shares_by_scale` holds $p_{qlg1}, \dots, p_{qlgK_g}$ for each scale $g$, and {py:attr}`~civiqhub_selene.blocks.CoclusterTable.thresholds` the grid of each scale under the ordinal probit, whose $\mu_{ql}$ and $\sigma_{ql}$ then read on the unit axis by default. {py:attr}`~civiqhub_selene.blocks.CoclusterTable.has_fixed_spread` marks the co-clusters whose spread was held, their votes all being on scales of two levels. The readings of one scale, such as {py:attr}`~civiqhub_selene.blocks.CoclusterTable.vote_shares`, refuse a table of several. The agreement between two groups below averages the distance of their votes over the scales of the result.
 
 ### Memberships and main groups
 
@@ -43,10 +45,10 @@ $0$ for a voter that follows one group on every block, and up to $1 - 1/Q$. {py:
 {py:func}`~civiqhub_selene.viz.graphs.group_graph` gives, for each pair of groups, one minus the total variation distance between their distributions of votes, averaged over the blocks:
 
 $$
-\operatorname{agree}(q, r) = 1 - \sum_{l=1}^{L} \bar{\rho}_l \cdot \frac{1}{2} \sum_{k=1}^{K} \left| p_{qlk} - p_{rlk} \right|,
+\operatorname{agree}(q, r) = \sum_{l=1}^{L} \bar{\rho}_l \cdot \frac{1}{\lvert \mathcal{G} \rvert} \sum_{g \in \mathcal{G}} \Big(1 - \frac{1}{2} \sum_{k=1}^{K_g} \left| p_{qlgk} - p_{rlgk} \right|\Big),
 $$ (eq-results-agreement)
 
-where $\bar{\rho}_l$ is the share of the block $l$ in the result: the share of the items whose block is $l$ in a single-membership result, the mean of $\phi_{jl}$ over the items in a mixed one, normalised to sum to $1$. It is $1$ for two groups with the same distributions and $0$ for two groups without any common level. It reads the distributions of the votes only, not the vote rates: two groups that vote alike but not as often agree fully.
+where $\bar{\rho}_l$ is the share of the block $l$ in the result: the share of the items whose block is $l$ in a single-membership result, the mean of $\phi_{jl}$ over the items in a mixed one, normalised to sum to $1$. The distance is taken on each scale $g$ of the result, on the shares $p_{qlgk}$ of its $K_g$ levels, and averaged over the scales of $\mathcal{G}$, each counting equally, whether or not the block $l$ holds items of that scale. With one scale, it is $1 - \sum_l \bar{\rho}_l \cdot \frac{1}{2} \sum_{k=1}^{K} \lvert p_{qlk} - p_{rlk} \rvert$. It is $1$ for two groups with the same distributions and $0$ for two groups without any common level. It reads the distributions of the votes only, not the vote rates: two groups that vote alike but not as often agree fully.
 
 ### How much two partitions agree
 
@@ -104,11 +106,11 @@ No voter has the same group number in the two results, and the two results are t
 
 | Formula or rule | Code |
 | --- | --- |
-| Table of co-clusters | `CoclusterTable`, `src/civiqhub_selene/blocks/coclusters.py:103-150` |
-| Main group and block | `blocks/single.py:235-245`; `blocks/mixed.py:358-361` |
-| {eq}`eq-results-mixedness` | `MixedCoclustering.mixedness`, `blocks/results.py:476-486` |
-| `role_changes` | `blocks/results.py:488-506` |
-| {eq}`eq-results-agreement`, shares of the blocks | `group_graph`, `src/civiqhub_selene/viz/graphs.py:235-271`; `Coclustering.blocks`, `blocks/results.py:276-286`; `MixedCoclustering._shares`, `:470-475` |
+| Table of co-clusters, by scale | `CoclusterTable`, `src/civiqhub_selene/blocks/coclusters.py:235-529`; `Cocluster`, `:47-187` |
+| Main group and block | `blocks/single.py:288-301`; `blocks/mixed.py:416-417` |
+| {eq}`eq-results-mixedness` | `MixedCoclustering.mixedness`, `blocks/results.py:530-540` |
+| `role_changes` | `blocks/results.py:542-560` |
+| {eq}`eq-results-agreement`, shares of the blocks, averaged over the scales | `group_graph`, `src/civiqhub_selene/viz/graphs.py:280-316`; `_agreement_by_block`, `:77-86`; `Coclustering.blocks`, `blocks/results.py:301-311`; `MixedCoclustering._shares`, `:523-528` |
 | {eq}`eq-results-match`, at most 8 clusters | `Partition.agreement_with`, `blocks/partition.py:330-361` |
 | No uncertainty | `Estimator._uncertainty`, `src/civiqhub_selene/estimator.py:223-232`, not redefined by the block models; `Uncertainty`, `src/civiqhub_selene/types.py:298-299` |
 

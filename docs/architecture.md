@@ -1,6 +1,6 @@
 # Architecture
 
-This page describes how the engine is built: the contract every method shares, the data of co-clustering, and the pipeline a block model runs through. It is written for whoever adds a method or reviews one. The mathematical definition of each method lives in its docstring.
+This page describes how the engine is built: the contract every method shares, the data of co-clustering, and the pipeline a block model runs through. It is written for whoever adds a method or reviews one. The definition of each method lives in its docstring; its derivation, in the notation every page shares, lives in the [Mathematical model](model/index.md).
 
 ## Six rules
 
@@ -163,7 +163,7 @@ A step uses the response model through four calls:
 
 ## Adding a method
 
-1. Write the estimator and its value in their module, with the mathematical definition and the reference in the docstring.
+1. Write the estimator and its value in their module, with the mathematical definition and the reference in the docstring. The formula of a docstring uses the letters of the [notation](model/notation.md), in plain text that `help()` shows, and ends with a line "See the mathematical model:" that links to its page and its equations.
 2. Declare it in `pyproject.toml`, then reinstall the package: an editable install reads its entry points when it is installed. For example, the line of the single-membership model:
 
    ```toml
@@ -173,6 +173,7 @@ A step uses the response model through four calls:
 
 3. Add a test class that inherits `EstimatorContract`, unit tests on known cases, property-based tests for the invariants, and reference vectors under `tests/vectors` with their tolerance.
 4. Create the page of its module in the reference. `docs/README.md`, in the repository, says how; a test fails as long as a public module has no page.
+5. Write its derivation in a page of the [Mathematical model](model/index.md), following the outline that `docs/README.md` gives, and add each of its public names to [From the API to the formulas](model/api-to-formulas.md). A test fails as long as a public name of the modules it lists has no row there.
 
 ## Tests
 

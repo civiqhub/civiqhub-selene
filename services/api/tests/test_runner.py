@@ -59,9 +59,10 @@ def test_the_child_process_describes_the_engine() -> None:
     assert description["kinds"] == [
         {
             "kind": "coclustering.single",
-            "schema_version": 1,
+            "schema_version": version,
             "method": {"name": "latent_block_model", "version": "0.1.0"},
         }
+        for version in (1, 2)
     ]
 
 

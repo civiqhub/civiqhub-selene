@@ -126,6 +126,12 @@ def _score_map(scores: Sequence[int]) -> tuple[LinearSegmentedColormap, TwoSlope
     return cmap, TwoSlopeNorm(vmin=low, vcenter=(low + high) / 2, vmax=high)
 
 
+def _position_map() -> tuple[LinearSegmentedColormap, TwoSlopeNorm]:
+    """The diverging colour map of a position on the unit axis, centred on 1/2."""
+    cmap = LinearSegmentedColormap.from_list("civiqhub_positions", list(score_colors(5)))
+    return cmap, TwoSlopeNorm(vmin=0.0, vcenter=0.5, vmax=1.0)
+
+
 def _check(value: object, kind: type = Coclustering) -> None:
     if not isinstance(value, kind):
         raise InvalidInputError(f"this figure reads a {kind.__name__}, got {type(value).__name__}")
@@ -145,7 +151,9 @@ def draw_coclustering(value: Coclustering, *, ax: Axes | None = None) -> Axes:
     in ink. The area of a node follows the share of its cluster. The edge of a
     co-cluster is coloured by the mean score of its votes, on the diverging Likert
     ramp (orange for disagreement, blue for agreement), and its width follows its vote
-    rate. Reads :func:`~civiqhub_selene.viz.graphs.coclustering_graph`.
+    rate. When the items use several scales, the colour follows the mean position of
+    the votes on the unit axis, from 0 to 1, instead of a score. Reads
+    :func:`~civiqhub_selene.viz.graphs.coclustering_graph`.
 
     Args:
         value: A co-clustering.
@@ -166,7 +174,9 @@ def draw_coclustering(value: Coclustering, *, ax: Axes | None = None) -> Axes:
         return {node: (x, (count - 1) / 2 - rank) for rank, node in enumerate(nodes)}
 
     pos = {**column(groups, 0.0), **column(blocks, 1.0)}
-    cmap, norm = _score_map(value.scale.scores)
+    one_scale = len(value.coclusters.scales) == 1
+    cmap, norm = _score_map(value.scale.scores) if one_scale else _position_map()
+    reading = "mean_score" if one_scale else "mean_position"
     edges = list(graph.edges(data=True))
     widths = [1.0 + 9.0 * float(data["vote_rate"]) for _, _, data in edges]
     edge_list = [(u, v) for u, v, _ in edges]
@@ -179,7 +189,7 @@ def draw_coclustering(value: Coclustering, *, ax: Axes | None = None) -> Axes:
         pos,
         edgelist=edge_list,
         width=widths,
-        edge_color=[cmap(norm(float(data["mean_score"]))) for _, _, data in edges],
+        edge_color=[cmap(norm(float(data[reading]))) for _, _, data in edges],
         ax=ax,
     )
     nx.draw_networkx_nodes(
@@ -222,8 +232,14 @@ def draw_coclustering(value: Coclustering, *, ax: Axes | None = None) -> Axes:
     ax.set_ylim(-span / 2 - 0.1, span / 2 + 0.1)
     mappable = ScalarMappable(norm=norm, cmap=cmap)
     bar = ax.figure.colorbar(mappable, ax=ax, shrink=0.6, pad=0.02, aspect=25)
-    bar.set_label("mean score of the votes", color=INK_SECONDARY, fontsize=_LABEL_SIZE)
-    bar.set_ticks([float(score) for score in value.scale.scores])
+    if one_scale:
+        bar.set_label("mean score of the votes", color=INK_SECONDARY, fontsize=_LABEL_SIZE)
+        bar.set_ticks([float(score) for score in value.scale.scores])
+    else:
+        bar.set_label(
+            "mean position of the votes on the unit axis", color=INK_SECONDARY, fontsize=_LABEL_SIZE
+        )
+        bar.set_ticks([0.0, 0.5, 1.0])
     bar.ax.tick_params(colors=INK_MUTED, labelcolor=INK_SECONDARY, labelsize=_LABEL_SIZE)
     bar.outline.set_visible(False)
     ax.legend(
@@ -451,6 +467,9 @@ def draw_groups(value: Coclustering, *, ax: Axes | None = None) -> Axes:
     averaged over the blocks), and carries its value. Reads
     :func:`~civiqhub_selene.viz.graphs.group_graph`.
 
+    See the mathematical model: :doc:`/model/reading-results`, equation
+    :eq:`eq-results-agreement`.
+
     Args:
         value: A co-clustering.
         ax: The axes to draw on. Defaults to new axes.
@@ -527,7 +546,9 @@ def plot_vote_matrix(
 
     One row per voter, one column per item. A vote takes the colour of its score on
     the Likert ramp; a cell shown without a vote is a grey dot on the surface; a cell
-    that is not shown is hatched. With a co-clustering of the same matrix, rows and
+    that is not shown is hatched. When the items use several scales, a vote takes the
+    colour of its position on the unit axis, ``(k - 1/2) / K_c`` for the level ``k`` of a
+    scale of ``K_c`` levels, on the same ramp. With a co-clustering of the same matrix, rows and
     columns follow :meth:`~civiqhub_selene.blocks.results.Coclustering.display_order`,
     and lines separate the groups and the blocks, named in the margins.
 
@@ -558,10 +579,18 @@ def plot_vote_matrix(
         rows, columns = np.arange(n_voters), np.arange(n_items)
     levels = votes.levels[np.ix_(rows, columns)]
     shown = votes.shown[np.ix_(rows, columns)]
-    palette = np.array([to_rgba(color) for color in score_colors(votes.n_levels)])
+    one_scale = votes.item_scales.is_uniform
     image = np.zeros((n_voters, n_items, 4))
     voted = shown & (levels > 0)
-    image[voted] = palette[levels[voted] - 1]
+    if one_scale:
+        palette = np.array([to_rgba(color) for color in score_colors(votes.n_levels)])
+        image[voted] = palette[levels[voted] - 1]
+    else:
+        # A vote at the level k of a scale of K_c levels sits at (k - 1/2) / K_c.
+        sizes = votes.item_scales.levels_by_item[columns][np.newaxis, :]
+        positions = (levels - 0.5) / sizes
+        cmap, norm = _position_map()
+        image[voted] = cmap(norm(positions[voted]))
     image[shown & ~voted] = to_rgba(SURFACE)
     ax = _axes(ax, (6.4, 6.0))
     ax.set_facecolor(SURFACE)
@@ -628,10 +657,17 @@ def plot_vote_matrix(
         fontsize=_LABEL_SIZE,
         labelpad=24 if value is not None else 4,
     )
-    handles: list[Any] = [
-        Patch(facecolor=color, label=votes.scale.format_score(score))
-        for color, score in zip(palette, votes.scale.scores, strict=True)
-    ]
+    handles: list[Any]
+    if one_scale:
+        handles = [
+            Patch(facecolor=color, label=votes.scale.format_score(score))
+            for color, score in zip(palette, votes.scale.scores, strict=True)
+        ]
+    else:
+        handles = [
+            Patch(facecolor=cmap(norm(position)), label=label)
+            for position, label in ((0.1, "low"), (0.5, "middle"), (0.9, "high"))
+        ]
     handles.append(
         Line2D([], [], linestyle="none", marker="o", markersize=3, color=INK_MUTED, label="no vote")
     )
@@ -659,6 +695,9 @@ def plot_spectrum(
     A gap after the ``k``-th value suggests ``k`` clusters on that side; it is a hint
     for the shape, not a choice of it (the integrated likelihood or the held-out
     likelihood choose).
+
+    See the mathematical model: :doc:`/model/initialization`;
+    :doc:`/model/choosing-the-shape`.
 
     Args:
         embedding: The spectral embedding.
@@ -727,6 +766,9 @@ def plot_embedding(
     and spread along it with their participation: the "star" of Qin and Rohe (2013,
     figure 1). After projection onto the unit sphere (``project=True``), each cluster
     gathers on one point. The hollow circle is the origin.
+
+    See the mathematical model: :doc:`/model/initialization`, equation
+    :eq:`eq-starts-laplacian`.
 
     Args:
         embedding: The spectral embedding, with at least two components on that side.
@@ -809,6 +851,8 @@ def plot_embedding(
 def plot_history(value: Coclustering, *, ax: Axes | None = None) -> Axes:
     """Draw the objective after each iteration of the start that was kept.
 
+    See the mathematical model: :doc:`/model/estimation`.
+
     Args:
         value: A co-clustering.
         ax: The axes to draw on. Defaults to new axes.
@@ -835,6 +879,9 @@ def plot_mixedness(value: MixedCoclustering, *, bins: int = 10, ax: Axes | None 
     The mixedness of a voter is one minus its largest membership: 0 for a voter of a
     single group, up to ``1 - 1 / Q``. It is shown over the voters, never as a list by
     voter.
+
+    See the mathematical model: :doc:`/model/reading-results`, equation
+    :eq:`eq-results-mixedness`.
 
     Args:
         value: A mixed co-clustering.

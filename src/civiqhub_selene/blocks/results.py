@@ -23,9 +23,9 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from civiqhub_selene.blocks._arrays import FloatArray, IntArray
-from civiqhub_selene.blocks._numerics import History
+from civiqhub_selene.blocks._numerics import History, columns_by_scale
 from civiqhub_selene.blocks.coclusters import Cocluster, CoclusterTable
-from civiqhub_selene.blocks.data import OrdinalScale, VoteMatrix
+from civiqhub_selene.blocks.data import ItemScales, OrdinalScale, VoteMatrix, _only_scale
 from civiqhub_selene.blocks.partition import ItemBlock, Partition, VoterGroup
 from civiqhub_selene.errors import InvalidInputError
 from civiqhub_selene.types import Displayable
@@ -44,7 +44,11 @@ _MIN_PROBABILITY = 1e-300
 
 @runtime_checkable
 class HasIntegratedLikelihood(Protocol):
-    """A value that carries an integrated likelihood, for the criterion of that name."""
+    """A value that carries an integrated likelihood, for the criterion of that name.
+
+    See the mathematical model: :doc:`/model/choosing-the-shape`, equation
+    :eq:`eq-shape-icl`.
+    """
 
     @property
     def integrated_likelihood(self) -> float:
@@ -54,7 +58,11 @@ class HasIntegratedLikelihood(Protocol):
 
 @runtime_checkable
 class PredictsVotes(Protocol):
-    """A value that gives the probability of the state of each cell of a vote matrix."""
+    """A value that gives the probability of the state of each cell of a vote matrix.
+
+    See the mathematical model: :doc:`/model/choosing-the-shape`, equations
+    :eq:`eq-shape-held-out-single` and :eq:`eq-shape-held-out-mixed`.
+    """
 
     def log_probability(self, votes: VoteMatrix) -> FloatArray:
         """Return, for each cell, the log-probability of its state, of shape (M, P)."""
@@ -178,11 +186,13 @@ class Coclustering(Displayable):
     ``coclustering[q, l]`` is the co-cluster of the group ``q`` and the block ``l``.
     Arrays are copied and made read-only.
 
+    See the mathematical model: :doc:`/model/reading-results`.
+
     Attributes:
         computation: Fingerprint of the computation that produced the value.
         voters: The voters, in the order of the matrix.
         items: The items, in the order of the matrix.
-        scale: The scale of scores.
+        item_scales: The scale of each item, as the matrix gave it.
         group_index: Shape (M,): for each voter, the index of its main group.
         block_index: Shape (P,): for each item, the index of its main block.
         group_memberships: Shape (M, Q): degree of membership of each voter to each
@@ -204,7 +214,7 @@ class Coclustering(Displayable):
     computation: str
     voters: tuple[str, ...]
     items: tuple[str, ...]
-    scale: OrdinalScale
+    item_scales: ItemScales
     group_index: IntArray
     block_index: IntArray
     group_memberships: FloatArray
@@ -220,10 +230,18 @@ class Coclustering(Displayable):
         if not isinstance(self.coclusters, CoclusterTable):
             raise InvalidInputError(f"coclusters are a CoclusterTable, got {self.coclusters!r}")
         n_groups, n_blocks = self.coclusters.shape
-        if self.coclusters.scale != self.scale:
+        if not isinstance(self.item_scales, ItemScales):
+            raise InvalidInputError(f"item_scales is an ItemScales, got {self.item_scales!r}")
+        if self.item_scales.n_items != n_items:
             raise InvalidInputError(
-                f"the table of co-clusters is on the scale {self.coclusters.scale.scores!r}, "
-                f"the value on the scale {self.scale.scores!r}"
+                f"item_scales gives the scales of {self.item_scales.n_items} items "
+                f"to {n_items} items"
+            )
+        table = tuple(scale.scores for scale in self.coclusters.scales)
+        value = tuple(scale.scores for scale in self.item_scales.scales)
+        if table != value:
+            raise InvalidInputError(
+                f"the table of co-clusters is on the scales {table!r}, the value on {value!r}"
             )
         object.__setattr__(self, "voters", voters)
         object.__setattr__(self, "items", items)
@@ -241,6 +259,22 @@ class Coclustering(Displayable):
             if ((index < 0) | (index >= size)).any():
                 raise InvalidInputError(f"{name} holds indices from 0 to {size - 1}")
         object.__setattr__(self, "objective", float(self.objective))
+
+    # Scales ---------------------------------------------------------------------------
+
+    @property
+    def scale(self) -> OrdinalScale:
+        """The scale of every item, when they all use one.
+
+        Raises:
+            InvalidInputError: If the items use several scales: read :attr:`item_scales`.
+        """
+        return _only_scale(self.item_scales.scales, "this co-clustering")
+
+    @property
+    def scales(self) -> tuple[OrdinalScale, ...]:
+        """The distinct scales of the items, in the order of their first item."""
+        return self.item_scales.scales
 
     # Shape and clusters ---------------------------------------------------------------
 
@@ -321,7 +355,9 @@ class Coclustering(Displayable):
         """Return a stable fingerprint of what was found: 16 hexadecimal characters.
 
         SHA-256 of the voters, the items and the scores, then the bytes of the indices,
-        the memberships, and the vote rates and vote shares of the table. The history,
+        the memberships, and the vote rates and vote shares of the table. With several
+        scales, the scores of each scale and the scale of each item take the place of
+        the scores, and the vote shares of each scale follow one another. The history,
         the objective and the trace of the choice of shape are left out.
         """
         return self._fingerprint
@@ -329,14 +365,24 @@ class Coclustering(Displayable):
     @cached_property
     def _fingerprint(self) -> str:
         digest = hashlib.sha256()
-        digest.update(repr((self.voters, self.items, self.scale.scores)).encode())
+        scales = self.item_scales
+        if scales.is_uniform:
+            head: tuple[object, ...] = (self.voters, self.items, scales.scales[0].scores)
+        else:
+            head = (
+                self.voters,
+                self.items,
+                tuple(scale.scores for scale in scales.scales),
+                tuple(scales.scale_index.tolist()),
+            )
+        digest.update(repr(head).encode())
         digest.update(np.ascontiguousarray(self.group_index, dtype="<i8").tobytes())
         digest.update(np.ascontiguousarray(self.block_index, dtype="<i8").tobytes())
         for array in (
             self.group_memberships,
             self.block_memberships,
             self.coclusters.vote_rate,
-            self.coclusters.vote_shares,
+            *self.coclusters.vote_shares_by_scale,
         ):
             digest.update(_float_bytes(array))
         return digest.hexdigest()[:16]
@@ -345,13 +391,24 @@ class Coclustering(Displayable):
         """Return plain lists and numbers, ready for JSON.
 
         A float that is not finite becomes ``None``. The fields proper to a subclass
-        are added by it.
+        are added by it. With one scale, ``scores`` gives its scores; with several,
+        ``scales`` gives the scores of each scale and ``scale_index`` the scale of each
+        item, in place of ``scores``.
         """
+        scales = self.item_scales
+        reading: dict[str, Any] = (
+            {"scores": list(scales.scales[0].scores)}
+            if scales.is_uniform
+            else {
+                "scales": [list(scale.scores) for scale in scales.scales],
+                "scale_index": scales.scale_index.tolist(),
+            }
+        )
         return {
             "kind": type(self).__name__,
             "voters": list(self.voters),
             "items": list(self.items),
-            "scores": list(self.scale.scores),
+            **reading,
             "group_index": self.group_index.tolist(),
             "block_index": self.block_index.tolist(),
             "group_memberships": _plain(self.group_memberships),
@@ -383,9 +440,13 @@ class Coclustering(Displayable):
     def _check_votes(self, votes: VoteMatrix) -> None:
         if not isinstance(votes, VoteMatrix):
             raise InvalidInputError(f"votes are a VoteMatrix, got {type(votes).__name__}")
-        if votes.voters != self.voters or votes.items != self.items or votes.scale != self.scale:
+        if (
+            votes.voters != self.voters
+            or votes.items != self.items
+            or votes.item_scales != self.item_scales
+        ):
             raise InvalidInputError(
-                "log_probability reads a matrix of the same voters, items and scale, in the "
+                "log_probability reads a matrix of the same voters, items and scales, in the "
                 f"same order, as the one the co-clustering was computed on: got {votes!r}"
             )
 
@@ -397,6 +458,13 @@ def _plain_dict(data: dict[str, Any]) -> dict[str, Any]:
 @dataclass(frozen=True, kw_only=True, eq=False, repr=False)
 class SingleCoclustering(Coclustering):
     """A co-clustering where each voter belongs to one group and each item to one block.
+
+    Its memberships are the soft reading ``theta_hat[i, q]`` and ``phi_hat[j, l]`` of
+    the final arrangement, and its objective the classified log-likelihood.
+
+    See the mathematical model: :doc:`/model/latent-block-model`, equations
+    :eq:`eq-lbm-objective` and :eq:`eq-lbm-memberships`; :doc:`/model/choosing-the-shape`,
+    equation :eq:`eq-shape-icl`.
 
     Attributes:
         integrated_likelihood: The integrated completed likelihood criterion (ICL,
@@ -410,16 +478,25 @@ class SingleCoclustering(Coclustering):
 
         Shape (M, P). The state of a cell is its vote or its absence of vote, read
         without ``shown``; its probability is the one of the co-cluster of its voter
-        and of its item.
+        and of its item, from the table of co-clusters, on the scale ``g_j`` of the
+        item::
+
+            log F[R[i], C[j], g_j, s[i, j]]
+
+        See the mathematical model: :doc:`/model/choosing-the-shape`, equation
+        :eq:`eq-shape-held-out-single`.
 
         Raises:
             InvalidInputError: If ``votes`` does not have the voters, the items and the
                 scale of the co-clustering.
         """
         self._check_votes(votes)
-        logs = self.coclusters.log_probabilities()
+        logs = self.coclusters.log_probabilities_by_scale()
         cells: FloatArray = logs[
-            self.group_index[:, np.newaxis], self.block_index[np.newaxis, :], votes.levels
+            self.group_index[:, np.newaxis],
+            self.block_index[np.newaxis, :],
+            self.item_scales.scale_index[np.newaxis, :],
+            votes.levels,
         ]
         return cells
 
@@ -435,15 +512,19 @@ class MixedCoclustering(Coclustering):
     """A co-clustering where a voter can follow different groups on different blocks.
 
     A profile is one choice of a group per block; with Q groups and L blocks there are
-    Q**L of them.
+    Q**L of them. Its memberships are ``theta[i, q]`` and ``phi[j, l]``, and its
+    objective the log-likelihood plus the log-densities of the priors.
+
+    See the mathematical model: :doc:`/model/mixed-membership`, equations
+    :eq:`eq-mm-likelihood` to :eq:`eq-mm-profiles`.
 
     Attributes:
         role_by_block: Shape (M, L, Q): for each voter and each block, the probability
-            that the voter follows each group on this block.
-        profiles: Shape (Q**L, L), integers: every profile, the group followed on each
-            block, in the order of ``itertools.product(range(Q), repeat=L)``.
-        profile_probabilities: Shape (M, Q**L): for each voter, the probability of
-            each profile.
+            ``kappa[i, l, q]`` that the voter follows each group on this block.
+        profiles: Shape (Q**L, L), integers: every profile ``c``, the group followed on
+            each block, in the order of ``itertools.product(range(Q), repeat=L)``.
+        profile_probabilities: Shape (M, Q**L): for each voter, the probability
+            ``eta[i, c]`` of each profile.
         log_likelihood: The observed log-likelihood.
     """
 
@@ -477,8 +558,11 @@ class MixedCoclustering(Coclustering):
     def mixedness(self) -> FloatArray:
         """Shape (M,): one minus the largest membership of each voter.
 
-        0 for a voter who belongs to a single group. It is published as a histogram
-        over the voters, never as a list by voter.
+        ``1 - max_q theta[i, q]``: 0 for a voter who belongs to a single group. It is
+        published as a histogram over the voters, never as a list by voter.
+
+        See the mathematical model: :doc:`/model/reading-results`, equation
+        :eq:`eq-results-mixedness`.
         """
         if self.group_memberships.shape[1] == 0:
             return np.zeros(self.group_memberships.shape[0])
@@ -490,8 +574,8 @@ class MixedCoclustering(Coclustering):
 
         Returns:
             Integers of shape (Q, Q): entry ``[q, r]`` is the number of voters whose
-            most probable group is ``q`` on ``block_a`` and ``r`` on ``block_b``.
-            Off the diagonal, a voter changes role.
+            most probable group is ``q`` on ``block_a`` and ``r`` on ``block_b``, by
+            ``role_by_block``. Off the diagonal, a voter changes role.
 
         Raises:
             InvalidInputError: If a block does not exist.
@@ -511,21 +595,35 @@ class MixedCoclustering(Coclustering):
         Shape (M, P). For the cell of the voter ``i`` and the item ``j``, in the state
         ``s`` (its vote or its absence of vote, read without ``shown``)::
 
-            log( sum_c profile_probabilities[i, c]
-                       * sum_l block_memberships[j, l] * P(s | co-cluster (c_l, l)) )
+            log( sum_c eta[i, c] * sum_l phi[j, l] * F[c_l, l, g_j, s] )
 
-        where ``c`` runs over the profiles and ``c_l`` is the group of the profile on
-        the block ``l``.
+        where ``c`` runs over the profiles, ``c_l`` is the group of the profile on the
+        block ``l``, ``eta`` is ``profile_probabilities``, ``phi`` is
+        ``block_memberships``, ``g_j`` is the scale of the item ``j`` and ``F`` the
+        probabilities of the table of co-clusters.
+        The probability is floored at 1e-300 before the logarithm.
+
+        See the mathematical model: :doc:`/model/choosing-the-shape`, equation
+        :eq:`eq-shape-held-out-mixed`.
 
         Raises:
             InvalidInputError: If ``votes`` does not have the voters, the items and the
                 scale of the co-clustering.
         """
         self._check_votes(votes)
-        probabilities = np.exp(self.coclusters.log_probabilities())
+        probabilities = np.exp(self.coclusters.log_probabilities_by_scale())
         blocks = np.arange(self.n_blocks)
-        by_profile = probabilities[self.profiles, blocks[np.newaxis, :], :]
-        by_item = np.einsum("jl,cls->cjs", self.block_memberships, by_profile)
+        by_profile = probabilities[self.profiles, blocks[np.newaxis, :]]
+        scales = self.item_scales
+        by_item = np.zeros((self.profiles.shape[0], len(self.items), probabilities.shape[-1]))
+        for scale, columns in enumerate(columns_by_scale(scales.scale_index, scales.n_scales)):
+            on_scale = by_profile[:, :, scale, :]
+            if columns is None:
+                by_item = np.einsum("jl,cls->cjs", self.block_memberships, on_scale)
+            else:
+                by_item[:, columns] = np.einsum(
+                    "jl,cls->cjs", self.block_memberships[columns], on_scale
+                )
         by_cell = np.einsum("ic,cjs->ijs", self.profile_probabilities, by_item)
         cells = np.take_along_axis(by_cell, votes.levels[..., np.newaxis], axis=2)[..., 0]
         logs: FloatArray = np.log(np.maximum(cells, _MIN_PROBABILITY))
