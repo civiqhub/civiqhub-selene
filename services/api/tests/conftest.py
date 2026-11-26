@@ -26,8 +26,11 @@ FIXTURES = CONTRACT_DIR / "fixtures" / "v1"
 OPENAPI = SERVICE / "openapi.yaml"
 OPENAPI_URI = "urn:selene:openapi:v1"
 
-if str(CONTRACT_DIR) not in sys.path:
-    sys.path.insert(0, str(CONTRACT_DIR))
+# The contract client and the fixture generator, imported as a consumer would, and the
+# helpers of these tests (servicetest.py).
+for directory in (CONTRACT_DIR, pathlib.Path(__file__).resolve().parent):
+    if str(directory) not in sys.path:
+        sys.path.insert(0, str(directory))
 
 
 @pytest.fixture(scope="session")

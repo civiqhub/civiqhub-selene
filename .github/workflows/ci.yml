@@ -25,8 +25,10 @@ jobs:
         with:
           python-version: "3.13"
       - run: python -m pip install --upgrade pip
-      # mypy also checks the contract client, the fixtures and the tests of the service.
-      - run: python -m pip install -e ".[viz]" --group lint --group services/api/pyproject.toml:lint
+      # mypy also checks the service, its contract client, its fixtures and its tests.
+      - run: >-
+          python -m pip install -e ".[viz]" -e services/api
+          --group lint --group services/api/pyproject.toml:lint
       - run: ruff check
       - run: ruff format --check
       - run: mypy
@@ -49,10 +51,12 @@ jobs:
       - run: python -m pip install -e ".[viz]" --group test
       - run: pytest
 
-  # The contract of the service: the OpenAPI document, the fixtures and the contract
-  # client agree, and the reference results are still those of the engine.
-  service-contract:
-    name: service contract
+  # The service: its contract (the OpenAPI document, the fixtures and the contract client
+  # agree, and the reference results are those of the engine), its server and its real
+  # computations. It runs on the Python of the image, with the locked runtime
+  # dependencies, the engine and the service of this commit, and nothing from an index.
+  service:
+    name: service
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -62,7 +66,12 @@ jobs:
         with:
           python-version: "3.13"
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e ".[blocks]" --group services/api/pyproject.toml:test
+      - name: Install the locked runtime, then the engine and the service of this commit
+        run: |
+          python -m pip install --require-hashes --no-deps -r services/api/requirements.lock
+          python -m pip install --no-deps -e . -e services/api
+          python -m pip check
+      - run: python -m pip install --group services/api/pyproject.toml:test
       - name: Check that the fixtures are those the engine computes
         run: python services/api/contract/make_fixtures.py --check
       - run: pytest services/api/tests

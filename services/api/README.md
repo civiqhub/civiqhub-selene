@@ -74,7 +74,8 @@ GET    /readyz             readiness, no token
 - **Content fingerprint.** `content_fingerprint` is `sha256:` and the SHA-256 of the
   canonical JSON (sorted keys, no spaces, UTF-8) of the kind, the schema version and the
   payload with every parameter at its effective value, the votes sorted by cell and the
-  listed cells sorted. The key and `caller_reference` are not content. The service
+  listed cells sorted, and the tolerance written as a number with a fraction (`0` and
+  `0.0` are the same content). The key and `caller_reference` are not content. The service
   computes it; the caller stores it.
 - **Volatile memory.** A finished job is kept until `expires_at` (at most
   `result_ttl_seconds`), or less when `max_retained_jobs` is reached (the oldest finished
@@ -158,37 +159,72 @@ a summary without votes, pseudonyms or memberships; `check` runs the consumer su
 v1 and exits 0 only if every check passes. Both are meant for the synthetic acceptance
 test of a deployment as well.
 
-Tests of the contract:
+## Run the service locally
+
+From the root of the repository, with Python 3.13, the locked runtime dependencies, the
+engine and the service of the same checkout:
 
 ```bash
-pip install -e ".[blocks]" --group services/api/pyproject.toml:test
-pytest services/api/tests
-python services/api/contract/make_fixtures.py --check
+pip install --require-hashes --no-deps -r services/api/requirements.lock
+pip install --no-deps -e . -e services/api
+pip check
 ```
+
+Without TLS the service only listens on the loopback interface:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))" > /tmp/selene-token
+SELENE_TOKEN_FILE=/tmp/selene-token SELENE_HOST=127.0.0.1 python -m selene_api
+```
+
+In another terminal, one synthetic computation compared with the local reference, then
+the consumer suite of v1:
+
+```bash
+python services/api/contract/selene_contract.py run --url http://127.0.0.1:8443 --allow-insecure-http --token-file /tmp/selene-token
+python services/api/contract/selene_contract.py check --url http://127.0.0.1:8443 --allow-insecure-http --token-file /tmp/selene-token
+```
+
+Tests of the contract and of the service, synthetic data only:
+
+```bash
+pip install --group services/api/pyproject.toml:test
+python services/api/contract/make_fixtures.py --check
+pytest services/api/tests
+```
+
+The runtime dependencies are locked with their hashes in
+[`requirements.lock`](requirements.lock), from [`requirements.in`](requirements.in); the
+engine is never resolved from an index for the service.
 
 ## Interfaces for the image, the CI and the deployments
 
-The values below are the interface the next tickets implement (SWK-2 to SWK-10) and the
-deployments consume (SWK-11 to SWK-17). Limits are technical values to measure on the
+The values below are the interface the deployments consume (SWK-11 to SWK-17). A setting
+marked *SWK-5/6/7* or *SWK-8* lands with that ticket; until then the server refuses it as
+unknown. Limits are technical values, measured on the engine and to be confirmed on the
 real image; they are not privacy thresholds nor a scientific calibration.
 
-**Process.** One server process (no reload, no HTTP worker multiplication) started by
-`python -m selene_api`, configured by environment variables only; a start-up check runs
-the computation worker once before `/readyz` answers 200. The server refuses to start
-without a token file, and without TLS unless it is bound to the loopback interface.
+**Process.** One server process (Starlette on Uvicorn, no reload, no HTTP worker
+multiplication) started by `python -m selene_api`, configured by `SELENE_*` environment
+variables only. A start-up check runs a computation process once and compares its engine
+version before `/readyz` answers 200; if it fails, the process exits. The server refuses
+to start (exit status 78) without a valid token file, with an unknown `SELENE_*`
+variable, and without TLS unless it is bound to the loopback interface. On SIGTERM it
+stops the running computation and its process group, forgets every job and exits.
 
 **Inside the server.** Three replaceable layers, each behind a narrow interface:
 
-- HTTP routes and DTOs (`selene_api.http`, `selene_api.contract`): authentication,
-  limits, validation and errors; no engine class.
-- The job manager (`selene_api.jobs`): admission of one computation, states, idempotency
-  and bounded retention, over a `Runner` that starts, follows and stops one computation
-  in a supervised child process (one numerical thread, its own process group, a memory
-  limit, no core dump).
+- HTTP routes and transfer objects (`selene_api.app`, `selene_api.schemas`):
+  authentication, limits, validation and errors; no engine class.
+- The job manager (`selene_api.jobs`): admission of one computation, states,
+  idempotency and bounded retention, over a `Runner` (`selene_api.runner`) that runs one
+  computation in a child process, `python -m selene_api.worker`, with one numerical
+  thread and its own process group, and ends that group on a timeout, a deletion or a
+  shutdown (memory limit and core dumps: *SWK-5*).
 - The engine adapters (`selene_api.adapters`), one per `(kind, schema_version)`: they
-  validate and normalise a payload, run it in the child process by calling the engine,
-  and map the engine result to the contract result. No formula is copied out of the
-  engine.
+  validate and normalise a payload in the server process without importing the engine,
+  run it in the child process by calling the engine, and map the engine result to the
+  contract result. No formula is copied out of the engine.
 
 **Ports.**
 
@@ -206,17 +242,19 @@ token. Neither fails because a computation runs: busy is a metric and a field of
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `SELENE_TOKEN_FILE` | required | file of the machine token; one token per line, so that a rotation can list the old and the new; re-read when it changes |
-| `SELENE_TLS_CERT_FILE`, `SELENE_TLS_KEY_FILE` | required off loopback | server certificate and key; re-read when they change |
-| `SELENE_HOST` / `SELENE_PORT` / `SELENE_METRICS_PORT` | `0.0.0.0` / `8443` / `9464` | listening addresses |
+| `SELENE_TLS_CERT_FILE`, `SELENE_TLS_KEY_FILE` | required off loopback | server certificate and key; re-read when they change (*SWK-6*) |
+| `SELENE_HOST` / `SELENE_PORT` / `SELENE_METRICS_PORT` | `0.0.0.0` / `8443` / `9464` | listening addresses; the metrics server comes with *SWK-7* |
 | `SELENE_ENVIRONMENT` | unset | label reported by `GET /v1/service`, for example `dev` or `staging` |
 | `SELENE_JOB_TIMEOUT_SECONDS` | `120` | a computation still running is stopped and fails with `timeout` |
 | `SELENE_RESULT_TTL_SECONDS` | `900` | retention of a finished job |
 | `SELENE_MAX_RETAINED_JOBS` | `16` | finished jobs kept at most |
 | `SELENE_MAX_BODY_BYTES` | `8388608` | largest request body |
 | `SELENE_MAX_VOTERS` / `SELENE_MAX_ITEMS` / `SELENE_MAX_CELLS` | `2000` / `500` / `250000` | input size limits |
-| `SELENE_MAX_WORK` | to measure | computation budget, see `Limits.max_work` |
+| `SELENE_MAX_WORK` | `20000000000` | computation budget, see `Limits.max_work`; 250,000 cells at the default settings use 7.2e9 and ran in about 7 s on one thread |
 | `SELENE_MAX_RESULT_BYTES` | `16777216` | largest result |
-| `SELENE_WORKER_MEMORY_BYTES` | to measure | address-space limit of the computation process |
+| `SELENE_WORKER_MEMORY_BYTES` | *SWK-5*, to measure | address-space limit of the computation process |
+| `SELENE_LOG_LEVEL` | `info` | `debug`, `info`, `warning` or `error`; logs are JSON lines on the standard output |
+| `SELENE_BUILD_INFO_FILE` | `/app/build-info.json` | commit and engine wheel hash written by the image build |
 | `SELENE_SHUTDOWN_GRACE_SECONDS` | `10` | on SIGTERM: refuse new jobs, stop the computation within this time, exit |
 
 **Container.** Non-root user `10001`, read-only root file system, every capability
