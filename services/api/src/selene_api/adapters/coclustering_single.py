@@ -48,6 +48,17 @@ _VALUE_FIELDS = (
     "history",
     "computation",
 )
+# The fields of the table of co-clusters that result/1 defines. The engine writes more
+# since a table can carry the grids of the ordinal probit (SEL-8.3): result/1 keeps its
+# document, field for field, and a later result schema may add them.
+_COCLUSTER_FIELDS = (
+    "scores",
+    "vote_rate",
+    "vote_shares",
+    "n_votes",
+    "latent_mean",
+    "latent_spread",
+)
 _PROVENANCE_FIELDS = (
     "method",
     "engine_version",
@@ -221,7 +232,13 @@ class CoclusteringSingleV1:
             "provenance": {name: provenance[name] for name in _PROVENANCE_FIELDS},
         }
         if engine["available"]:
-            document["value"] = {name: engine["value"][name] for name in _VALUE_FIELDS}
+            value = {name: engine["value"][name] for name in _VALUE_FIELDS}
+            value["coclusters"] = {
+                name: field
+                for name, field in engine["value"]["coclusters"].items()
+                if name in _COCLUSTER_FIELDS
+            }
+            document["value"] = value
         else:
             document["unavailable"] = {
                 "reason": engine["unavailable"]["reason"],

@@ -18,6 +18,7 @@ from civiqhub_selene.blocks import (
     Cocluster,
     CoclusterTable,
     ItemBlock,
+    ItemScales,
     OrdinalScale,
     Partition,
     VoteMatrix,
@@ -69,7 +70,7 @@ def common(**changes: Any) -> dict[str, Any]:
         "computation": COMPUTATION,
         "voters": VOTERS,
         "items": ITEMS,
-        "scale": OrdinalScale(),
+        "item_scales": ItemScales.uniform(OrdinalScale(), len(ITEMS)),
         "group_index": GROUP_INDEX,
         "block_index": BLOCK_INDEX,
         "group_memberships": one_hot(GROUP_INDEX, 2),
@@ -228,7 +229,9 @@ def test_arrays_are_copied_read_only_and_the_value_is_frozen() -> None:
         ({"group_memberships": np.ones((4, 3)) / 3}, "group_memberships has the shape (4, 2)"),
         ({"block_memberships": np.ones((2, 2)) / 2}, "block_memberships has the shape (3, 2)"),
         ({"coclusters": "table"}, "coclusters are a CoclusterTable"),
-        ({"scale": OrdinalScale((1, 2, 3, 4, 5))}, "scale"),
+        ({"item_scales": ItemScales.uniform(OrdinalScale((1, 2, 3, 4, 5)), 3)}, "on the scales"),
+        ({"item_scales": ItemScales.uniform(OrdinalScale(), 2)}, "2 items to 3 items"),
+        ({"item_scales": OrdinalScale()}, "item_scales is an ItemScales"),
     ],
 )
 def test_inconsistent_values_are_refused(changes: dict[str, Any], named: str) -> None:

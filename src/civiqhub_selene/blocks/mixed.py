@@ -356,7 +356,7 @@ class MixedMembershipBlockModel(BlockModel[_MixedState, MixedCoclustering]):
             computation=computation,
             voters=votes.voters,
             items=votes.items,
-            scale=votes.scale,
+            item_scales=votes.item_scales,
             group_index=state.voter_memberships.argmax(axis=1),
             block_index=state.item_memberships.argmax(axis=1),
             group_memberships=state.voter_memberships,

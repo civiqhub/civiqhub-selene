@@ -7,14 +7,14 @@ No function of this module draws a random number.
 """
 
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TypeVar
 
 import numpy as np
 from numpy.typing import ArrayLike
 
-from civiqhub_selene.blocks._arrays import FloatArray, IntArray
+from civiqhub_selene.blocks._arrays import BoolArray, FloatArray, IntArray
 
 __all__ = [
     "History",
@@ -22,14 +22,18 @@ __all__ = [
     "count_states",
     "count_states_by_scale",
     "fit_latent_normal",
+    "fit_latent_normal_by_scale",
     "interval_mass",
     "iterate",
     "level_probabilities",
+    "level_probabilities_by_scale",
     "logsumexp",
     "norm_cdf",
     "norm_pdf",
     "one_hot",
+    "scale_bounds",
     "truncated_moments",
+    "truncated_moments_by_scale",
 ]
 
 StateT = TypeVar("StateT")
@@ -234,6 +238,79 @@ def truncated_moments(
     return first, second
 
 
+def scale_bounds(thresholds: Sequence[ArrayLike]) -> tuple[FloatArray, BoolArray]:
+    """Return the bounds of the levels of each scale, padded to the longest one.
+
+    For C grids of ``K_c - 1`` thresholds each, and K the levels of the longest scale:
+
+    - ``bounds`` has the shape (C, K + 1): ``-inf``, the thresholds of the scale, then
+      ``+inf`` up to the end, so that the levels past ``K_c`` are empty intervals;
+    - ``possible`` has the shape (C, K): the level ``k`` exists on the scale ``c``.
+    """
+    grids = [np.asarray(grid, dtype=np.float64).reshape(-1) for grid in thresholds]
+    n_levels = max(grid.shape[0] for grid in grids) + 1
+    bounds: FloatArray = np.full((len(grids), n_levels + 1), np.inf)
+    bounds[:, 0] = -np.inf
+    possible: BoolArray = np.zeros((len(grids), n_levels), dtype=np.bool_)
+    for scale, grid in enumerate(grids):
+        bounds[scale, 1 : grid.shape[0] + 1] = grid
+        possible[scale, : grid.shape[0] + 1] = True
+    return bounds, possible
+
+
+def _standardised_bounds_by_scale(
+    mean: ArrayLike, spread: ArrayLike, bounds: FloatArray
+) -> FloatArray:
+    """Return the bounds of each scale, centred and reduced: shape (..., C, K + 1)."""
+    means = np.asarray(mean, dtype=np.float64)[..., np.newaxis, np.newaxis]
+    spreads = np.asarray(spread, dtype=np.float64)[..., np.newaxis, np.newaxis]
+    z: FloatArray = (bounds - means) / spreads
+    return z
+
+
+def level_probabilities_by_scale(
+    mean: ArrayLike, spread: ArrayLike, bounds: FloatArray
+) -> FloatArray:
+    """Return the probability of each level of each scale under a latent normal opinion.
+
+    The same opinion, of mean ``mean`` and standard deviation ``spread``, is cut by the
+    grid of each scale (see :func:`scale_bounds`). A level past the levels of a scale
+    is an empty interval, of probability 0.
+
+    Returns:
+        An array of shape (..., C, K); on each scale, the probabilities of its levels
+        sum to 1.
+    """
+    return interval_mass(_standardised_bounds_by_scale(mean, spread, bounds))
+
+
+def truncated_moments_by_scale(
+    mean: ArrayLike, spread: ArrayLike, bounds: FloatArray, possible: BoolArray
+) -> tuple[FloatArray, FloatArray]:
+    """Return the moments of the latent opinion truncated to each level of each scale.
+
+    The formulas of :func:`truncated_moments`, on the grid of each scale. The moments
+    of a level that does not exist on a scale are 0, so that a count of 0 times them
+    adds nothing.
+
+    Returns:
+        ``(m1, m2)``, each of shape (..., C, K).
+    """
+    means = np.asarray(mean, dtype=np.float64)[..., np.newaxis, np.newaxis]
+    spreads = np.asarray(spread, dtype=np.float64)[..., np.newaxis, np.newaxis]
+    z = (bounds - means) / spreads
+    density = norm_pdf(z)
+    mass = np.maximum(interval_mass(z), _MIN_MASS)
+    r = np.diff(density, axis=-1) / mass
+    s = np.diff(np.where(np.isfinite(z), z, 0.0) * density, axis=-1) / mass
+    with np.errstate(invalid="ignore"):
+        first: FloatArray = np.clip(means - spreads * r, bounds[..., :-1], bounds[..., 1:])
+        second: FloatArray = np.maximum(
+            means**2 - 2.0 * spreads * means * r - spreads**2 * (s - 1.0), first**2
+        )
+    return np.where(possible, first, 0.0), np.where(possible, second, 0.0)
+
+
 @dataclass(frozen=True)
 class History:
     """What an iterative computation went through.
@@ -295,9 +372,9 @@ def fit_latent_normal(
 ) -> tuple[FloatArray, FloatArray]:
     """Estimate the mean and the spread of the latent opinion of every co-cluster at once.
 
-    Expectation-maximisation on the hidden opinion. ``counts[..., k]`` is the number,
-    integer or fractional, of votes at the level ``k + 1`` of the co-cluster, and ``n``
-    their sum. At each step:
+    Expectation-maximisation on the hidden opinion, for votes on one scale. ``counts[...,
+    k]`` is the number, integer or fractional, of votes at the level ``k + 1`` of the
+    co-cluster, and ``n`` their sum. At each step:
 
     1. the truncated moments ``m1`` and ``m2`` are computed at the current parameters;
     2. ``mean = sum_k(counts_k * m1_k) / n``;
@@ -305,7 +382,8 @@ def fit_latent_normal(
     4. a co-cluster without a vote (``n <= 1e-12``) keeps its parameters.
 
     The loop stops when the largest absolute change of a mean or a spread, over all
-    co-clusters, goes under ``tolerance``, or after ``max_iterations`` steps.
+    co-clusters, goes under ``tolerance``, or after ``max_iterations`` steps. It is
+    :func:`fit_latent_normal_by_scale` on one scale.
 
     Args:
         counts: Shape (..., K): votes of each co-cluster at each level.
@@ -320,16 +398,81 @@ def fit_latent_normal(
     Returns:
         ``(mean, spread)``, each of the shape of the starting values.
     """
-    n_votes = counts.sum(axis=-1)
+    bounds, possible = scale_bounds([thresholds])
+    return fit_latent_normal_by_scale(
+        np.asarray(counts)[..., np.newaxis, :],
+        mean,
+        spread,
+        bounds,
+        possible,
+        min_spread=min_spread,
+        tolerance=tolerance,
+        max_iterations=max_iterations,
+    )
+
+
+def fit_latent_normal_by_scale(
+    counts: FloatArray,
+    mean: FloatArray,
+    spread: FloatArray,
+    bounds: FloatArray,
+    possible: BoolArray,
+    *,
+    min_spread: float,
+    tolerance: float = 1e-8,
+    max_iterations: int,
+    estimable: BoolArray | None = None,
+    fixed_spread: float = 1.0,
+) -> tuple[FloatArray, FloatArray]:
+    """Estimate the latent opinion of every co-cluster from votes on several scales.
+
+    Expectation-maximisation on the hidden opinion. Each co-cluster has one opinion,
+    normal, of mean ``mean`` and standard deviation ``spread``; a vote on the scale
+    ``c`` at its level ``k`` says that the opinion lies between two thresholds of the
+    grid of that scale. ``counts[..., c, k]`` is the number, integer or fractional, of
+    votes at the level ``k + 1`` of the scale ``c``, and ``n`` their sum over the
+    levels and the scales. At each step:
+
+    1. the truncated moments ``m1`` and ``m2`` are computed on the grid of each scale;
+    2. ``mean = sum_c sum_k(counts_ck * m1_ck) / n``;
+    3. ``spread = sqrt(max(sum_c sum_k(counts_ck * m2_ck) / n - mean**2, min_spread**2))``,
+       or ``fixed_spread`` where ``estimable`` is false;
+    4. a co-cluster without a vote (``n <= 1e-12``) keeps its parameters.
+
+    The sums run over the levels first, then over the scales, so that one scale gives
+    exactly the result of :func:`fit_latent_normal`.
+
+    Args:
+        counts: Shape (..., C, K): votes of each co-cluster at each level of each scale.
+        mean: Shape (...): starting means.
+        spread: Shape (...): starting spreads.
+        bounds: Shape (C, K + 1), from :func:`scale_bounds`.
+        possible: Shape (C, K), from :func:`scale_bounds`.
+        min_spread: Lower bound of a spread.
+        tolerance: Change of the parameters under which the loop stops.
+        max_iterations: Largest number of steps.
+        estimable: Shape (...): where the spread can be estimated. Votes on scales of
+            two levels only say on which side of one threshold the opinion lies, which
+            fixes ``(threshold - mean) / spread`` and not the two apart: there, the
+            spread is held at ``fixed_spread`` and only the mean is estimated. ``None``
+            estimates every spread.
+        fixed_spread: The spread where ``estimable`` is false.
+
+    Returns:
+        ``(mean, spread)``, each of the shape of the starting values.
+    """
+    n_votes = counts.sum(axis=-1).sum(axis=-1)
     has_votes = n_votes > _NO_VOTE
     safe_n = np.where(has_votes, n_votes, 1.0)
 
     def step(state: tuple[FloatArray, FloatArray]) -> tuple[FloatArray, FloatArray]:
         current_mean, current_spread = state
-        first, second = truncated_moments(current_mean, current_spread, thresholds)
-        new_mean = (counts * first).sum(axis=-1) / safe_n
-        variance = (counts * second).sum(axis=-1) / safe_n - new_mean**2
+        first, second = truncated_moments_by_scale(current_mean, current_spread, bounds, possible)
+        new_mean = (counts * first).sum(axis=-1).sum(axis=-1) / safe_n
+        variance = (counts * second).sum(axis=-1).sum(axis=-1) / safe_n - new_mean**2
         new_spread = np.sqrt(np.maximum(variance, min_spread**2))
+        if estimable is not None:
+            new_spread = np.where(estimable, new_spread, fixed_spread)
         return (
             np.where(has_votes, new_mean, current_mean),
             np.where(has_votes, new_spread, current_spread),

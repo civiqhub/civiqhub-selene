@@ -71,6 +71,10 @@ A cell has three states that the notation keeps apart: not shown ($(i, j) \notin
 | $\mu_{ql}$ | Mean of the hidden opinion in the co-cluster $(q, l)$, on the axis of levels | {py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbitParameters.latent_mean` | $(Q, L)$ |
 | $\sigma_{ql}$ | Standard deviation of the hidden opinion in the co-cluster $(q, l)$ | {py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbitParameters.latent_spread` | $(Q, L)$ |
 | $t_k$ | The thresholds that cut the hidden opinion into levels, $t_1 < \dots < t_{K-1}$, with $t_0 = -\infty$ and $t_K = +\infty$ | {py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbit.thresholds`, {py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbitParameters.thresholds` | $(K - 1,)$ |
+| $t_{gk}$ | The thresholds of the scale $g$, $t_{g1} < \dots < t_{g,K_g - 1}$, with $t_{g0} = -\infty$ and $t_{gK_g} = +\infty$; with one scale, $t_k$ | {py:class}`~civiqhub_selene.blocks.responses.Thresholds`, {py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbitParameters.thresholds_by_scale` | $(K_g - 1,)$ per scale |
+| $F_{qlgs}$, $p_{qlgk}$ | $F_{qls}$ and $p_{qlk}$ for a cell of an item of the scale $g$; with one scale, $F_{qls}$ and $p_{qlk}$ | {py:meth}`~civiqhub_selene.blocks.responses.ResponseModel.log_probabilities_by_scale`; {py:attr}`~civiqhub_selene.blocks.CoclusterTable.vote_shares_by_scale` | $(Q, L, \lvert\mathcal{G}\rvert, K + 1)$, $(Q, L, K_g)$ per scale |
+| $m^{(1)}_{qlgk}$, $m^{(2)}_{qlgk}$ | The moments of the hidden opinion of a vote at the level $k$ of the scale $g$ | `truncated_moments_by_scale` in `_numerics` (internal) | $(Q, L, \lvert\mathcal{G}\rvert, K)$ |
+| $\sigma_{\mathrm{u}}$ | One level of the longest scale on the axis of the thresholds: $1$ on the axis of levels, $1 / K$ on the unit axis | {py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbitParameters.spread_unit` | |
 | $\Phi$ | The standard normal distribution function | `_numerics.norm_cdf` (internal) | |
 | $\Phi'$ | The standard normal density | `_numerics.norm_pdf` (internal) | |
 | $y_{ij}$ | The hidden opinion behind the vote of the cell $(i, j)$, in the ordinal probit | | |
