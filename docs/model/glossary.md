@@ -1,6 +1,6 @@
 # Glossary
 
-Checked against the code of `develop` at commit `97a0f15`.
+Checked against the code of `develop` at commit `c29d115`.
 
 ## In plain words
 
@@ -11,8 +11,9 @@ The engine uses one word for each thing, the same in the code, the reference of 
 | Word | Meaning | Symbol | In the code |
 | --- | --- | --- | --- |
 | score | The answer of a vote on the agreement scale: an integer, from $-2$ to $+2$ on the default scale. The models read the levels, never the values of the scores | — | {py:attr}`~civiqhub_selene.blocks.OrdinalScale.scores`, {py:data}`~civiqhub_selene.ordinal.SCORES`, {py:class}`~civiqhub_selene.blocks.Vote` |
-| level | The rank of a score on the scale, from $1$ to $K$; $0$ means "no vote", inside the matrices only | $k$, $K$ ([the votes](notation.md#the-votes)) | {py:attr}`~civiqhub_selene.blocks.OrdinalScale.n_levels`, {py:meth}`~civiqhub_selene.blocks.OrdinalScale.level_of`, {py:attr}`~civiqhub_selene.blocks.VoteMatrix.levels` |
-| vote counts | The numbers of votes at each score: of one item in the ordinal family, of one co-cluster in co-clustering | $N_k$, $n$ ([the ordinal family](notation.md#the-ordinal-family)); $N_{qlk}$, $k \geq 1$ ([the arrangement](notation.md#the-arrangement)) | {py:class}`~civiqhub_selene.ordinal.VoteCounts`, {py:meth}`~civiqhub_selene.blocks.GroupedVotes.vote_counts` |
+| level | The rank of a score on the scale of its item, from $1$ to $K_g$ on the scale $g$, and to $K$ on the longest scale; $0$ means "no vote", inside the matrices only | $k$, $K$, $K_g$ ([the votes](notation.md#the-votes)) | {py:attr}`~civiqhub_selene.blocks.OrdinalScale.n_levels`, {py:meth}`~civiqhub_selene.blocks.OrdinalScale.level_of`, {py:attr}`~civiqhub_selene.blocks.VoteMatrix.levels` |
+| scale | The scores an item is answered on, in the order of agreement. The items of one matrix may use different scales; a level means the same answer only on one scale | $\mathcal{G}$, $g$, $g_j$, $K_g$ ([the votes](notation.md#the-votes)) | {py:class}`~civiqhub_selene.blocks.OrdinalScale`, {py:class}`~civiqhub_selene.blocks.ItemScales`, {py:attr}`~civiqhub_selene.blocks.VoteMatrix.item_scales` |
+| vote counts | The numbers of votes at each score: of one item in the ordinal family, of one co-cluster in co-clustering, scale by scale when the items use several | $N_k$, $n$ ([the ordinal family](notation.md#the-ordinal-family)); $N_{qlk}$, $k \geq 1$; $N_{qlgk}$ ([the arrangement](notation.md#the-arrangement)) | {py:class}`~civiqhub_selene.ordinal.VoteCounts`, {py:meth}`~civiqhub_selene.blocks.GroupedVotes.vote_counts`, {py:meth}`~civiqhub_selene.blocks.GroupedVotes.counts_by_scale` |
 | voter, item | The row and the column of a matrix of votes, named by opaque identifiers | $i$ and $M$, $j$ and $P$ ([the votes](notation.md#the-votes)) | {py:attr}`~civiqhub_selene.blocks.VoteMatrix.voters`, {py:attr}`~civiqhub_selene.blocks.VoteMatrix.items` |
 | shown | The item was shown to the voter. A shown cell without a vote is an abstention, one of its states; a cell that is not shown carries no information | $\Omega$, $s_{ij}$, $S_{ijs}$ ([the votes](notation.md#the-votes)) | {py:attr}`~civiqhub_selene.blocks.VoteMatrix.shown` |
 | group, block | A cluster of voters; a cluster of items | $Q$, $q$, $R_i$; $L$, $l$, $C_j$ ([the arrangement](notation.md#the-arrangement)) | {py:class}`~civiqhub_selene.blocks.VoterGroup`, {py:class}`~civiqhub_selene.blocks.ItemBlock`, {py:attr}`~civiqhub_selene.blocks.base.BlockModel.n_groups`, {py:attr}`~civiqhub_selene.blocks.base.BlockModel.n_blocks` |

@@ -1,6 +1,6 @@
 # The data
 
-Checked against the code of `develop` at commit `97a0f15`.
+Checked against the code of `develop` at commit `c29d115`.
 
 ## In plain words
 
@@ -167,7 +167,7 @@ On the scale of two answers, one abstention, two votes at no and three at yes; t
 3. the co-cluster of the cell is $(c_l, l)$: the role of the voter on the block of the cell, and that block;
 4. whether the cell carries a vote, with the probability $\nu_{c_l l}$;
 5. a hidden opinion, normal with the mean $\mu_{c_l l}$ and the standard deviation $\sigma_{c_l l}$;
-6. the level of the vote: $1$ plus the number of thresholds $t_k = k + \tfrac{1}{2}$, $k = 1, \dots, K - 1$, that lie below the opinion; $0$ when the cell carries no vote.
+6. the level of the vote: $1$ plus the number of thresholds $t_k = k + \tfrac{1}{2}$, $k = 1, \dots, K - 1$, that lie below the opinion; $0$ when the cell carries no vote. With `item_scales`, the thresholds are those of the scale $g_j$ of the item: by default the regular grid of the unit axis, $t_{gk} = k / K_g$ ([The response models: items on several scales](response-models.md#items-on-several-scales), {eq}`eq-response-axes`), or the grid that `thresholds` gives for that scale; the means and standard deviations are then read on that axis.
 
 Every cell is shown: $\Omega$ is the whole matrix, and a cell without a vote is an abstention. With memberships of $0$ and $1$ only ({py:func}`~civiqhub_selene.blocks.synthetic.single_memberships`), each voter has one group and each item one block: the draw is that of the latent block model. With spread memberships, it is that of the mixed-membership model. Steps 4 to 6 are the ordinal probit response model.
 
@@ -175,17 +175,17 @@ Every cell is shown: $\Omega$ is the whole matrix, and a cell without a vote is 
 
 | Formula or rule | Code |
 | --- | --- |
-| Three states, a vote at the neutral score is a vote | `src/civiqhub_selene/blocks/data.py:180-185` |
-| Scale, levels from $1$ to $K$, level $0$ internal | `blocks/data.py:43-56`, `:75-100` |
-| $S_{ijs}$ {eq}`eq-data-states`, zero on a cell not shown | `blocks/data.py:666-688` |
-| $N_{qls}$ {eq}`eq-data-counts` | `count_states`, `blocks/_numerics.py:47-77` (internal) |
-| Scale of each item $g_j$, scales $\mathcal{G}$, $K_g$, $K$ | `ItemScales`, `blocks/data.py` |
-| $N_{qlgs}$ {eq}`eq-data-counts-by-scale` | `count_states_by_scale`, `blocks/_numerics.py` (internal); `GroupedVotes.counts_by_scale`, `blocks/data.py` |
-| $w_i$ scaled to average $1$ | `blocks/data.py:519-528` |
-| `GroupedVotes.counts`, `vote_counts` | `blocks/data.py:753-803` |
-| `hold_out` | `blocks/data.py:621-637` |
-| Conditions of a result | `blocks/base.py:56-75` |
-| `make_votes`, order of the draws | `blocks/synthetic.py:142-155` (contract), `:197-206` (draws) |
+| Three states, a vote at the neutral score is a vote | `src/civiqhub_selene/blocks/data.py:488-493` |
+| Scale, levels from $1$ to $K$, level $0$ internal | `OrdinalScale`, `blocks/data.py:45-110` |
+| $S_{ijs}$ {eq}`eq-data-states`, zero on a cell not shown, the width of the longest scale | `VoteMatrix._states`, `blocks/data.py:1120-1144` |
+| $N_{qls}$ {eq}`eq-data-counts` | `count_states`, `blocks/_numerics.py:55-83` (internal) |
+| Scale of each item $g_j$, scales $\mathcal{G}$, $K_g$, $K$ | `ItemScales`, `blocks/data.py:133-367` |
+| $N_{qlgs}$ {eq}`eq-data-counts-by-scale` | `count_states_by_scale`, `blocks/_numerics.py:97-137` (internal); `GroupedVotes.counts_by_scale`, `blocks/data.py:1230-1248` |
+| $w_i$ scaled to average $1$ | `VoteMatrix._likelihood_weights`, `blocks/data.py:946-955` |
+| `GroupedVotes.counts`, `vote_counts` | `blocks/data.py:1214-1228`, `:1282-1303` |
+| `hold_out` | `VoteMatrix.hold_out`, `blocks/data.py:1050-1072` |
+| Conditions of a result | `availability`, `blocks/base.py:56-73` |
+| `make_votes`, order of the draws, grid of each scale | `blocks/synthetic.py:152-174` (contract), `:233-256` (draws) |
 
 The code computes {eq}`eq-data-counts` in one product over all cells, with the indicators of $R$ and $C$ as one-hot matrices. {py:meth}`~civiqhub_selene.blocks.GroupedVotes.counts` and the table of co-clusters of a result use no weights; the latent block model uses the weighted counts to estimate its parameters.
 

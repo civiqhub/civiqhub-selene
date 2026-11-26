@@ -1,6 +1,6 @@
 # Notation
 
-This page fixes the notation of the whole section. It was checked against the code of `develop` at commit `97a0f15`. Every other page of the section, and the formulas the docstrings and the notebooks write, use these letters with these meanings. A letter names one object only, everywhere.
+This page fixes the notation of the whole section. It was checked against the code of `develop` at commit `c29d115`. Every other page of the section, and the formulas the docstrings and the notebooks write, use these letters with these meanings. A letter names one object only, everywhere.
 
 Each symbol is followed by the name the code gives it, as a link to the reference. A name that starts with an underscore is internal to the code: it is cited, without a link, so that the reader can find it in the source.
 
