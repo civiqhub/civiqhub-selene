@@ -37,6 +37,7 @@ ALLOWED_FIELDS = frozenset(
         "engine_version",
         "environment",
         "tls",
+        "tls_terminated_by_proxy",
         "port",
         "metrics_port",
         "peak_rss_bytes",

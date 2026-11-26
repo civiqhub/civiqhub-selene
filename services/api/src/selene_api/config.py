@@ -6,7 +6,8 @@
 The same image runs locally, in dev and in staging: only this configuration changes.
 A configuration that is incomplete or out of bounds stops the start-up with a message
 that names the variable, never the value of a secret. The service never starts on the
-network without a token, nor without TLS off the loopback interface.
+network without a token, nor without TLS off the loopback interface, unless a
+TLS-terminating proxy is declared.
 """
 
 import ipaddress
@@ -15,6 +16,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass, fields
 
 from selene_api.adapters import InstanceLimits
+from selene_api.security import (
+    MIN_TOKEN_LENGTH,
+    _read_tokens,
+    token_form_is_valid,
+    token_listed,
+)
 
 __all__ = ["CONTRACT_BOUNDS", "ConfigError", "Settings"]
 
@@ -43,13 +50,26 @@ CONTRACT_BOUNDS = {
 """Bounds of each numeric setting: the limits of a deployment stay inside the contract."""
 
 
+def _integer(variable: str, text: str, bounds: tuple[int, int]) -> int:
+    try:
+        number = int(text)
+    except ValueError:
+        raise ConfigError(f"{variable} is an integer") from None
+    low, high = bounds
+    if not low <= number <= high:
+        raise ConfigError(f"{variable} is between {low} and {high}")
+    return number
+
+
 @dataclass(frozen=True)
 class Settings:
     """Every setting of the service. See ``services/api/README.md``."""
 
-    token_file: pathlib.Path
+    token_file: pathlib.Path | None = None
+    token: str | None = None
     tls_cert_file: pathlib.Path | None = None
     tls_key_file: pathlib.Path | None = None
+    tls_terminated_by_proxy: bool = False
     host: str = "0.0.0.0"
     port: int = 8443
     metrics_port: int = 9464
@@ -67,6 +87,16 @@ class Settings:
     worker_memory_bytes: int = 1024 * 1024 * 1024
     build_info_file: pathlib.Path = pathlib.Path("/app/build-info.json")
     log_level: str = "info"
+
+    def __repr__(self) -> str:
+        parts = []
+        for field in fields(self):
+            value = getattr(self, field.name)
+            if field.name == "token":
+                parts.append("token=<redacted>" if value is not None else "token=None")
+            else:
+                parts.append(f"{field.name}={value!r}")
+        return f"Settings({', '.join(parts)})"
 
     @property
     def limits(self) -> InstanceLimits:
@@ -106,21 +136,35 @@ class Settings:
                 continue
             text = environ[variable].strip()
             if field.name in CONTRACT_BOUNDS:
-                try:
-                    number = int(text)
-                except ValueError:
-                    raise ConfigError(f"{variable} is an integer") from None
-                low, high = CONTRACT_BOUNDS[field.name]
-                if not low <= number <= high:
-                    raise ConfigError(f"{variable} is between {low} and {high}")
-                values[field.name] = number
+                values[field.name] = _integer(variable, text, CONTRACT_BOUNDS[field.name])
             elif field.name.endswith("_file"):
                 values[field.name] = pathlib.Path(text) if text else None
+            elif field.name == "tls_terminated_by_proxy":
+                if not text:
+                    continue
+                if text != "true":
+                    raise ConfigError(f"{variable} is true")
+                values[field.name] = True
+            elif field.name == "token":
+                if not text:
+                    continue
+                if not token_form_is_valid(text):
+                    raise ConfigError(
+                        f"{variable} is shorter than {MIN_TOKEN_LENGTH} characters or holds a space"
+                    )
+                values[field.name] = text
             else:
                 values[field.name] = text or None
-        if values.get("token_file") is None:
+        if values.get("tls_terminated_by_proxy") and "port" not in values:
+            port_text = environ.get("PORT")
+            if port_text is not None and port_text.strip() != "":
+                values["port"] = _integer("PORT", port_text.strip(), CONTRACT_BOUNDS["port"])
+            else:
+                values["port"] = 80
+        if values.get("token_file") is None and values.get("token") is None:
             raise ConfigError(
-                f"{_PREFIX}TOKEN_FILE is required: the service never runs without a token"
+                f"{_PREFIX}TOKEN_FILE or {_PREFIX}TOKEN is required: "
+                "the service never runs without a token"
             )
         if values.get("host") is None:
             values.pop("host", None)
@@ -138,14 +182,28 @@ class Settings:
         Raises:
             ConfigError: If the settings cannot run together.
         """
-        if not self.token_file.is_file():
+        if self.token is None and self.token_file is None:
+            raise ConfigError(
+                f"{_PREFIX}TOKEN_FILE or {_PREFIX}TOKEN is required: "
+                "the service never runs without a token"
+            )
+        if self.token_file is not None and not self.token_file.is_file():
             raise ConfigError(f"{_PREFIX}TOKEN_FILE does not name a readable file")
+        if self.token is not None and self.token_file is not None:
+            listed = _read_tokens(self.token_file)
+            if not token_listed(listed, self.token):
+                raise ConfigError(f"{_PREFIX}TOKEN is not a token of {_PREFIX}TOKEN_FILE")
         if (self.tls_cert_file is None) != (self.tls_key_file is None):
             raise ConfigError(f"{_PREFIX}TLS_CERT_FILE and {_PREFIX}TLS_KEY_FILE go together")
         for path in (self.tls_cert_file, self.tls_key_file):
             if path is not None and not path.is_file():
                 raise ConfigError("a TLS file does not name a readable file")
-        if not self.tls and not _loopback(self.host):
+        if self.tls_terminated_by_proxy and self.tls:
+            raise ConfigError(
+                f"{_PREFIX}TLS_TERMINATED_BY_PROXY cannot be true with "
+                f"{_PREFIX}TLS_CERT_FILE and {_PREFIX}TLS_KEY_FILE"
+            )
+        if not self.tls and not _loopback(self.host) and not self.tls_terminated_by_proxy:
             raise ConfigError(
                 "without TLS the service only listens on the loopback interface: set "
                 f"{_PREFIX}TLS_CERT_FILE and {_PREFIX}TLS_KEY_FILE, or {_PREFIX}HOST=127.0.0.1"

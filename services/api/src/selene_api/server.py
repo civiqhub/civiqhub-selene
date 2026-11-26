@@ -36,7 +36,7 @@ MAX_CONNECTIONS = 64
 def build_service(settings: Settings, metrics: Metrics | None = None) -> Service:
     """Assemble the service from checked settings."""
     metrics = metrics or Metrics()
-    tokens = TokenStore(settings.token_file)
+    tokens = TokenStore(settings.token_file, token=settings.token)
     runner = ProcessRunner(
         max_result_bytes=settings.max_result_bytes,
         memory_bytes=settings.worker_memory_bytes,
@@ -106,6 +106,7 @@ def serve(settings: Settings) -> None:
         engine_version=service.versions.engine,
         environment=settings.environment,
         tls=settings.tls,
+        tls_terminated_by_proxy=settings.tls_terminated_by_proxy,
         port=settings.port,
         metrics_port=settings.metrics_port,
     )

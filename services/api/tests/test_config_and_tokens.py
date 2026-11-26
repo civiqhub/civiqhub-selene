@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 import yaml
 
+from selene_api import logs
 from selene_api.config import CONTRACT_BOUNDS, ConfigError, Settings
 from selene_api.schemas import CONTRACT_VERSION
 from selene_api.security import TokenFileError, TokenStore, bearer_token
@@ -37,6 +38,9 @@ def test_the_defaults_are_those_of_the_readme(tmp_path: pathlib.Path) -> None:
     assert (settings.max_voters, settings.max_items, settings.max_cells) == (2000, 500, 250_000)
     assert settings.environment is None
     assert not settings.tls
+    assert settings.tls_terminated_by_proxy is False
+    assert settings.token is None
+    assert TOKEN not in repr(settings)
 
 
 def test_tls_settings_go_together_and_open_the_network(tmp_path: pathlib.Path) -> None:
@@ -179,3 +183,173 @@ class TestBuildInfo:
         assert versions.contract == CONTRACT_VERSION
         assert versions.service == "0.1.0"
         assert set(versions.of_job()) == {"service_version", "contract_version", "engine_version"}
+
+
+ENV_TOKEN = "test-token-abcdefghijklmnopqrstuvwxyzabcdef"
+OTHER_ENV = "test-token-zyxwvutsrqponmlkjihgfedcbaabcdef"
+
+
+class TestTlsTerminatedByProxy:
+    def test_absent_keeps_refusing_http_off_loopback(self, tmp_path: pathlib.Path) -> None:
+        with pytest.raises(
+            ConfigError, match="without TLS the service only listens on the loopback"
+        ):
+            Settings.from_environ(
+                {"SELENE_TOKEN_FILE": str(write_token(tmp_path)), "SELENE_HOST": "0.0.0.0"}
+            )
+
+    @pytest.mark.parametrize("value", ["TRUE", "false", "1", "yes", "True"])
+    def test_a_value_other_than_true_is_refused(self, tmp_path: pathlib.Path, value: str) -> None:
+        with pytest.raises(ConfigError, match="SELENE_TLS_TERMINATED_BY_PROXY is true"):
+            Settings.from_environ(
+                {
+                    "SELENE_TOKEN_FILE": str(write_token(tmp_path)),
+                    "SELENE_HOST": "127.0.0.1",
+                    "SELENE_TLS_TERMINATED_BY_PROXY": value,
+                }
+            )
+
+    def test_true_allows_http_off_loopback_without_tls(self, tmp_path: pathlib.Path) -> None:
+        settings = Settings.from_environ(
+            {
+                "SELENE_TOKEN_FILE": str(write_token(tmp_path)),
+                "SELENE_HOST": "0.0.0.0",
+                "SELENE_TLS_TERMINATED_BY_PROXY": "true",
+            }
+        )
+        assert settings.tls_terminated_by_proxy is True
+        assert not settings.tls
+        assert settings.port == 80
+
+    def test_true_with_both_tls_files_is_refused(self, tmp_path: pathlib.Path) -> None:
+        cert = tmp_path / "tls.crt"
+        key = tmp_path / "tls.key"
+        cert.write_text("cert")
+        key.write_text("key")
+        with pytest.raises(ConfigError, match="SELENE_TLS_TERMINATED_BY_PROXY cannot be true"):
+            Settings.from_environ(
+                {
+                    "SELENE_TOKEN_FILE": str(write_token(tmp_path)),
+                    "SELENE_TLS_CERT_FILE": str(cert),
+                    "SELENE_TLS_KEY_FILE": str(key),
+                    "SELENE_TLS_TERMINATED_BY_PROXY": "true",
+                }
+            )
+
+    def test_true_with_one_tls_file_still_requires_the_pair(self, tmp_path: pathlib.Path) -> None:
+        cert = tmp_path / "tls.crt"
+        cert.write_text("cert")
+        with pytest.raises(ConfigError, match="go together"):
+            Settings.from_environ(
+                {
+                    "SELENE_TOKEN_FILE": str(write_token(tmp_path)),
+                    "SELENE_TLS_CERT_FILE": str(cert),
+                    "SELENE_TLS_TERMINATED_BY_PROXY": "true",
+                }
+            )
+
+    def test_port_comes_from_port_then_80_and_selene_port_wins(
+        self, tmp_path: pathlib.Path
+    ) -> None:
+        token = str(write_token(tmp_path))
+        base = {
+            "SELENE_TOKEN_FILE": token,
+            "SELENE_HOST": "0.0.0.0",
+            "SELENE_TLS_TERMINATED_BY_PROXY": "true",
+        }
+        assert Settings.from_environ(base).port == 80
+        assert Settings.from_environ({**base, "PORT": "8080"}).port == 8080
+        assert Settings.from_environ({**base, "PORT": "8080", "SELENE_PORT": "9000"}).port == 9000
+
+    def test_an_invalid_port_is_refused(self, tmp_path: pathlib.Path) -> None:
+        with pytest.raises(ConfigError, match="PORT is an integer"):
+            Settings.from_environ(
+                {
+                    "SELENE_TOKEN_FILE": str(write_token(tmp_path)),
+                    "SELENE_HOST": "0.0.0.0",
+                    "SELENE_TLS_TERMINATED_BY_PROXY": "true",
+                    "PORT": "soon",
+                }
+            )
+        with pytest.raises(ConfigError, match="PORT is between"):
+            Settings.from_environ(
+                {
+                    "SELENE_TOKEN_FILE": str(write_token(tmp_path)),
+                    "SELENE_HOST": "0.0.0.0",
+                    "SELENE_TLS_TERMINATED_BY_PROXY": "true",
+                    "PORT": "0",
+                }
+            )
+
+    def test_port_is_ignored_outside_proxy_mode(self, tmp_path: pathlib.Path) -> None:
+        settings = Settings.from_environ(
+            {
+                "SELENE_TOKEN_FILE": str(write_token(tmp_path)),
+                "SELENE_HOST": "127.0.0.1",
+                "PORT": "80",
+            }
+        )
+        assert settings.port == 8443
+
+    def test_the_proxy_mode_is_an_allowed_log_field(self) -> None:
+        logs.event("service_starting", tls_terminated_by_proxy=True)
+        with pytest.raises(ValueError, match="field not allowed"):
+            logs.event("service_starting", token=ENV_TOKEN)
+
+
+class TestEnvironmentToken:
+    def test_a_valid_environment_token_starts_without_a_file(self) -> None:
+        settings = Settings.from_environ({"SELENE_TOKEN": ENV_TOKEN, "SELENE_HOST": "127.0.0.1"})
+        assert settings.token_file is None
+        assert settings.token == ENV_TOKEN
+        assert ENV_TOKEN not in repr(settings)
+        store = TokenStore(settings.token_file, token=settings.token)
+        assert store.path is None
+        assert store.verify(ENV_TOKEN)
+        assert not store.verify(OTHER_ENV)
+        assert store.usable
+
+    def test_an_environment_token_is_never_written(self, tmp_path: pathlib.Path) -> None:
+        empty = tmp_path / "empty"
+        empty.mkdir()
+        TokenStore(token=ENV_TOKEN)
+        assert list(empty.iterdir()) == []
+
+    def test_both_sources_accept_every_file_token(self, tmp_path: pathlib.Path) -> None:
+        path = write_token(tmp_path, f"{TOKEN}\n{OTHER}\n")
+        settings = Settings.from_environ(
+            {
+                "SELENE_TOKEN_FILE": str(path),
+                "SELENE_TOKEN": TOKEN,
+                "SELENE_HOST": "127.0.0.1",
+            }
+        )
+        store = TokenStore(settings.token_file, token=settings.token)
+        assert store.verify(TOKEN)
+        assert store.verify(OTHER)
+        assert TOKEN not in repr(settings)
+
+    def test_an_environment_token_missing_from_the_file_is_refused(
+        self, tmp_path: pathlib.Path
+    ) -> None:
+        with pytest.raises(
+            ConfigError, match="SELENE_TOKEN is not a token of SELENE_TOKEN_FILE"
+        ) as caught:
+            Settings.from_environ(
+                {
+                    "SELENE_TOKEN_FILE": str(write_token(tmp_path)),
+                    "SELENE_TOKEN": OTHER_ENV,
+                    "SELENE_HOST": "127.0.0.1",
+                }
+            )
+        assert OTHER_ENV not in str(caught.value)
+        assert TOKEN not in str(caught.value)
+
+    @pytest.mark.parametrize(
+        "value",
+        ["test-token-short", "test-token-abcdefghijklmnopqrstuvwxyz abc"],
+    )
+    def test_a_malformed_environment_token_is_refused(self, value: str) -> None:
+        with pytest.raises(ConfigError, match="SELENE_TOKEN is shorter than 32") as caught:
+            Settings.from_environ({"SELENE_TOKEN": value, "SELENE_HOST": "127.0.0.1"})
+        assert value not in str(caught.value)
