@@ -1,6 +1,6 @@
 # Choosing the shape
 
-Checked against the code of `develop` at commit `97a0f15`.
+Checked against the code of `develop` at commit `c29d115`.
 
 ## In plain words
 
@@ -16,15 +16,17 @@ $$
 \mathrm{ICL} = \mathcal{L}_{\mathrm{c}} - \operatorname{pen}_F - \tfrac{1}{2} (Q - 1) \log M - \tfrac{1}{2} (L - 1) \log P,
 $$ (eq-shape-icl)
 
-where $\mathcal{L}_{\mathrm{c}}$ is the classified log-likelihood of the arrangement found ([The latent block model](latent-block-model.md)), $\operatorname{pen}_F$ the penalty of the parameters of the response model, {py:meth}`~civiqhub_selene.blocks.responses.ResponseModel.complexity_penalty`, and the last two terms the penalties of the $Q - 1$ free shares of the groups and the $L - 1$ free shares of the blocks. Each term is half a logarithm of a sample size per free parameter. The response models count their parameters with the numbers of votes and of shown cells of the matrix ([The response models](response-models.md)):
+where $\mathcal{L}_{\mathrm{c}}$ is the classified log-likelihood of the arrangement found ([The latent block model](latent-block-model.md)), $\operatorname{pen}_F$ the penalty of the parameters of the response model, {py:meth}`~civiqhub_selene.blocks.responses.ResponseModel.complexity_penalty`, and the last two terms the penalties of the $Q - 1$ free shares of the groups and the $L - 1$ free shares of the blocks. Each term is half a logarithm of a sample size per free parameter. The response models count their parameters with the numbers of votes and of shown cells of the matrix, scale by scale ([The response models: the penalty of the parameters](response-models.md#the-penalty-of-the-parameters), {eq}`eq-response-penalty`). With $\mathcal{G}$ the scales of the items and $K_g$ the levels of the scale $g$:
 
 $$
-\operatorname{pen}_F = \tfrac{1}{2} \, Q L (K - 1) \log n_{\text{votes}} + \tfrac{1}{2} \, Q L \log n_{\text{shown}} \quad \text{(categorical)},
+\begin{aligned}
+\operatorname{pen}_F &= \tfrac{1}{2} \, Q L \sum_{g \in \mathcal{G}} (K_g - 1) \log n_{\text{votes}} + \tfrac{1}{2} \, Q L \log n_{\text{shown}} && \text{(categorical)}, \\
+\operatorname{pen}_F &= Q L \log n_{\text{votes}} + \tfrac{1}{2} \, Q L \log n_{\text{shown}} && \text{(ordinal probit, fixed thresholds)}, \\
+\operatorname{pen}_F &= Q L \log n_{\text{votes}} + \tfrac{1}{2} \, Q L \log n_{\text{shown}} + \tfrac{1}{2} \log n_{\text{votes}} \sum_{g \in \mathcal{G}} \max(K_g - 3, 0) && \text{(ordinal probit, estimated thresholds)}.
+\end{aligned}
 $$
 
-$$
-\operatorname{pen}_F = Q L \log n_{\text{votes}} + \tfrac{1}{2} \, Q L \log n_{\text{shown}} \quad \text{(ordinal probit)}.
-$$
+With one scale, the sum of the categorical model is $K - 1$.
 
 A larger ICL is better. It compares shapes of the same model, with the same response model, on the same votes. With survey weights, $\mathcal{L}_{\mathrm{c}}$ is the weighted pseudo-likelihood; the code notes that using the same penalty on it is a hypothesis, since a weighted ICL is not a settled criterion.
 
@@ -32,19 +34,19 @@ The mixed-membership model has no ICL in the engine: its result carries its obse
 
 ### The log-likelihood of held-out votes
 
-Split the shown cells $\Omega$ into cells kept for the estimation, $\Omega_{\mathrm{in}}$, and cells held out, $\Omega_{\mathrm{out}}$. {py:meth}`~civiqhub_selene.blocks.VoteMatrix.hold_out` returns the matrix where the cells of $\Omega_{\mathrm{out}}$ are not shown, their levels kept ([The data](data.md)). The model is estimated on that matrix, then scored on the cells it did not see, by the logarithm of the probability its result gives to the state of each of them ({py:meth}`~civiqhub_selene.blocks.results.PredictsVotes.log_probability`, which both values follow). For a single-membership result, it is the probability of the co-cluster of the voter and the item ({py:meth}`~civiqhub_selene.blocks.results.SingleCoclustering.log_probability`):
+Split the shown cells $\Omega$ into cells kept for the estimation, $\Omega_{\mathrm{in}}$, and cells held out, $\Omega_{\mathrm{out}}$. {py:meth}`~civiqhub_selene.blocks.VoteMatrix.hold_out` returns the matrix where the cells of $\Omega_{\mathrm{out}}$ are not shown, their levels kept ([The data](data.md)). The model is estimated on that matrix, then scored on the cells it did not see, by the logarithm of the probability its result gives to the state of each of them ({py:meth}`~civiqhub_selene.blocks.results.PredictsVotes.log_probability`, which both values follow). For a single-membership result, it is the probability of the co-cluster of the voter and the item, on the scale $g_j$ of the item ({py:meth}`~civiqhub_selene.blocks.results.SingleCoclustering.log_probability`):
 
 $$
-\mathcal{L}_{\mathrm{out}} = \sum_{(i, j) \in \Omega_{\mathrm{out}}} \log F_{R_i C_j s_{ij}}.
+\mathcal{L}_{\mathrm{out}} = \sum_{(i, j) \in \Omega_{\mathrm{out}}} \log F_{R_i C_j g_j s_{ij}}.
 $$ (eq-shape-held-out-single)
 
 For a mixed-membership result, it is the probability averaged over the profiles of the voter, as the estimation saw them, and over the blocks of the item ({py:meth}`~civiqhub_selene.blocks.results.MixedCoclustering.log_probability`):
 
 $$
-\mathcal{L}_{\mathrm{out}} = \sum_{(i, j) \in \Omega_{\mathrm{out}}} \log \sum_{\boldsymbol{c}} \eta_{i\boldsymbol{c}} \sum_{l=1}^{L} \phi_{jl} \, F_{c_l l s_{ij}}.
+\mathcal{L}_{\mathrm{out}} = \sum_{(i, j) \in \Omega_{\mathrm{out}}} \log \sum_{\boldsymbol{c}} \eta_{i\boldsymbol{c}} \sum_{l=1}^{L} \phi_{jl} \, F_{c_l l g_j s_{ij}}.
 $$ (eq-shape-held-out-mixed)
 
-In both, the quantities are those of the result estimated on $\Omega_{\mathrm{in}}$. The state of a cell is read from its level alone, without the mask of shown cells: a held-out cell is scored on the vote it had, or on its abstention. A larger $\mathcal{L}_{\mathrm{out}}$ is better. It only rewards what predicts votes the model did not see, so it does not grow with the shape the way the objective does. It applies to both models, and it is the criterion the mixed-membership model declares.
+With one scale, $F_{qlgs}$ is $F_{qls}$ ([Notation](notation.md)). In both, the quantities are those of the result estimated on $\Omega_{\mathrm{in}}$. The state of a cell is read from its level alone, without the mask of shown cells: a held-out cell is scored on the vote it had, or on its abstention. A larger $\mathcal{L}_{\mathrm{out}}$ is better. It only rewards what predicts votes the model did not see, so it does not grow with the shape the way the objective does. It applies to both models, and it is the criterion the mixed-membership model declares.
 
 ### What each model declares
 
@@ -114,14 +116,14 @@ The planted shape predicts the held-out votes better. One split of the cells giv
 
 | Formula or rule | Code |
 | --- | --- |
-| {eq}`eq-shape-icl` | `LatentBlockModel._finish`, `src/civiqhub_selene/blocks/single.py:229-234`; docstring `:132-140` |
-| $\operatorname{pen}_F$ | `blocks/responses.py:194-204`, `:348-358` |
-| `hold_out` | `blocks/data.py:621-637` |
-| {eq}`eq-shape-held-out-single` | `SingleCoclustering.log_probability`, `blocks/results.py:408-424` |
-| {eq}`eq-shape-held-out-mixed` | `MixedCoclustering.log_probability`, `blocks/results.py:508-532` |
+| {eq}`eq-shape-icl` | `LatentBlockModel._finish`, `src/civiqhub_selene/blocks/single.py:282-287`; docstring `:171-174` |
+| $\operatorname{pen}_F$ | `Categorical.complexity_penalty`, `blocks/responses.py:336-348`; `OrdinalProbit.complexity_penalty`, `:751-767` |
+| `hold_out` | `VoteMatrix.hold_out`, `blocks/data.py:1050-1072` |
+| {eq}`eq-shape-held-out-single` | `SingleCoclustering.log_probability`, `blocks/results.py:459-478` |
+| {eq}`eq-shape-held-out-mixed` | `MixedCoclustering.log_probability`, `blocks/results.py:562-595` |
 | Protocols of the two criteria | `blocks/results.py:45-61` |
-| `Selection` | `blocks/results.py:95-170` |
-| `default_criterion` | `blocks/single.py:167`, `blocks/mixed.py:274` |
+| `Selection` | `blocks/results.py:95-171` |
+| `default_criterion` | `blocks/single.py:200`, `blocks/mixed.py:326` |
 
 The code also does what the formulas do not say:
 

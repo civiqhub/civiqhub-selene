@@ -165,7 +165,7 @@ Thresholds(axis='auto', grids=((OrdinalScale(scores=(1, 2, 3, 4)), (0.2, 0.5, 0.
 
 The unit axis assumes that two answers that cut the axis at the same place mean the same position: that "rather agree" on four answers sits where "agree" sits on five. It is a convention, not a measurement. Grids given by hand change that convention for the scales they name.
 
-The data can test it: `mode="estimated"` estimates the inner thresholds of each scale of four answers or more, its first and its last held ([The response models: estimated thresholds](model/response-models.md#estimated-thresholds)). On answers that follow the regular grid, the estimate stays near it; on answers that do not, it moves, and the integrated likelihood of the result says whether the move is worth its parameters:
+The data can test it: `mode="estimated"` estimates the inner thresholds of each scale of four answers or more, its first and its last held ([The response models: estimated thresholds](model/response-models.md#estimated-thresholds)). On answers that follow the regular grid, the estimate stays near it; on answers that do not, it moves. The integrated likelihood counts each inner threshold in its penalty ([The response models: the penalty of the parameters](model/response-models.md#the-penalty-of-the-parameters)):
 
 ```python
 estimated = OrdinalProbit(thresholds=Thresholds(mode="estimated"))
