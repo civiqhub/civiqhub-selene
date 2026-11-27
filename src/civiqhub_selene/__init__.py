@@ -13,7 +13,7 @@ Importing ``civiqhub_selene`` loads neither NumPy nor the ``civiqhub`` SDK.
 """
 
 #: Version of the engine, in PEP 440 notation. Every result records it in its provenance.
-__version__ = "0.3.0"
+__version__ = "0.4.0.dev0"
 
 from civiqhub_selene.errors import (
     ContractError,

@@ -8,6 +8,10 @@ Changes to a method, its parameters or its reference vectors are listed explicit
 
 ## [Unreleased]
 
+### Changed
+
+- The development branch carries the version `0.4.0.dev0`, so that the provenance of a result computed from it (`engine_version`) cannot be mistaken for the published 0.3.0.
+
 ## [0.3.0] - 2026-11-27
 
 Items on scales of their own, with one grid of thresholds per scale, fixed or estimated; survey input and voter weights; and the HTTP service of the engine, with its contract v1 and its image.
