@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 import pytest
 
 from civiqhub_selene.types import (
+    ADDED_SETTING,
     Displayable,
     Method,
     Provenance,
@@ -205,3 +206,18 @@ def test_displayable_is_stateless_and_asks_for_a_description() -> None:
     assert Displayable.__slots__ == ()
     with pytest.raises(NotImplementedError, match="_describe"):
         repr(Displayable())
+
+
+@dataclass(frozen=True)
+class Grown:
+    alpha: str = "a"
+    later: bool = field(default=False, metadata={ADDED_SETTING: True})
+    count: int = field(default=0, metadata={ADDED_SETTING: True})
+
+
+def test_an_added_setting_is_left_out_at_its_default_only() -> None:
+    assert settings_of(Grown()) == (("alpha", "a"),)
+    assert settings_of(Grown(later=True)) == (("alpha", "a"), ("later", True))
+    assert settings_of(Grown(count=3)) == (("alpha", "a"), ("count", 3))
+    # Equal but of another type is not the default: False == 0, yet it is written.
+    assert settings_of(Grown(count=False)) == (("alpha", "a"), ("count", False))

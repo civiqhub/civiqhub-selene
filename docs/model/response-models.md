@@ -4,7 +4,7 @@ Checked against the code of `develop` at commit `c29d115`.
 
 ## In plain words
 
-A block model sorts voters into groups and items into blocks. The response model says how the cells of one co-cluster, a group on a block, spread between the states "shown without a vote" and each level of the scale. The engine ships two of them. {py:class}`~civiqhub_selene.blocks.responses.Categorical` lets each co-cluster have any distribution of its votes over the levels. {py:class}`~civiqhub_selene.blocks.responses.OrdinalProbit` reads each vote as a hidden opinion cut into levels, so that two numbers sum up how a group answers a block: where its opinion stands and how spread it is. Both give each co-cluster its own rate of votes.
+A block model sorts voters into groups and items into blocks. The response model says how the cells of one co-cluster, a group on a block, spread between the states "shown without a vote" and each level of the scale. The engine ships two of them. {py:class}`~civiqhub_selene.blocks.responses.Categorical` lets each co-cluster have any distribution of its votes over the levels. {py:class}`~civiqhub_selene.blocks.responses.OrdinalProbit` reads each vote as a hidden opinion cut into levels, so that two numbers sum up how a group answers a block: where its opinion stands and how spread it is. Both give each co-cluster its own rate of votes by default, and both can instead give every co-cluster one shared rate, to test whether the abstentions say something about the groups.
 
 ## Model
 
@@ -80,6 +80,43 @@ $$ (eq-response-rate)
 
 bounded to $[\varepsilon, 1 - \varepsilon]$ with $\varepsilon$ = `min_probability` ({py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbit.min_probability`, {py:attr}`~civiqhub_selene.blocks.responses.Categorical.min_probability`), so that no state ever gets the probability $0$. A co-cluster without any cell keeps its previous rate. Both models share this update.
 
+### A shared vote rate
+
+With `shared_vote_rate=True` ({py:attr}`~civiqhub_selene.blocks.responses.OrdinalProbit.shared_vote_rate`, {py:attr}`~civiqhub_selene.blocks.responses.Categorical.shared_vote_rate`), every co-cluster has the same rate, $\nu_{ql} = \nu$ for all $q, l$. Whether a shown cell carries a vote then depends neither on the group, nor on the block, nor on the opinion: the abstentions are missing completely at random (Little and Rubin 2014). The default, one rate per co-cluster, is the model of Corneli, Bouveyron and Latouche (2020), in which they are not missing at random.
+
+Summed over the co-clusters, the first two terms of {eq}`eq-response-expected` become those of one binomial, whose maximum is the share of the shown cells of the whole matrix that carry a vote:
+
+$$
+\hat{\nu} = \frac{\sum_{q,l} \sum_{k=1}^{K} N_{qlk}}{\sum_{q,l} \sum_{s=0}^{K} N_{qls}},
+$$ (eq-response-rate-shared)
+
+with the same bounds; without any cell, the previous rates are kept. With several scales, the sums also run over the scales. The counts sum to the number of shown cells, or to their weighted number with survey weights, whatever the arrangement: $\hat{\nu}$ is the same for every arrangement, and the factor $1 - \nu$ or $\nu$ of a cell is the same in every co-cluster. The abstentions then move no voter and no item: the arrangement is read from the votes alone. The shares and the opinions are estimated as before.
+
+The two settings describe the same states of the same cells, so their integrated likelihoods ({doc}`complexity`), or their scores on held-out cells ({doc}`choosing-the-shape`), compare the two hypotheses on the abstentions at a given shape, or each at its best shape.
+
+```python
+from civiqhub_selene.blocks.responses import OrdinalProbit, OrdinalProbitParameters
+import numpy as np
+
+params = OrdinalProbitParameters(
+    vote_rate=np.array([[0.8, 0.8]]),
+    latent_mean=np.array([[4.2, 2.0]]),
+    latent_spread=np.array([[0.9, 0.9]]),
+    thresholds=np.array([1.5, 2.5, 3.5, 4.5]),
+)
+counts = np.array([[[2.0, 0.0, 1.0, 3.0, 10.0, 6.0], [18.0, 3.0, 4.0, 1.0, 0.0, 0.0]]])
+for shared in (False, True):
+    updated = OrdinalProbit(shared_vote_rate=shared).update(counts, params)
+    print(shared, np.round(updated.vote_rate, 4).tolist())
+```
+
+```text
+False [[0.9091, 0.3077]]
+True [[0.5833, 0.5833]]
+```
+
+The first co-cluster has $20$ votes out of $22$ shown cells, the second $8$ out of $26$; shared, both take $28 / 48$.
+
 ### The shares of the categorical model
 
 Maximising $\sum_k N_{qlk} \log p_{qlk}$ under $\sum_k p_{qlk} = 1$ gives the share of the votes at each level. The code adds the pseudo-count $\lambda$ = {py:attr}`~civiqhub_selene.blocks.responses.Categorical.smoothing` to each level first:
@@ -154,7 +191,7 @@ $$
 \end{aligned}
 $$ (eq-response-penalty)
 
-The categorical model has $K_g - 1$ free shares per co-cluster on each scale $g$; with one scale, the sum is $K - 1$. The ordinal probit has two parameters of opinion per co-cluster, hence $QL$ halves of a logarithm twice, and a fixed grid adds nothing, whatever the number of scales. With estimated thresholds, the code adds $\tfrac{1}{2} \log n_{\text{votes}}$ for each inner threshold of each scale, $\max(K_g - 3, 0)$ for the scale $g$, once for the matrix and not once per co-cluster.
+The categorical model has $K_g - 1$ free shares per co-cluster on each scale $g$; with one scale, the sum is $K - 1$. The ordinal probit has two parameters of opinion per co-cluster, hence $QL$ halves of a logarithm twice, and a fixed grid adds nothing, whatever the number of scales. With estimated thresholds, the code adds $\tfrac{1}{2} \log n_{\text{votes}}$ for each inner threshold of each scale, $\max(K_g - 3, 0)$ for the scale $g$, once for the matrix and not once per co-cluster. With a shared vote rate, the term of the vote rates is $\tfrac{1}{2} \log n_{\text{shown}}$ in both models: one rate instead of $QL$.
 
 ## An example
 
@@ -180,8 +217,8 @@ print(round(float(states.sum()), 12))
 ```
 
 ```text
-OrdinalProbit(thresholds=None, min_spread=0.3, min_probability=1e-06, max_inner_iterations=10)
-Categorical(smoothing=0.5, min_probability=1e-06)
+OrdinalProbit(thresholds=None, min_spread=0.3, min_probability=1e-06, max_inner_iterations=10, shared_vote_rate=False)
+Categorical(smoothing=0.5, min_probability=1e-06, shared_vote_rate=False)
 [0.2, 0.0011, 0.0225, 0.1511, 0.3298, 0.2956]
 1.0
 ```
@@ -245,6 +282,7 @@ print(round(float(pooled.latent_mean[0, 0]), 4), round(float(pooled.latent_sprea
 | Protocol | `src/civiqhub_selene/blocks/responses.py:64-117` |
 | {eq}`eq-response-states`, floored at $10^{-300}$ before the logarithm | `state_log_probabilities`, `blocks/coclusters.py:190-205` |
 | {eq}`eq-response-rate`, bounds, empty co-cluster | `_vote_rate`, `blocks/responses.py:138-151` |
+| {eq}`eq-response-rate-shared`, bounds, no cell | `_shared_vote_rate` and `_vote_rates`, `blocks/responses.py`; penalty `_vote_rate_penalty` |
 | {eq}`eq-response-categorical`, one distribution per scale | `Categorical.update`, `blocks/responses.py:318-334` |
 | {eq}`eq-response-probit` | `norm_cdf`, `interval_mass` and `level_probabilities`, `blocks/_numerics.py:153-210` |
 | Default thresholds | `Thresholds.grid_of`, `blocks/responses.py:469-477` |
@@ -267,10 +305,11 @@ The code also does what the formulas do not say:
 
 - The thresholds are the same for every item of a scale and every co-cluster. They are fixed by default; estimated, only the inner thresholds of each scale move, its first and its last held. The model reads the levels of every scale on one axis, whose alignment between scales is a convention.
 - The ordinal probit gives each co-cluster one normal opinion: a co-cluster split in two camps reads as a wide spread around the middle, not as two modes.
-- The vote rate is a property of the co-cluster: whether a voter votes does not depend on its opinion in the model.
+- The vote rate is a property of the co-cluster, or of the whole matrix when it is shared: whether a voter votes does not depend on its opinion in the model. Neither setting represents a voter who abstains because of the opinion it would have given, given its co-cluster.
 
 ## References
 
 - Corneli, M., Bouveyron, C. and Latouche, P. (2020). Co-clustering of ordinal data via latent continuous random variables and not missing at random entries. *Journal of Computational and Graphical Statistics*, 29(4), 771–785. doi:10.1080/10618600.2020.1739533. The code takes from it the hidden normal opinion cut by thresholds.
+- Little, R. J. A. and Rubin, D. B. (2014). *Statistical Analysis with Missing Data*, 2nd edition (2002), printing of 2014 as cited by Corneli et al. (2020). Wiley. The definitions of data missing completely at random and not at random, used for the shared vote rate.
 - Pratt, J. W. (1981). Concavity of the log likelihood. *Journal of the American Statistical Association*, 76(373), 103–106. doi:10.1080/01621459.1981.10477613. The concavity of the likelihood of an ordered probit in its thresholds, which makes the Newton steps on the inner thresholds safe.
 - Dempster, A. P., Laird, N. M. and Rubin, D. B. (1977). Maximum likelihood from incomplete data via the EM algorithm. *Journal of the Royal Statistical Society, Series B*, 39(1), 1–22. doi:10.1111/j.2517-6161.1977.tb01600.x

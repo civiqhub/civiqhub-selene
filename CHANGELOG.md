@@ -12,6 +12,10 @@ Changes to a method, its parameters or its reference vectors are listed explicit
 
 - The development branch carries the version `0.4.0.dev0`, so that the provenance of a result computed from it (`engine_version`) cannot be mistaken for the published 0.3.0.
 
+### Added
+
+- A shared vote rate, an option of both response models: `OrdinalProbit(shared_vote_rate=True)` and `Categorical(shared_vote_rate=True)` give every co-cluster one vote rate, the votes over the shown cells of the whole matrix (weighted with survey weights), and count one rate instead of `Q * L` in the penalty of the integrated likelihood. Whether a shown cell carries a vote then depends neither on the co-cluster nor on the opinion (abstentions missing completely at random), so the abstentions no longer move voters or items between clusters. Both settings describe the same states of the same cells: their integrated likelihoods, or their scores on held-out cells, compare the hypothesis of informative abstentions (Corneli, Bouveyron and Latouche 2020, the default) with that of abstentions at random. The default, `False`, is unchanged: every value, every reference vector and every fingerprint is bitwise the same. The setting enters the provenance only when it is set: `types.ADDED_SETTING`, a new field metadata, leaves a setting added after results were published out of `settings_of` while it holds its default, so that the fingerprints of results computed before it, and the fixtures and the contract of the service, stay valid. The page *The response models* gains the section *A shared vote rate*, with its equation `eq-response-rate-shared`.
+
 ## [0.3.0] - 2026-11-27
 
 Items on scales of their own, with one grid of thresholds per scale, fixed or estimated; survey input and voter weights; and the HTTP service of the engine, with its contract v1 and its image.
