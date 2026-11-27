@@ -87,7 +87,7 @@ print(first.provenance.randomness, other.provenance.seed)
 ```
 
 ```text
-LatentBlockModel(n_groups=2, n_blocks=2, response_model=OrdinalProbit(thresholds=None, min_spread=0.3, min_probability=1e-06, max_inner_iterations=10), n_starts=6, max_iterations=200, tolerance=1e-06, initialization=RandomStart())
+LatentBlockModel(n_groups=2, n_blocks=2, response_model=OrdinalProbit(thresholds=None, min_spread=0.3, min_probability=1e-06, max_inner_iterations=10, shared_vote_rate=False), n_starts=6, max_iterations=200, tolerance=1e-06, initialization=RandomStart())
 True
 True
 True

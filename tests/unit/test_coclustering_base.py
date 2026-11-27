@@ -124,6 +124,7 @@ def test_the_response_model_enters_the_provenance_with_its_settings() -> None:
     assert settings["response_model"] == (
         ("type", "Categorical"),
         ("min_probability", 1e-6),
+        ("shared_vote_rate", False),
         ("smoothing", 1.0),
     )
     probit = HalvesModel().estimate(VOTES)

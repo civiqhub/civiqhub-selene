@@ -175,6 +175,51 @@ def _vote_rate(counts: FloatArray, previous: FloatArray, min_probability: float)
     return bounded
 
 
+def _shared_vote_rate(
+    counts: FloatArray, previous: FloatArray, min_probability: float
+) -> FloatArray:
+    """Return one vote rate for every co-cluster, bounded away from 0 and 1.
+
+    ``votes / cells`` summed over every co-cluster, scale and state: the maximum of the
+    expected likelihood when all co-clusters share one rate. The counts are those the
+    block model hands over, weighted when the votes carry survey weights. Without any
+    cell (a sum of at most 1e-12), the previous rates are kept.
+    """
+    by_scale = _by_scale(counts)
+    n_cells = float(by_scale.sum())
+    if n_cells <= _EMPTY_COCLUSTER:
+        kept: FloatArray = np.array(previous, dtype=np.float64)
+        return kept
+    rate = float(by_scale[..., 1:].sum()) / n_cells
+    shared: FloatArray = np.full(
+        np.shape(previous), min(max(rate, min_probability), 1.0 - min_probability)
+    )
+    return shared
+
+
+def _vote_rates(
+    counts: FloatArray, previous: FloatArray, min_probability: float, shared: bool
+) -> FloatArray:
+    """Return the vote rates of an update: one shared rate, or one per co-cluster."""
+    if shared:
+        return _shared_vote_rate(counts, previous, min_probability)
+    return _vote_rate(counts, previous, min_probability)
+
+
+def _vote_rate_penalty(shape: tuple[int, int], votes: VoteMatrix, shared: bool) -> float:
+    """Return half a logarithm of the number of shown cells per free vote rate.
+
+    ``Q * L`` free rates, or one when they are shared.
+    """
+    n_rates = 1 if shared else shape[0] * shape[1]
+    return 0.5 * n_rates * math.log(max(votes.n_shown, 1))
+
+
+def _check_shared_vote_rate(value: object) -> None:
+    if not isinstance(value, bool):
+        raise InvalidParameterError(f"shared_vote_rate is True or False, got {value!r}")
+
+
 def _overall_vote_rate(votes: VoteMatrix, min_probability: float) -> float:
     """Return the votes over the shown cells of the matrix, bounded away from 0 and 1."""
     weights = votes._likelihood_weights
@@ -294,14 +339,32 @@ class Categorical:
     It is the simple reference against which the cost and the benefit of the ordinal
     probit model are judged.
 
+    Shared vote rate. With ``shared_vote_rate=True``, every co-cluster has the same
+    vote rate, ``vote_rate[q, l] = nu`` for all ``q, l``: whether a shown cell carries a
+    vote then depends neither on the group, nor on the block, nor on the opinion, which
+    is non-response missing completely at random (Little and Rubin 2014). The factor
+    ``(1 - nu)`` or ``nu`` of a cell is then the same in every co-cluster, so the
+    abstentions no longer move voters or items between clusters: the arrangement is
+    read from the votes alone. The update is the maximum of the expected likelihood
+    under this constraint, the votes over the shown cells of the whole matrix, and the
+    penalty counts one vote rate instead of ``Q * L``. The two settings describe the
+    same states of the same cells, so their integrated likelihoods, or their scores on
+    held-out cells, compare the two hypotheses on the abstentions. The default, one
+    rate per co-cluster, is the model of Corneli, Bouveyron and Latouche (2020), in
+    which abstentions are not missing at random.
+
     See the mathematical model: :doc:`/model/response-models`, equations
-    :eq:`eq-response-rate` and :eq:`eq-response-categorical`.
+    :eq:`eq-response-rate`, :eq:`eq-response-rate-shared` and
+    :eq:`eq-response-categorical`.
 
     Attributes:
         smoothing: Pseudo-count added to the number of votes at each rank before the
             distribution is normalised, at least 0. Defaults to 0.5.
         min_probability: Bound that keeps a vote rate away from 0 and from 1, strictly
             between 0 and 0.5. Defaults to 1e-6.
+        shared_vote_rate: ``True`` for one vote rate shared by every co-cluster
+            (abstentions missing completely at random), ``False`` for one rate per
+            co-cluster. Defaults to ``False``.
 
     Raises:
         InvalidParameterError: If a setting is outside its range.
@@ -309,6 +372,7 @@ class Categorical:
 
     smoothing: float = 0.5
     min_probability: float = 1e-6
+    shared_vote_rate: bool = False
 
     def __post_init__(self) -> None:
         if not self.smoothing >= 0 or math.isinf(self.smoothing):
@@ -319,6 +383,7 @@ class Categorical:
             raise InvalidParameterError(
                 f"min_probability is strictly between 0 and 0.5, got {self.min_probability!r}"
             )
+        _check_shared_vote_rate(self.shared_vote_rate)
 
     def initial_parameters(
         self, shape: tuple[int, int], votes: VoteMatrix, rng: np.random.Generator
@@ -362,7 +427,9 @@ class Categorical:
             shares.append(
                 np.divide(smoothed, total, out=before.copy(), where=total > _EMPTY_COCLUSTER)
             )
-        vote_rate = _vote_rate(by_scale, previous.vote_rate, self.min_probability)
+        vote_rate = _vote_rates(
+            by_scale, previous.vote_rate, self.min_probability, self.shared_vote_rate
+        )
         return CategoricalParameters(vote_rate, tuple(shares))
 
     def complexity_penalty(self, shape: tuple[int, int], votes: VoteMatrix) -> float:
@@ -370,7 +437,7 @@ class Categorical:
 
         ``0.5 * Q * L * sum_c(K_c - 1) * log(max(n_votes, 1))`` for the distributions,
         ``K_c`` the levels of each scale, plus ``0.5 * Q * L * log(max(n_shown, 1))``
-        for the vote rates.
+        for the vote rates, or ``0.5 * log(max(n_shown, 1))`` when one rate is shared.
 
         See the mathematical model: :doc:`/model/response-models`, equation
         :eq:`eq-response-penalty`.
@@ -379,7 +446,7 @@ class Categorical:
         n_coclusters = n_groups * n_blocks
         free = sum(scale.n_levels - 1 for scale in votes.scales)
         distributions = 0.5 * n_coclusters * free * math.log(max(votes.n_votes, 1))
-        vote_rates = 0.5 * n_coclusters * math.log(max(votes.n_shown, 1))
+        vote_rates = _vote_rate_penalty(shape, votes, self.shared_vote_rate)
         return distributions + vote_rates
 
     def to_table(
@@ -645,9 +712,24 @@ class OrdinalProbit:
     Reference: Corneli, Bouveyron, Latouche (2020), Co-clustering of ordinal data via
     latent continuous random variables and not missing at random entries.
 
+    Shared vote rate. With ``shared_vote_rate=True``, every co-cluster has the same
+    vote rate, ``vote_rate[q, l] = nu`` for all ``q, l``: whether a shown cell carries a
+    vote then depends neither on the group, nor on the block, nor on the opinion, which
+    is non-response missing completely at random (Little and Rubin 2014). The factor
+    ``(1 - nu)`` or ``nu`` of a cell is then the same in every co-cluster, so the
+    abstentions no longer move voters or items between clusters: the arrangement is
+    read from the votes alone. The update is the maximum of the expected likelihood
+    under this constraint, the votes over the shown cells of the whole matrix, and the
+    penalty counts one vote rate instead of ``Q * L``. The two settings describe the
+    same states of the same cells, so their integrated likelihoods, or their scores on
+    held-out cells, compare the two hypotheses on the abstentions. The default, one
+    rate per co-cluster, is the model of Corneli, Bouveyron and Latouche (2020), in
+    which abstentions are not missing at random.
+
     See the mathematical model: :doc:`/model/response-models`, equations
     :eq:`eq-response-probit`, :eq:`eq-response-probit-by-scale`, :eq:`eq-response-axes`,
-    :eq:`eq-response-rate`, :eq:`eq-response-moments`, :eq:`eq-response-opinion`,
+    :eq:`eq-response-rate`, :eq:`eq-response-rate-shared`, :eq:`eq-response-moments`,
+    :eq:`eq-response-opinion`,
     :eq:`eq-response-opinion-by-scale` and :eq:`eq-response-thresholds-estimated`.
 
     Attributes:
@@ -662,6 +744,9 @@ class OrdinalProbit:
             between 0 and 0.5. Defaults to 1e-6.
         max_inner_iterations: Largest number of expectation-maximisation steps on the
             hidden opinion at each update, at least 1. Defaults to 10.
+        shared_vote_rate: ``True`` for one vote rate shared by every co-cluster
+            (abstentions missing completely at random), ``False`` for one rate per
+            co-cluster. Defaults to ``False``.
 
     Raises:
         InvalidParameterError: If a setting is outside its range.
@@ -673,6 +758,7 @@ class OrdinalProbit:
     min_spread: float = 0.3
     min_probability: float = 1e-6
     max_inner_iterations: int = 10
+    shared_vote_rate: bool = False
 
     def __post_init__(self) -> None:
         if isinstance(self.thresholds, Mapping):
@@ -699,6 +785,7 @@ class OrdinalProbit:
             raise InvalidParameterError(
                 f"max_inner_iterations is an integer of at least 1, got {steps!r}"
             )
+        _check_shared_vote_rate(self.shared_vote_rate)
 
     def initial_parameters(
         self, shape: tuple[int, int], votes: VoteMatrix, rng: np.random.Generator
@@ -777,7 +864,9 @@ class OrdinalProbit:
             estimable=estimable,
             fixed_spread=previous.spread_unit,
         )
-        vote_rate = _vote_rate(by_scale, previous.vote_rate, self.min_probability)
+        vote_rate = _vote_rates(
+            by_scale, previous.vote_rate, self.min_probability, self.shared_vote_rate
+        )
         grids = previous.thresholds_by_scale
         if self._is_estimated:
             grids = tuple(
@@ -802,7 +891,8 @@ class OrdinalProbit:
         """Return half a logarithm of the sample size per free parameter.
 
         Two parameters of opinion and one vote rate per co-cluster:
-        ``Q * L * log(max(n_votes, 1)) + 0.5 * Q * L * log(max(n_shown, 1))``. Fixed
+        ``Q * L * log(max(n_votes, 1)) + 0.5 * Q * L * log(max(n_shown, 1))``; with a
+        shared vote rate, the second term is ``0.5 * log(max(n_shown, 1))``. Fixed
         grids add no parameter, whatever the number of scales; estimated ones add
         ``0.5 * log(max(n_votes, 1))`` per inner threshold, ``K_c - 3`` for a scale of
         ``K_c`` levels (a Hypothesis).
@@ -813,7 +903,7 @@ class OrdinalProbit:
         n_groups, n_blocks = shape
         n_coclusters = n_groups * n_blocks
         opinions = n_coclusters * math.log(max(votes.n_votes, 1))
-        vote_rates = 0.5 * n_coclusters * math.log(max(votes.n_shown, 1))
+        vote_rates = _vote_rate_penalty(shape, votes, self.shared_vote_rate)
         if not self._is_estimated:
             return opinions + vote_rates
         inner = sum(max(scale.n_levels - 3, 0) for scale in votes.scales)

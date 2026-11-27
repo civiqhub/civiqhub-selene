@@ -188,7 +188,7 @@ Partition(48 voters in 3 mixed groups: 16, 15, 17)
 VoterGroup(index=0, 16 voters, share=0.333)
 Cocluster(group=1, block=1, vote_rate=0.943, typical_score=+2, n_votes=99)
 latent_block_model 0.1.0 0
-d00f9fe3f69a743e
+bc621d96e50e27d2
 ```
 
 The fingerprint identifies the computation: the method and its version, the settings, the seed and the input. Two results with the same fingerprint come from the same computation ([The estimation](model/estimation.md#determinism-and-provenance)).
