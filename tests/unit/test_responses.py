@@ -149,7 +149,6 @@ def test_to_table_carries_the_parameters_and_the_number_of_votes() -> None:
 def test_settings_enter_the_provenance_as_they_are() -> None:
     assert settings_of(Categorical(smoothing=1.0)) == (
         ("min_probability", 1e-6),
-        ("shared_vote_rate", False),
         ("smoothing", 1.0),
     )
     assert Categorical() == Categorical(smoothing=0.5, min_probability=1e-6)
@@ -319,10 +318,9 @@ def test_probit_settings_enter_the_provenance_as_they_are() -> None:
         ("max_inner_iterations", 10),
         ("min_probability", 1e-6),
         ("min_spread", 0.3),
-        ("shared_vote_rate", False),
         ("thresholds", None),
     )
-    assert settings_of(OrdinalProbit(thresholds=[1, 2.5]))[4] == ("thresholds", (1.0, 2.5))  # type: ignore[arg-type]
+    assert settings_of(OrdinalProbit(thresholds=[1, 2.5]))[3] == ("thresholds", (1.0, 2.5))  # type: ignore[arg-type]
     assert OrdinalProbit() == OrdinalProbit(min_spread=0.3)
     assert hash(OrdinalProbit()) == hash(OrdinalProbit())
 
@@ -618,8 +616,10 @@ def test_a_shared_vote_rate_counts_one_rate_in_the_penalty(model: ResponseModel[
     assert shared.complexity_penalty((1, 1), VOTES) == model.complexity_penalty((1, 1), VOTES)
 
 
-def test_the_shared_vote_rate_is_off_by_default_and_enters_the_provenance() -> None:
-    assert OrdinalProbit().shared_vote_rate is False
-    assert Categorical().shared_vote_rate is False
-    assert OrdinalProbit(shared_vote_rate=True) != OrdinalProbit()
-    assert ("shared_vote_rate", True) in settings_of(OrdinalProbit(shared_vote_rate=True))
+def test_the_shared_vote_rate_enters_the_provenance_only_when_set() -> None:
+    # Left out at its default, so that results computed before it keep their fingerprint.
+    for model in (OrdinalProbit, Categorical):
+        assert model().shared_vote_rate is False
+        assert "shared_vote_rate" not in dict(settings_of(model()))
+        assert dict(settings_of(model(shared_vote_rate=True)))["shared_vote_rate"] is True
+        assert model(shared_vote_rate=True) != model()

@@ -24,7 +24,7 @@ estimator that carries it as they are.
 
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property
 from itertools import pairwise
 from typing import Literal, Protocol, TypeAlias, TypeVar, cast
@@ -42,6 +42,7 @@ from civiqhub_selene.blocks._numerics import (
 from civiqhub_selene.blocks.coclusters import CoclusterTable, state_log_probabilities
 from civiqhub_selene.blocks.data import OrdinalScale, VoteMatrix
 from civiqhub_selene.errors import InvalidInputError, InvalidParameterError
+from civiqhub_selene.types import ADDED_SETTING
 
 __all__ = [
     "Categorical",
@@ -364,7 +365,9 @@ class Categorical:
             between 0 and 0.5. Defaults to 1e-6.
         shared_vote_rate: ``True`` for one vote rate shared by every co-cluster
             (abstentions missing completely at random), ``False`` for one rate per
-            co-cluster. Defaults to ``False``.
+            co-cluster. Defaults to ``False``, which is left out of the provenance (see
+            :data:`~civiqhub_selene.types.ADDED_SETTING`): the fingerprints of results
+            computed before the setting existed stay valid.
 
     Raises:
         InvalidParameterError: If a setting is outside its range.
@@ -372,7 +375,7 @@ class Categorical:
 
     smoothing: float = 0.5
     min_probability: float = 1e-6
-    shared_vote_rate: bool = False
+    shared_vote_rate: bool = field(default=False, metadata={ADDED_SETTING: True})
 
     def __post_init__(self) -> None:
         if not self.smoothing >= 0 or math.isinf(self.smoothing):
@@ -746,7 +749,9 @@ class OrdinalProbit:
             hidden opinion at each update, at least 1. Defaults to 10.
         shared_vote_rate: ``True`` for one vote rate shared by every co-cluster
             (abstentions missing completely at random), ``False`` for one rate per
-            co-cluster. Defaults to ``False``.
+            co-cluster. Defaults to ``False``, which is left out of the provenance (see
+            :data:`~civiqhub_selene.types.ADDED_SETTING`): the fingerprints of results
+            computed before the setting existed stay valid.
 
     Raises:
         InvalidParameterError: If a setting is outside its range.
@@ -758,7 +763,7 @@ class OrdinalProbit:
     min_spread: float = 0.3
     min_probability: float = 1e-6
     max_inner_iterations: int = 10
-    shared_vote_rate: bool = False
+    shared_vote_rate: bool = field(default=False, metadata={ADDED_SETTING: True})
 
     def __post_init__(self) -> None:
         if isinstance(self.thresholds, Mapping):

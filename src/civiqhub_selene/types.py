@@ -37,6 +37,7 @@ from typing import Any, Generic, TypeAlias, TypeVar, final
 from civiqhub_selene.errors import InvalidParameterError, UnavailableError
 
 __all__ = [
+    "ADDED_SETTING",
     "RESULT_SCHEMA",
     "Displayable",
     "Interval",
@@ -96,20 +97,41 @@ def _setting(value: object) -> object:
     return value
 
 
+ADDED_SETTING = "civiqhub_selene.added_setting"
+"""Metadata key of a setting added to a method after results were published.
+
+A dataclass field whose metadata maps this key to ``True`` is left out of
+:func:`settings_of` while it holds its default value. Its default must reproduce the
+computation of the method before the setting existed: the settings, and so the
+fingerprint of a computation at that default, then stay those published before. A value
+other than the default enters the settings as any other.
+"""
+
+
+def _is_left_out(field: dataclasses.Field[Any], value: object) -> bool:
+    """Tell an added setting at its default, which :func:`settings_of` leaves out."""
+    if not field.metadata.get(ADDED_SETTING, False):
+        return False
+    default = field.default
+    return bool(type(value) is type(default) and value == default)
+
+
 def settings_of(obj: object) -> Settings:
     """Return the settings of a dataclass instance as ``(name, value)`` pairs sorted by name.
 
     Only the fields a caller can set (``init=True``) are settings. A field that is
     itself a dataclass is nested as ``(("type", ClassName), *its own pairs)``, and so
-    are dataclasses held in a tuple or a list. Returns ``()`` when ``obj`` is not a
-    dataclass instance.
+    are dataclasses held in a tuple or a list. A setting added after results were
+    published (field metadata :data:`ADDED_SETTING`) is left out while it holds its
+    default, so that the fingerprints published before it stay valid. Returns ``()``
+    when ``obj`` is not a dataclass instance.
     """
     if not _is_dataclass_instance(obj):
         return ()
     pairs = [
         (field.name, _setting(getattr(obj, field.name)))
         for field in dataclasses.fields(obj)  # type: ignore[arg-type]
-        if field.init
+        if field.init and not _is_left_out(field, getattr(obj, field.name))
     ]
     return tuple(sorted(pairs, key=lambda pair: pair[0]))
 
