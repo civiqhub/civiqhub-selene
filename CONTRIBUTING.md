@@ -1,6 +1,6 @@
 # Contributing to civiqhub-selene
 
-`civiqhub-selene` is an early scaffold and not functional yet. This guide explains how to contribute. Decisions, reviews and releases are described in [`GOVERNANCE.md`](GOVERNANCE.md).
+`civiqhub-selene` is in early development. This guide explains how to contribute. Decisions, reviews and releases are described in [`GOVERNANCE.md`](GOVERNANCE.md).
 
 ## Developer Certificate of Origin
 

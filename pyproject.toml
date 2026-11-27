@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "civiqhub-selene"
-version = "0.1.0.dev0"
-description = "SELENE, the open scientific engine of CiviqHub. Early scaffold, not functional yet."
+version = "0.2.0"
+description = "SELENE, the open scientific engine of CiviqHub for analysing collective deliberation."
 readme = "README.md"
 requires-python = ">=3.11"
 # SPDX expression (PEP 639). It replaces the deprecated "License ::" classifiers,
