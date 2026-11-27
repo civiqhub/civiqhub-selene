@@ -1,0 +1,19 @@
+{
+  "description": "TEST ONLY. Synthetic reference computed locally with the engine. A service computation of the same submission with the same engine wheel reproduces it: identical partitions, numbers within the tolerance.",
+  "content_fingerprint": "sha256:d2b1e3caec64e799604c5d280bc3d26d79febb2069f1e3240bfbf59a67d6bfa6",
+  "method": {
+    "name": "latent_block_model",
+    "version": "0.1.0",
+    "reference": "Govaert and Nadif 2003; Corneli, Bouveyron, Latouche 2020"
+  },
+  "input_fingerprint": "b3438936300a8ba1",
+  "computation": "f485836cb89f8a42",
+  "available": false,
+  "tolerance": {
+    "relative": 1e-06,
+    "absolute": 1e-09
+  },
+  "expected": {
+    "reason": "no_votes"
+  }
+}

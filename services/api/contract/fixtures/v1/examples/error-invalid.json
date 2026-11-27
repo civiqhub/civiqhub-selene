@@ -1,0 +1,13 @@
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "The submission does not follow the contract.",
+    "retryable": false,
+    "fields": [
+      {
+        "path": "payload.votes[0][2]",
+        "issue": "not a product score"
+      }
+    ]
+  }
+}

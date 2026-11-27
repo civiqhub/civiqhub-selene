@@ -7,15 +7,43 @@ build-backend = "hatchling.build"
 
 [project]
 name = "selene-api"
-version = "0.2.0"
-description = "HTTP service wrapper of the SELENE engine. Early scaffold, not functional yet."
+version = "0.1.0"
+description = "HTTP service of the SELENE engine: contract v1, volatile jobs, supervised computations."
 requires-python = ">=3.11"
 license = "Apache-2.0"
 authors = [{ name = "CiviqHub SAS", email = "contact@civiqhub.com" }]
 classifiers = ["Private :: Do Not Upload"]
-# The image installs the engine wheel built by the release CI, at the same version.
-# Server dependencies are added with the first implementation, and locked.
-dependencies = ["civiqhub-selene==0.2.0"]
+# The engine is never resolved from an index for the service: the image installs the
+# wheel built from the same commit, verified by its SHA-256, and CI installs the engine of
+# the same checkout. The lower bound only documents the oldest engine the adapters know.
+# Server dependencies are locked with hashes in requirements.lock (see requirements.in).
+# Starlette and Uvicorn are BSD-3-Clause, Pydantic is MIT, prometheus-client is
+# Apache-2.0 and BSD-2-Clause.
+dependencies = [
+  "civiqhub-selene[blocks]>=0.1.0.dev0",
+  "starlette>=1.10",
+  "uvicorn>=0.54",
+  "pydantic>=2.14",
+  "prometheus-client>=0.26",
+]
+
+[dependency-groups]
+# Contract tests: the OpenAPI document, the fixtures and the contract client agree.
+# PyYAML and jsonschema are MIT; openapi-spec-validator is Apache-2.0. Test tools only.
+# HTTPX (BSD-3-Clause) drives the application in process; packaging (Apache-2.0 or
+# BSD-2-Clause) reads the lock; cryptography (Apache-2.0 or BSD-3-Clause) signs the
+# synthetic certificates of the HTTPS tests.
+test = [
+  "pytest>=9.1",
+  "packaging>=24",
+  "cryptography>=44",
+  "pyyaml>=6.0",
+  "jsonschema>=4.23",
+  "openapi-spec-validator>=0.7",
+  "httpx>=0.28",
+]
+# Stubs for mypy, which the root lint group installs. Both are Apache-2.0.
+lint = [{ include-group = "test" }, "types-PyYAML", "types-jsonschema"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/selene_api"]

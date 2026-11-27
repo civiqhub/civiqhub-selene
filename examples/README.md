@@ -11,7 +11,28 @@ from a CSV file, starts a block model, runs a full inference and draws the resul
 | [`04_olbm_vs_mm_olbm.ipynb`](04_olbm_vs_mm_olbm.ipynb) | One pipeline for both models, compared on the same footing: main arrangement, members planted in two groups, roles, held-out votes; on a collective with shared members, where the MM-OLBM predicts better, and on one without, where the OLBM does |
 
 The notebooks are saved with their outputs, so they can be read on GitHub without
-running them.
+running them. Their formulas use the letters of the
+[notation](https://selene.civiqhub.com/dev/model/notation.html) of the mathematical
+model of SELENE; the cell "Mathematical background" at the top of each notebook links to
+the pages that derive what it computes.
+
+## Scripts
+
+One command-line script describes the groups of a co-clustering with the metadata of
+the respondents. It needs pandas, SciPy and Matplotlib. With `--demo`, it runs on
+synthetic data drawn by the script itself.
+
+| Script | What it does |
+| --- | --- |
+| [`profile_clusters.py`](profile_clusters.py) | Describe the groups of a co-clustering with the metadata of the respondents, for single or mixed memberships, with optional survey weights: test values of Lebart, Morineau and Piron, identity cards, heatmap, stacked bars, quantile boxes, association ranking, correspondence analysis |
+
+```bash
+python examples/profile_clusters.py --demo --soft --out demo_profile
+```
+
+To build the vote matrix of a survey, use `read_survey_csv` and
+`VoteMatrix.from_responses`. Run `--help` on the script for its options. Keep real
+survey files outside the repository and pass their path on the command line.
 
 ## Run them
 

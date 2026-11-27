@@ -1,0 +1,109 @@
+/* Copyright 2026 CiviqHub SAS */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/* Loaded after katex/katex.min.css, on the pages that hold a formula only
+   (docs/_ext/katex_local.py). Formulas follow the colors of the theme: those of
+   civiqhub.css in light mode, the carbon neutrals in dark mode. */
+
+/* Sphinx numbers the equations, so that {eq} references and numbers agree. KaTeX also
+   numbers align, equation and gather by itself: those numbers are hidden. */
+.katex .eqn-num::before {
+  content: none;
+  counter-increment: none;
+}
+
+/* -- Colors ---------------------------------------------------------------------- */
+
+/* A formula takes the color of the text around it, in light and dark modes. */
+.katex,
+.katex-display {
+  color: inherit;
+}
+
+/* The macros of katex_local.py turn \color, \textcolor, \colorbox and \fcolorbox off.
+   Should a color still reach a formula, the color of the text wins over it. The one
+   color KaTeX may set is that of an error (errorColor, katex-render.js). */
+.katex [style*="color"]:not([style*="--civiqhub-destructive"]) {
+  color: inherit !important;
+}
+
+.katex [style*="background"] {
+  background: none !important;
+}
+
+.katex [style*="border-color"] {
+  border-color: currentColor !important;
+}
+
+/* A formula that KaTeX cannot read, or a command it refuses (\href, \url,
+   \includegraphics), shows in the destructive color of the theme, in place of KaTeX's
+   own red. */
+.katex-error {
+  color: var(--civiqhub-destructive) !important;
+}
+
+/* The number of an equation, in the color of the text; its link takes the colors of
+   the links of the theme (Furo). */
+div.math span.eqno {
+  color: var(--color-foreground-primary);
+}
+
+/* -- Layout ---------------------------------------------------------------------- */
+
+/* A formula on its own lines that is wider than the column scrolls on its own, from
+   left to right, instead of widening the page. The vertical padding keeps the tall
+   glyphs (sums, fractions) inside the scrolling box. */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: 0.25em;
+}
+
+/* Room on the right for the number of the equation, which Furo places over the line. */
+div.math:has(> span.eqno) > .katex-display {
+  padding-inline-end: 3.5em;
+}
+
+/* On a narrow screen, the number stands on its own line, at the right, above the
+   equation: a formula that scrolls never passes under it. */
+@media (max-width: 48em) {
+  div.math span.eqno {
+    position: static;
+    display: block;
+    transform: none;
+    text-align: end;
+  }
+
+  div.math:has(> span.eqno) > .katex-display {
+    padding-inline-end: 0;
+  }
+}
+
+/* -- Keyboard -------------------------------------------------------------------- */
+
+/* Furo hides the link of an equation with display: none until the pointer hovers the
+   equation, which keeps it out of reach of the keyboard. It stays in the tab order
+   here, invisible until the pointer hovers the equation or the link has the focus. */
+div.math .headerlink {
+  display: inline-block;
+  opacity: 0;
+}
+
+/* Sphinx places the link over the end of the number (position: absolute): it follows
+   the number instead. */
+div.math span.eqno a.headerlink {
+  position: static;
+  margin-inline-start: 0.25em;
+}
+
+div.math:hover .headerlink,
+div.math .headerlink:focus-visible {
+  opacity: 1;
+}
+
+div.math .headerlink:focus-visible,
+.katex-display:focus-visible {
+  outline: 2px solid var(--civiqhub-focus);
+  outline-offset: 2px;
+  border-radius: var(--civiqhub-radius-sm);
+}

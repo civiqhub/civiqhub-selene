@@ -11,7 +11,7 @@ pytest.importorskip("numpy")
 
 import numpy as np
 
-from civiqhub_selene.blocks import Partition, VoteMatrix
+from civiqhub_selene.blocks import ItemScales, OrdinalScale, Partition, VoteMatrix
 from civiqhub_selene.blocks import synthetic as synthetic_module
 from civiqhub_selene.blocks.synthetic import (
     DEFAULT_LATENT_MEAN,
@@ -184,3 +184,58 @@ def test_the_docstring_says_the_data_are_synthetic_and_avoids_greek_letters() ->
     assert not re.search(r"[Ͱ-Ͽ]", text)
     for word in ("theta", "phi", "sigma", "alpha", "beta", "gamma", "omega", "lambda"):
         assert not re.search(rf"\b{word}\b", text)
+
+
+# Several scales -----------------------------------------------------------------------
+
+YES_NO = OrdinalScale((0, 1))
+FOUR = OrdinalScale((1, 2, 3, 4))
+
+
+def test_a_draw_on_one_scale_is_unchanged() -> None:
+    # Stored on develop at d80da06, before items could have their own scales.
+    votes, truth = make_votes(single_memberships((30, 25, 20)), single_memberships((7, 6)), seed=3)
+    assert votes.fingerprint() == "56a338260ef3ad30"
+    assert truth.item_scales == votes.item_scales
+    assert [grid.tolist() for grid in truth.thresholds] == [[1.5, 2.5, 3.5, 4.5]]
+
+
+def test_each_item_is_drawn_on_its_scale_with_the_same_draws() -> None:
+    scales = [YES_NO, FOUR] * 7
+    one, _ = make_votes(GROUPS, BLOCKS, seed=4)
+    several, truth = make_votes(GROUPS, BLOCKS, item_scales=scales, seed=4)
+    assert several.item_scales == ItemScales.from_scales(scales)
+    assert (several.levels[:, 0::2] <= 2).all()
+    assert (several.levels[:, 1::2] <= 4).all()
+    # The draws come in the same order: the cells that carry a vote are the same.
+    assert np.array_equal(several.levels > 0, one.levels > 0)
+    assert np.array_equal(truth.roles, make_votes(GROUPS, BLOCKS, seed=4)[1].roles)
+    assert [grid.tolist() for grid in truth.thresholds] == [[0.5], [0.25, 0.5, 0.75]]
+
+
+def test_planted_grids_cut_the_opinions_of_their_scale() -> None:
+    low = {FOUR: (0.05, 0.1, 0.15)}
+    votes, truth = make_votes(
+        GROUPS, BLOCKS, item_scales=[FOUR] * 7 + [YES_NO] * 7, thresholds=low, seed=1
+    )
+    # With every threshold near 0, almost every vote on four answers is at the top.
+    four = votes.levels[:, :7][votes.voted[:, :7]]
+    assert (four == 4).mean() > 0.8
+    assert truth.thresholds[0].tolist() == [0.05, 0.1, 0.15]
+
+
+@pytest.mark.parametrize(
+    ("changes", "named"),
+    [
+        ({"item_scales": [FOUR] * 13}, "13 items"),
+        ({"item_scales": [FOUR] * 14, "n_levels": 4}, "not both"),
+        ({"thresholds": {FOUR: (0.2, 0.5, 0.8)}}, "with item_scales only"),
+        ({"item_scales": [FOUR] * 14, "thresholds": {FOUR: (0.5, 0.2, 0.8)}}, "increasing"),
+        ({"item_scales": [FOUR] * 13 + [(1, 2)]}, "OrdinalScale"),
+    ],
+)
+def test_scales_that_do_not_follow_the_items_are_refused(
+    changes: dict[str, object], named: str
+) -> None:
+    with pytest.raises(InvalidParameterError, match=named):
+        make_votes(GROUPS, BLOCKS, **changes)  # type: ignore[arg-type]

@@ -18,6 +18,9 @@ from civiqhub_selene.blocks import (
     Cocluster,
     CoclusterTable,
     ItemBlock,
+    ItemScales,
+    LatentBlockModel,
+    MixedMembershipBlockModel,
     OrdinalScale,
     Partition,
     VoteMatrix,
@@ -69,7 +72,7 @@ def common(**changes: Any) -> dict[str, Any]:
         "computation": COMPUTATION,
         "voters": VOTERS,
         "items": ITEMS,
-        "scale": OrdinalScale(),
+        "item_scales": ItemScales.uniform(OrdinalScale(), len(ITEMS)),
         "group_index": GROUP_INDEX,
         "block_index": BLOCK_INDEX,
         "group_memberships": one_hot(GROUP_INDEX, 2),
@@ -228,7 +231,9 @@ def test_arrays_are_copied_read_only_and_the_value_is_frozen() -> None:
         ({"group_memberships": np.ones((4, 3)) / 3}, "group_memberships has the shape (4, 2)"),
         ({"block_memberships": np.ones((2, 2)) / 2}, "block_memberships has the shape (3, 2)"),
         ({"coclusters": "table"}, "coclusters are a CoclusterTable"),
-        ({"scale": OrdinalScale((1, 2, 3, 4, 5))}, "scale"),
+        ({"item_scales": ItemScales.uniform(OrdinalScale((1, 2, 3, 4, 5)), 3)}, "on the scales"),
+        ({"item_scales": ItemScales.uniform(OrdinalScale(), 2)}, "2 items to 3 items"),
+        ({"item_scales": OrdinalScale()}, "item_scales is an ItemScales"),
     ],
 )
 def test_inconsistent_values_are_refused(changes: dict[str, Any], named: str) -> None:
@@ -429,3 +434,37 @@ def test_a_value_carries_the_trace_of_its_selection() -> None:
     assert value.fingerprint() == make_single().fingerprint()
     copy = dataclasses.replace(make_single(), selection=selection)
     assert copy.selection is selection
+
+
+def test_a_value_on_several_scales_is_written_and_read_again_without_loss() -> None:
+    # TEST ONLY. Three items: two of two answers, one of four.
+    yes_no, four = OrdinalScale((0, 1)), OrdinalScale((1, 2, 3, 4))
+    votes = VoteMatrix.from_responses(
+        [[1, 4, 0], [0, 2, 1], [1, 1, 1], [0, 3, 1], [1, 4, 1], [0, 1, 0]],
+        item_scales={"q1": yes_no, "q2": four, "q3": yes_no},
+    )
+    for model in (
+        LatentBlockModel(n_groups=2, n_blocks=2),
+        MixedMembershipBlockModel(n_groups=2, n_blocks=2, max_iterations=20),
+    ):
+        value = model.estimate(votes, seed=0).value
+        data = json.loads(json.dumps(value.to_dict()))
+        assert data == value.to_dict()
+        assert data["scales"] == [[0, 1], [1, 2, 3, 4]]
+        assert data["scale_index"] == [0, 1, 0]
+        table = data["coclusters"]
+        rebuilt = CoclusterTable(
+            tuple(OrdinalScale(tuple(scores)) for scores in table["scales"]),
+            table["vote_rate"],
+            tuple(np.array(shares) for shares in table["vote_shares_by_scale"]),
+            table["n_votes"],
+            table["latent_mean"],
+            table["latent_spread"],
+            thresholds=tuple(np.array(grid) for grid in table["thresholds"]),
+            has_fixed_spread=table["has_fixed_spread"],
+        )
+        assert rebuilt.to_dict() == table
+        for before, after in zip(
+            value.coclusters.vote_shares_by_scale, rebuilt.vote_shares_by_scale, strict=True
+        ):
+            assert np.array_equal(before, after)

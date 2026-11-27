@@ -55,9 +55,35 @@ def _check_value(value: object, kind: type = Coclustering) -> None:
 
 
 def _mean_scores(value: Coclustering) -> Any:
-    """Return the mean score of the votes of each co-cluster, shape (Q, L)."""
+    """Return the mean score of the votes of each co-cluster, shape (Q, L), on one scale."""
     table = value.coclusters
     return np.einsum("qlk,k->ql", table.vote_shares, np.array(table.scale.scores, dtype=float))
+
+
+def _mean_positions(value: Coclustering) -> Any:
+    """Return the mean position of the votes of each co-cluster on the unit axis, (Q, L).
+
+    The level ``k`` of a scale of ``K_c`` levels sits at ``(k - 1/2) / K_c``, the middle
+    of its share of the axis; each scale gives the mean position of its shares, and the
+    scales count equally.
+    """
+    positions = [
+        np.einsum("qlk,k->ql", shares, (np.arange(shares.shape[-1]) + 0.5) / shares.shape[-1])
+        for shares in value.coclusters.vote_shares_by_scale
+    ]
+    return np.mean(positions, axis=0)
+
+
+def _agreement_by_block(value: Coclustering, group: int, other: int) -> Any:
+    """One minus the total variation between the votes of two groups, on each block.
+
+    With several scales, the distance is taken on each scale and averaged over them.
+    """
+    by_scale = [
+        1.0 - 0.5 * np.abs(shares[group] - shares[other]).sum(axis=-1)
+        for shares in value.coclusters.vote_shares_by_scale
+    ]
+    return np.mean(by_scale, axis=0) if len(by_scale) > 1 else by_scale[0]
 
 
 def _group_nodes(value: Coclustering) -> list[tuple[Node, dict[str, Any]]]:
@@ -106,6 +132,15 @@ def coclustering_graph(value: Coclustering) -> "networkx.Graph[Node]":
     ``vote_shares`` (a tuple), and ``latent_mean`` and ``latent_spread`` under the
     ordinal probit response model (``None`` otherwise).
 
+    When the items use several scales, a score means another answer from one scale to
+    the next: the edge carries ``typical_score_by_scale`` and ``vote_shares_by_scale``
+    (one entry per scale) and ``mean_position``, the mean position of the votes on the
+    unit axis, where the level ``k`` of a scale of ``K_c`` levels sits at
+    ``(k - 1/2) / K_c``, the scales counting equally; it carries no ``typical_score``,
+    ``mean_score`` nor ``vote_shares``.
+
+    See the mathematical model: :doc:`/model/reading-results`.
+
     Raises:
         InvalidInputError: If ``value`` is not a ``Coclustering``.
     """
@@ -113,16 +148,28 @@ def coclustering_graph(value: Coclustering) -> "networkx.Graph[Node]":
     graph: networkx.Graph[Node] = networkx.Graph(kind="coclustering", computation=value.computation)
     graph.add_nodes_from((node, {**data, "bipartite": 0}) for node, data in _group_nodes(value))
     graph.add_nodes_from((node, {**data, "bipartite": 1}) for node, data in _block_nodes(value))
-    means = _mean_scores(value)
+    one_scale = len(value.coclusters.scales) == 1
+    means = _mean_scores(value) if one_scale else _mean_positions(value)
     for cocluster in value.coclusters:
+        reading: dict[str, Any]
+        if one_scale:
+            reading = {
+                "typical_score": int(cocluster.typical_score),
+                "mean_score": float(means[cocluster.group, cocluster.block]),
+                "vote_shares": tuple(float(share) for share in cocluster.vote_shares),
+            }
+        else:
+            reading = {
+                "typical_score_by_scale": tuple(cocluster.typical_score_by_scale),
+                "mean_position": float(means[cocluster.group, cocluster.block]),
+                "vote_shares_by_scale": cocluster.vote_shares_by_scale,
+            }
         graph.add_edge(
             ("group", cocluster.group),
             ("block", cocluster.block),
             vote_rate=float(cocluster.vote_rate),
             n_votes=float(cocluster.n_votes),
-            typical_score=int(cocluster.typical_score),
-            mean_score=float(means[cocluster.group, cocluster.block]),
-            vote_shares=tuple(float(share) for share in cocluster.vote_shares),
+            **reading,
             latent_mean=cocluster.latent_mean,
             latent_spread=cocluster.latent_spread,
         )
@@ -143,6 +190,9 @@ def membership_graph(
     group), ``mixedness`` (one minus its largest membership) and ``memberships`` (a
     tuple). Under a mixed membership, a voter tied to two groups bridges them. With
     ``side="items"``, the same for the blocks and the items.
+
+    See the mathematical model: :doc:`/model/reading-results`, equation
+    :eq:`eq-results-mixedness`.
 
     Args:
         value: A co-clustering.
@@ -199,6 +249,8 @@ def role_graph(value: MixedCoclustering) -> "networkx.DiGraph[Node]":
     ``MixedCoclustering.role_changes(l, l + 1)[q, r]``. An edge between two different
     groups is a change of role; ``changes_role`` says so.
 
+    See the mathematical model: :doc:`/model/reading-results`.
+
     Raises:
         InvalidInputError: If ``value`` is not a ``MixedCoclustering``.
     """
@@ -237,17 +289,23 @@ def group_graph(value: Coclustering) -> "networkx.Graph[Node]":
 
     Definition. For two groups ``q`` and ``r``, the agreement is one minus the total
     variation distance between their distributions of votes on a block, averaged over
-    the blocks with the share of each block as its weight::
+    the blocks with the share of each block as its weight. With ``p[q, l, k]`` the vote
+    shares of the table of co-clusters and ``rho_bar[l]`` the share of the block ``l``,
+    normalised to sum to 1::
 
-        agreement(q, r) = 1 - sum_l share_l * 0.5 * sum_k |shares[q, l, k] - shares[r, l, k]|
+        agreement(q, r) = 1 - sum_l rho_bar[l] * 0.5 * sum_k |p[q, l, k] - p[r, l, k]|
 
     It reads the distributions of the votes only, not the vote rates: two groups that
     vote alike but not as often agree fully. It is 1 for identical opinions and 0 for
-    opinions without any common score.
+    opinions without any common score. When the items use several scales, the distance
+    on a block is taken on each scale and averaged over the scales.
 
     Each edge carries ``agreement`` and ``by_block`` (the agreement on each block, a
     tuple); each node carries the attributes of the groups of
     :func:`coclustering_graph`.
+
+    See the mathematical model: :doc:`/model/reading-results`, equation
+    :eq:`eq-results-agreement`.
 
     Raises:
         InvalidInputError: If ``value`` is not a ``Coclustering``.
@@ -255,13 +313,12 @@ def group_graph(value: Coclustering) -> "networkx.Graph[Node]":
     _check_value(value)
     graph: networkx.Graph[Node] = networkx.Graph(kind="groups", computation=value.computation)
     graph.add_nodes_from(_group_nodes(value))
-    shares = value.coclusters.vote_shares
     weights = np.array([block.share for block in value.blocks], dtype=float)
     total = weights.sum()
     weights = weights / total if total > 0 else np.full(value.n_blocks, 1.0 / value.n_blocks)
     for group in range(value.n_groups):
         for other in range(group + 1, value.n_groups):
-            by_block = 1.0 - 0.5 * np.abs(shares[group] - shares[other]).sum(axis=-1)
+            by_block = _agreement_by_block(value, group, other)
             graph.add_edge(
                 ("group", group),
                 ("group", other),
@@ -275,7 +332,8 @@ def vote_graph(votes: VoteMatrix, value: Coclustering | None = None) -> "network
     """Return the bipartite graph of the voters and the items, one edge per vote.
 
     The edge between ``("voter", voter)`` and ``("item", item)`` carries ``score``
-    (the score of the vote) and ``level`` (its rank on the scale). A cell shown without
+    (the score of the vote) and ``level`` (its rank on the scale of the item). A cell
+    shown without
     a vote, or not shown, has no edge. Voters have ``bipartite=0`` and items
     ``bipartite=1``. With a co-clustering of the same matrix, each voter node also
     carries ``group`` (its main group) and each item node ``block``.
@@ -309,6 +367,6 @@ def vote_graph(votes: VoteMatrix, value: Coclustering | None = None) -> "network
             ("voter", votes.voters[row]),
             ("item", votes.items[column]),
             level=level,
-            score=votes.scale.score_of(level),
+            score=votes.item_scales[int(column)].score_of(level),
         )
     return graph

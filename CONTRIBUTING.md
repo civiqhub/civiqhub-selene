@@ -69,7 +69,7 @@ Tests, vectors, examples and documentation use synthetic data only. The notebook
 
 ## Service contributions
 
-The service under `services/api` adapts HTTP requests to the engine; it does not compute anything itself. A change to its schemas updates [`services/api/openapi.yaml`](services/api/openapi.yaml) and the contract tests in the same pull request.
+The service under `services/api` adapts HTTP requests to the engine; it does not compute anything itself. A change to its schemas updates [`services/api/openapi.yaml`](services/api/openapi.yaml), the fixtures (`python services/api/contract/make_fixtures.py`) and the contract tests in the same pull request, and follows the compatibility policy of [`services/api/README.md`](services/api/README.md): `/v1` only grows.
 
 ## Development workflow
 

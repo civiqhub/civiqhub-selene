@@ -331,7 +331,15 @@ class Partition(Displayable, Sequence[ClusterT], Generic[ClusterT]):
         """Return the share of identifiers the two partitions arrange in the same way.
 
         The clusters of ``other`` are renumbered in the best possible way first, by
-        exhaustive search over the permutations.
+        exhaustive search over the permutations. With ``T[q, r]`` the number of
+        identifiers in the cluster ``q`` of this partition and ``r`` of ``other``::
+
+            agreement = max_chi sum_q T[q, chi(q)] / len(ids)
+
+        where ``chi`` runs over the renumberings of the clusters of ``other``.
+
+        See the mathematical model: :doc:`/model/reading-results`, equation
+        :eq:`eq-results-match`.
 
         Raises:
             InvalidInputError: If the two partitions do not cover the same identifiers

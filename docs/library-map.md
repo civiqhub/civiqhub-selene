@@ -1,6 +1,6 @@
 # Finding your way
 
-This page says where each thing lives: which module to import, which page of the reference to read, which file to open. To understand why the engine is built this way, read [Architecture](architecture.md).
+This page says where each thing lives: which module to import, which page of the reference to read, which file to open, and which page of the [Mathematical model](model/index.md) derives what it computes. To understand why the engine is built this way, read [Architecture](architecture.md). [From the API to the formulas](model/api-to-formulas.md) links each public name to its formulas.
 
 ## Four parts
 
@@ -17,62 +17,66 @@ Importing `civiqhub_selene` or `civiqhub_selene.ordinal` never loads NumPy. Impo
 
 ### Hold votes
 
-| I want to | Use | Module |
-| --- | --- | --- |
-| Count the votes of one item | {py:class}`~civiqhub_selene.ordinal.counts.VoteCounts` | [`ordinal.counts`](reference/civiqhub_selene.ordinal.counts.md) |
-| Hold the votes of many voters on many items | {py:class}`~civiqhub_selene.blocks.data.VoteMatrix` | [`blocks.data`](reference/civiqhub_selene.blocks.data.md) |
-| Use another scale than -2 to +2 | {py:class}`~civiqhub_selene.blocks.data.OrdinalScale` | [`blocks.data`](reference/civiqhub_selene.blocks.data.md) |
-| Draw synthetic votes with a known truth | {py:func}`~civiqhub_selene.blocks.synthetic.make_votes` | [`blocks.synthetic`](reference/civiqhub_selene.blocks.synthetic.md) |
-| Read a matrix through groups and blocks | {py:meth}`VoteMatrix.group_by <civiqhub_selene.blocks.data.VoteMatrix.group_by>`, {py:class}`~civiqhub_selene.blocks.data.GroupedVotes` | [`blocks.data`](reference/civiqhub_selene.blocks.data.md) |
+| I want to | Use | Module | Model |
+| --- | --- | --- | --- |
+| Count the votes of one item | {py:class}`~civiqhub_selene.ordinal.counts.VoteCounts` | [`ordinal.counts`](reference/civiqhub_selene.ordinal.counts.md) | [The data](model/data.md#the-votes-of-a-group-on-a-block) |
+| Hold the votes of many voters on many items | {py:class}`~civiqhub_selene.blocks.data.VoteMatrix` | [`blocks.data`](reference/civiqhub_selene.blocks.data.md) | [The data](model/data.md#three-states-per-cell) |
+| Load a wide survey CSV into a vote matrix | {py:func}`~civiqhub_selene.blocks.survey.read_survey_csv` | [`blocks.survey`](reference/civiqhub_selene.blocks.survey.md) | [The data](model/data.md#three-states-per-cell) |
+| Align voter attributes to the matrix | {py:class}`~civiqhub_selene.blocks.covariates.VoterCovariates` | [`blocks.covariates`](reference/civiqhub_selene.blocks.covariates.md) | — |
+| Use another scale than -2 to +2 | {py:class}`~civiqhub_selene.blocks.data.OrdinalScale` | [`blocks.data`](reference/civiqhub_selene.blocks.data.md) | [The data](model/data.md#the-scale) |
+| Give each item its own scale | The `item_scales` argument of the constructors of {py:class}`~civiqhub_selene.blocks.data.VoteMatrix`, {py:class}`~civiqhub_selene.blocks.data.ItemScales` | [`blocks.data`](reference/civiqhub_selene.blocks.data.md) | [The data](model/data.md#items-on-different-scales) |
+| Draw synthetic votes with a known truth | {py:func}`~civiqhub_selene.blocks.synthetic.make_votes` | [`blocks.synthetic`](reference/civiqhub_selene.blocks.synthetic.md) | [The data](model/data.md#a-generative-process-make_votes) |
+| Read a matrix through groups and blocks | {py:meth}`VoteMatrix.group_by <civiqhub_selene.blocks.data.VoteMatrix.group_by>`, {py:class}`~civiqhub_selene.blocks.data.GroupedVotes` | [`blocks.data`](reference/civiqhub_selene.blocks.data.md) | [The data](model/data.md#the-votes-of-a-group-on-a-block) |
 
-In a vote matrix, a cell is voted, shown without a vote, or not shown. An empty cell is never a zero nor a neutral answer.
+In a vote matrix, a cell is voted, shown without a vote, or not shown. An empty cell is never a zero nor a neutral answer. [Échelles par proposition](scales.md) follows items on several scales, from the declaration of their scales to the reading of a result.
 
 ### Run a method
 
-| I want to | Use | Module |
-| --- | --- | --- |
-| Co-cluster with one group per voter | {py:class}`~civiqhub_selene.blocks.single.LatentBlockModel` | [`blocks.single`](reference/civiqhub_selene.blocks.single.md) |
-| Co-cluster with mixed memberships: a voter follows one group per block | {py:class}`~civiqhub_selene.blocks.mixed.MixedMembershipBlockModel` | [`blocks.mixed`](reference/civiqhub_selene.blocks.mixed.md) |
-| Start a model from regularised spectral co-clustering | {py:class}`~civiqhub_selene.blocks.starts.SpectralStart` | [`blocks.starts`](reference/civiqhub_selene.blocks.starts.md) |
-| Start a model from a previous result, or from random arrangements | {py:class}`~civiqhub_selene.blocks.starts.FixedStart`, {py:class}`~civiqhub_selene.blocks.starts.RandomStart` | [`blocks.starts`](reference/civiqhub_selene.blocks.starts.md) |
-| Read the spectrum of the votes before choosing a shape | {py:func}`~civiqhub_selene.blocks.spectral.spectral_embedding`, {py:class}`~civiqhub_selene.blocks.spectral.SpectralEmbedding` | [`blocks.spectral`](reference/civiqhub_selene.blocks.spectral.md) |
-| Choose how the votes of a co-cluster are modelled | {py:class}`~civiqhub_selene.blocks.responses.OrdinalProbit`, {py:class}`~civiqhub_selene.blocks.responses.Categorical` | [`blocks.responses`](reference/civiqhub_selene.blocks.responses.md) |
-| Get a model from a plain word such as `"single"` or `"mixed"` | {py:func}`~civiqhub_selene.blocks.base.estimator_for`, {py:func}`~civiqhub_selene.blocks.base.memberships` | [`blocks.base`](reference/civiqhub_selene.blocks.base.md) |
-| List the methods that are installed | {py:func}`~civiqhub_selene.registry.default_registry` | [`registry`](reference/civiqhub_selene.registry.md) |
+| I want to | Use | Module | Model |
+| --- | --- | --- | --- |
+| Co-cluster with one group per voter | {py:class}`~civiqhub_selene.blocks.single.LatentBlockModel` | [`blocks.single`](reference/civiqhub_selene.blocks.single.md) | [The latent block model](model/latent-block-model.md) |
+| Co-cluster with mixed memberships: a voter follows one group per block | {py:class}`~civiqhub_selene.blocks.mixed.MixedMembershipBlockModel` | [`blocks.mixed`](reference/civiqhub_selene.blocks.mixed.md) | [The mixed-membership model](model/mixed-membership.md) |
+| Start a model from regularised spectral co-clustering | {py:class}`~civiqhub_selene.blocks.starts.SpectralStart` | [`blocks.starts`](reference/civiqhub_selene.blocks.starts.md) | [The starts](model/initialization.md#the-spectral-start) |
+| Start a model from a previous result, or from random arrangements | {py:class}`~civiqhub_selene.blocks.starts.FixedStart`, {py:class}`~civiqhub_selene.blocks.starts.RandomStart` | [`blocks.starts`](reference/civiqhub_selene.blocks.starts.md) | [The starts](model/initialization.md#the-fixed-start) |
+| Read the spectrum of the votes before choosing a shape | {py:func}`~civiqhub_selene.blocks.spectral.spectral_embedding`, {py:class}`~civiqhub_selene.blocks.spectral.SpectralEmbedding` | [`blocks.spectral`](reference/civiqhub_selene.blocks.spectral.md) | [The starts](model/initialization.md#a-reading-of-the-number-of-groups) |
+| Choose how the votes of a co-cluster are modelled | {py:class}`~civiqhub_selene.blocks.responses.OrdinalProbit`, {py:class}`~civiqhub_selene.blocks.responses.Categorical` | [`blocks.responses`](reference/civiqhub_selene.blocks.responses.md) | [The response models](model/response-models.md) |
+| Choose where the thresholds of each scale lie, or estimate them | {py:class}`~civiqhub_selene.blocks.responses.Thresholds` | [`blocks.responses`](reference/civiqhub_selene.blocks.responses.md) | [The response models](model/response-models.md#items-on-several-scales) |
+| Get a model from a plain word such as `"single"` or `"mixed"` | {py:func}`~civiqhub_selene.blocks.base.estimator_for`, {py:func}`~civiqhub_selene.blocks.base.memberships` | [`blocks.base`](reference/civiqhub_selene.blocks.base.md) | — |
+| List the methods that are installed | {py:func}`~civiqhub_selene.registry.default_registry` | [`registry`](reference/civiqhub_selene.registry.md) | — |
 
 Every method is run the same way: `estimator.estimate(data, seed=0)`, documented once on {py:meth}`Estimator.estimate <civiqhub_selene.estimator.Estimator.estimate>`.
 
 ### Read a result
 
-| I want to | Use | Module |
-| --- | --- | --- |
-| Know whether there is a value, and read it | {py:class}`~civiqhub_selene.types.Result`, {py:class}`~civiqhub_selene.types.Unavailable` | [`types`](reference/civiqhub_selene.types.md) |
-| Know which method, settings, seed and input gave it | {py:class}`~civiqhub_selene.types.Provenance`, {py:meth}`Result.fingerprint <civiqhub_selene.types.Result.fingerprint>` | [`types`](reference/civiqhub_selene.types.md) |
-| Read a co-clustering | {py:class}`~civiqhub_selene.blocks.results.Coclustering`, {py:class}`~civiqhub_selene.blocks.results.SingleCoclustering`, {py:class}`~civiqhub_selene.blocks.results.MixedCoclustering` | [`blocks.results`](reference/civiqhub_selene.blocks.results.md) |
-| Read the groups of voters and the blocks of items | {py:class}`~civiqhub_selene.blocks.partition.Partition` | [`blocks.partition`](reference/civiqhub_selene.blocks.partition.md) |
-| Read the vote rate and the scores of each co-cluster | {py:class}`~civiqhub_selene.blocks.coclusters.CoclusterTable` | [`blocks.coclusters`](reference/civiqhub_selene.blocks.coclusters.md) |
-| Handle an error of the engine | {py:class}`~civiqhub_selene.errors.SeleneError` and its subclasses; each carries a `hint` | [`errors`](reference/civiqhub_selene.errors.md) |
+| I want to | Use | Module | Model |
+| --- | --- | --- | --- |
+| Know whether there is a value, and read it | {py:class}`~civiqhub_selene.types.Result`, {py:class}`~civiqhub_selene.types.Unavailable` | [`types`](reference/civiqhub_selene.types.md) | [The data](model/data.md#when-a-result-exists) |
+| Know which method, settings, seed and input gave it | {py:class}`~civiqhub_selene.types.Provenance`, {py:meth}`Result.fingerprint <civiqhub_selene.types.Result.fingerprint>` | [`types`](reference/civiqhub_selene.types.md) | [The estimation](model/estimation.md#determinism-and-provenance) |
+| Read a co-clustering | {py:class}`~civiqhub_selene.blocks.results.Coclustering`, {py:class}`~civiqhub_selene.blocks.results.SingleCoclustering`, {py:class}`~civiqhub_selene.blocks.results.MixedCoclustering` | [`blocks.results`](reference/civiqhub_selene.blocks.results.md) | [Reading the results](model/reading-results.md) |
+| Read the groups of voters and the blocks of items | {py:class}`~civiqhub_selene.blocks.partition.Partition` | [`blocks.partition`](reference/civiqhub_selene.blocks.partition.md) | [Reading the results](model/reading-results.md#how-much-two-partitions-agree) |
+| Read the vote rate and the scores of each co-cluster | {py:class}`~civiqhub_selene.blocks.coclusters.CoclusterTable` | [`blocks.coclusters`](reference/civiqhub_selene.blocks.coclusters.md) | [Reading the results](model/reading-results.md#the-table-of-co-clusters) |
+| Handle an error of the engine | {py:class}`~civiqhub_selene.errors.SeleneError` and its subclasses; each carries a `hint` | [`errors`](reference/civiqhub_selene.errors.md) | — |
 
 ### Draw a result
 
-| I want to | Use | Module |
-| --- | --- | --- |
-| Get a result as a NetworkX graph, to draw it elsewhere or compute on it | {py:func}`~civiqhub_selene.viz.graphs.coclustering_graph`, {py:func}`~civiqhub_selene.viz.graphs.membership_graph`, {py:func}`~civiqhub_selene.viz.graphs.role_graph`, {py:func}`~civiqhub_selene.viz.graphs.group_graph`, {py:func}`~civiqhub_selene.viz.graphs.vote_graph` | [`viz.graphs`](reference/civiqhub_selene.viz.graphs.md) |
-| Draw the co-clusters, the memberships, the roles, the agreement between groups | {py:func}`~civiqhub_selene.viz.draw.draw_coclustering`, {py:func}`~civiqhub_selene.viz.draw.draw_memberships`, {py:func}`~civiqhub_selene.viz.draw.draw_roles`, {py:func}`~civiqhub_selene.viz.draw.draw_groups` | [`viz.draw`](reference/civiqhub_selene.viz.draw.md) |
-| Draw the vote matrix sorted by groups and blocks | {py:func}`~civiqhub_selene.viz.draw.plot_vote_matrix` | [`viz.draw`](reference/civiqhub_selene.viz.draw.md) |
-| Draw the spectrum and the embedding of the spectral start | {py:func}`~civiqhub_selene.viz.draw.plot_spectrum`, {py:func}`~civiqhub_selene.viz.draw.plot_embedding` | [`viz.draw`](reference/civiqhub_selene.viz.draw.md) |
-| Draw the convergence, or how mixed the voters are | {py:func}`~civiqhub_selene.viz.draw.plot_history`, {py:func}`~civiqhub_selene.viz.draw.plot_mixedness` | [`viz.draw`](reference/civiqhub_selene.viz.draw.md) |
+| I want to | Use | Module | Model |
+| --- | --- | --- | --- |
+| Get a result as a NetworkX graph, to draw it elsewhere or compute on it | {py:func}`~civiqhub_selene.viz.graphs.coclustering_graph`, {py:func}`~civiqhub_selene.viz.graphs.membership_graph`, {py:func}`~civiqhub_selene.viz.graphs.role_graph`, {py:func}`~civiqhub_selene.viz.graphs.group_graph`, {py:func}`~civiqhub_selene.viz.graphs.vote_graph` | [`viz.graphs`](reference/civiqhub_selene.viz.graphs.md) | [Reading the results](model/reading-results.md#how-much-two-groups-agree) |
+| Draw the co-clusters, the memberships, the roles, the agreement between groups | {py:func}`~civiqhub_selene.viz.draw.draw_coclustering`, {py:func}`~civiqhub_selene.viz.draw.draw_memberships`, {py:func}`~civiqhub_selene.viz.draw.draw_roles`, {py:func}`~civiqhub_selene.viz.draw.draw_groups` | [`viz.draw`](reference/civiqhub_selene.viz.draw.md) | [Reading the results](model/reading-results.md) |
+| Draw the vote matrix sorted by groups and blocks | {py:func}`~civiqhub_selene.viz.draw.plot_vote_matrix` | [`viz.draw`](reference/civiqhub_selene.viz.draw.md) | [The data](model/data.md#three-states-per-cell) |
+| Draw the spectrum and the embedding of the spectral start | {py:func}`~civiqhub_selene.viz.draw.plot_spectrum`, {py:func}`~civiqhub_selene.viz.draw.plot_embedding` | [`viz.draw`](reference/civiqhub_selene.viz.draw.md) | [The starts](model/initialization.md#the-spectral-start) |
+| Draw the convergence, or how mixed the voters are | {py:func}`~civiqhub_selene.viz.draw.plot_history`, {py:func}`~civiqhub_selene.viz.draw.plot_mixedness` | [`viz.draw`](reference/civiqhub_selene.viz.draw.md) | [The estimation](model/estimation.md#one-start), [Reading the results](model/reading-results.md#mixedness-and-changes-of-role) |
 
 ### Write a method
 
-| I want to | Use | Module |
-| --- | --- | --- |
-| Write an estimator | {py:class}`~civiqhub_selene.estimator.Estimator` | [`estimator`](reference/civiqhub_selene.estimator.md) |
-| Prove that it honours the contract | {py:class}`~civiqhub_selene.testing.EstimatorContract` | [`testing`](reference/civiqhub_selene.testing.md) |
-| Write a block model | {py:class}`~civiqhub_selene.blocks.base.BlockModel`, {py:class}`~civiqhub_selene.blocks.iterative.IterativeEstimator` | [`blocks.base`](reference/civiqhub_selene.blocks.base.md), [`blocks.iterative`](reference/civiqhub_selene.blocks.iterative.md) |
-| Write a response model | {py:class}`~civiqhub_selene.blocks.responses.ResponseModel` | [`blocks.responses`](reference/civiqhub_selene.blocks.responses.md) |
-| Write another way to start a block model | {py:class}`~civiqhub_selene.blocks.starts.Initialization` | [`blocks.starts`](reference/civiqhub_selene.blocks.starts.md) |
-| Declare it so that the registry finds it | The entry-point group {py:data}`~civiqhub_selene.registry.GROUP` | [`registry`](reference/civiqhub_selene.registry.md) |
+| I want to | Use | Module | Model |
+| --- | --- | --- | --- |
+| Write an estimator | {py:class}`~civiqhub_selene.estimator.Estimator` | [`estimator`](reference/civiqhub_selene.estimator.md) | [The estimation](model/estimation.md) |
+| Prove that it honours the contract | {py:class}`~civiqhub_selene.testing.EstimatorContract` | [`testing`](reference/civiqhub_selene.testing.md) | — |
+| Write a block model | {py:class}`~civiqhub_selene.blocks.base.BlockModel`, {py:class}`~civiqhub_selene.blocks.iterative.IterativeEstimator` | [`blocks.base`](reference/civiqhub_selene.blocks.base.md), [`blocks.iterative`](reference/civiqhub_selene.blocks.iterative.md) | [The estimation](model/estimation.md) |
+| Write a response model | {py:class}`~civiqhub_selene.blocks.responses.ResponseModel` | [`blocks.responses`](reference/civiqhub_selene.blocks.responses.md) | [The response models](model/response-models.md#what-a-block-model-asks-of-a-response-model) |
+| Write another way to start a block model | {py:class}`~civiqhub_selene.blocks.starts.Initialization` | [`blocks.starts`](reference/civiqhub_selene.blocks.starts.md) | [The starts](model/initialization.md#what-a-start-gives) |
+| Declare it so that the registry finds it | The entry-point group {py:data}`~civiqhub_selene.registry.GROUP` | [`registry`](reference/civiqhub_selene.registry.md) | — |
 
 [Architecture](architecture.md) walks through these steps.
 
@@ -101,7 +105,7 @@ Import from the package when the name is exported there: it is the shorter path,
 | [`tests/`](https://github.com/civiqhub/civiqhub-selene/tree/develop/tests) | Unit tests (one file per module), property-based tests, and reference vectors with their tolerance |
 | [`docs/`](https://github.com/civiqhub/civiqhub-selene/tree/develop/docs) | The pages of this site |
 | [`examples/`](https://github.com/civiqhub/civiqhub-selene/tree/develop/examples) | Notebooks that run the block models from end to end, on synthetic data: see [Examples](examples.md) |
-| [`services/api/`](https://github.com/civiqhub/civiqhub-selene/tree/develop/services/api) | The HTTP wrapper of the engine. It installs the library and never reimplements it |
+| [`services/api/`](https://github.com/civiqhub/civiqhub-selene/tree/develop/services/api) | The HTTP wrapper of the engine. It installs the library and never reimplements it. [Service de calcul](service.md) says how a submission becomes a computation of the engine, with the symbols of the model |
 
 In the reference, the **[source]** link next to a name opens the code that defines it.
 

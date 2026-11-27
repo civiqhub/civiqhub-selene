@@ -7,27 +7,35 @@ No function of this module draws a random number.
 """
 
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TypeVar
 
 import numpy as np
 from numpy.typing import ArrayLike
 
-from civiqhub_selene.blocks._arrays import FloatArray, IntArray
+from civiqhub_selene.blocks._arrays import BoolArray, FloatArray, IntArray
 
 __all__ = [
     "History",
+    "columns_by_scale",
     "count_states",
+    "count_states_by_scale",
     "fit_latent_normal",
+    "fit_latent_normal_by_scale",
+    "fit_thresholds",
     "interval_mass",
     "iterate",
     "level_probabilities",
+    "level_probabilities_by_scale",
     "logsumexp",
     "norm_cdf",
     "norm_pdf",
     "one_hot",
+    "scale_bounds",
+    "threshold_objective",
     "truncated_moments",
+    "truncated_moments_by_scale",
 ]
 
 StateT = TypeVar("StateT")
@@ -45,7 +53,12 @@ def one_hot(labels: IntArray, n: int) -> FloatArray:
 
 
 def count_states(
-    states: FloatArray, rows: IntArray, cols: IntArray, shape: tuple[int, int]
+    states: FloatArray,
+    rows: IntArray,
+    cols: IntArray,
+    shape: tuple[int, int],
+    *,
+    voter_weights: FloatArray | None = None,
 ) -> FloatArray:
     """Count the cells of each co-cluster in each state, for hard labels.
 
@@ -57,14 +70,70 @@ def count_states(
         rows: Label of each row, of shape (M,), in ``0..Q-1``.
         cols: Label of each column, of shape (P,), in ``0..L-1``.
         shape: ``(Q, L)``.
+        voter_weights: Optional multiplicative weight of each row.
 
     Returns:
         An array of shape (Q, L, S).
     """
     n_groups, n_blocks = shape
-    counts: FloatArray = np.einsum(
-        "iq,jl,ijs->qls", one_hot(rows, n_groups), one_hot(cols, n_blocks), states
-    )
+    groups = one_hot(rows, n_groups)
+    if voter_weights is not None:
+        groups *= voter_weights[:, np.newaxis]
+    counts: FloatArray = np.einsum("iq,jl,ijs->qls", groups, one_hot(cols, n_blocks), states)
+    return counts
+
+
+def columns_by_scale(scale_index: IntArray, n_scales: int) -> tuple[IntArray | None, ...]:
+    """Return the columns of each scale, in increasing order.
+
+    With one scale, the only entry is ``None``: every column, read without a copy, so
+    that a matrix of one scale is computed exactly as before items could have several.
+    """
+    if n_scales == 1:
+        return (None,)
+    return tuple(np.flatnonzero(scale_index == scale) for scale in range(n_scales))
+
+
+def count_states_by_scale(
+    states: FloatArray,
+    rows: IntArray,
+    cols: IntArray,
+    shape: tuple[int, int],
+    scale_index: IntArray,
+    n_scales: int,
+    *,
+    voter_weights: FloatArray | None = None,
+) -> FloatArray:
+    """Count the cells of each co-cluster in each state, scale by scale, for hard labels.
+
+    ``counts[q, l, c, s]`` is the number of cells of the items of the scale ``c`` in the
+    co-cluster ``(q, l)`` in the state ``s``. It is the sufficient statistic of every
+    block model when items have their own scales; with one scale it is
+    :func:`count_states` with an axis of length 1.
+
+    Args:
+        states: Indicator of the state of each cell, of shape (M, P, S).
+        rows: Label of each row, of shape (M,), in ``0..Q-1``.
+        cols: Label of each column, of shape (P,), in ``0..L-1``.
+        shape: ``(Q, L)``.
+        scale_index: The scale of each column, of shape (P,), in ``0..C-1``.
+        n_scales: ``C``.
+        voter_weights: Optional multiplicative weight of each row.
+
+    Returns:
+        An array of shape (Q, L, C, S).
+    """
+    n_groups, n_blocks = shape
+    counts: FloatArray = np.zeros((n_groups, n_blocks, n_scales, states.shape[-1]))
+    for scale, columns in enumerate(columns_by_scale(scale_index, n_scales)):
+        if columns is None:
+            counts[:, :, scale, :] = count_states(
+                states, rows, cols, shape, voter_weights=voter_weights
+            )
+        else:
+            counts[:, :, scale, :] = count_states(
+                states[:, columns, :], rows, cols[columns], shape, voter_weights=voter_weights
+            )
     return counts
 
 
@@ -171,6 +240,79 @@ def truncated_moments(
     return first, second
 
 
+def scale_bounds(thresholds: Sequence[ArrayLike]) -> tuple[FloatArray, BoolArray]:
+    """Return the bounds of the levels of each scale, padded to the longest one.
+
+    For C grids of ``K_c - 1`` thresholds each, and K the levels of the longest scale:
+
+    - ``bounds`` has the shape (C, K + 1): ``-inf``, the thresholds of the scale, then
+      ``+inf`` up to the end, so that the levels past ``K_c`` are empty intervals;
+    - ``possible`` has the shape (C, K): the level ``k`` exists on the scale ``c``.
+    """
+    grids = [np.asarray(grid, dtype=np.float64).reshape(-1) for grid in thresholds]
+    n_levels = max(grid.shape[0] for grid in grids) + 1
+    bounds: FloatArray = np.full((len(grids), n_levels + 1), np.inf)
+    bounds[:, 0] = -np.inf
+    possible: BoolArray = np.zeros((len(grids), n_levels), dtype=np.bool_)
+    for scale, grid in enumerate(grids):
+        bounds[scale, 1 : grid.shape[0] + 1] = grid
+        possible[scale, : grid.shape[0] + 1] = True
+    return bounds, possible
+
+
+def _standardised_bounds_by_scale(
+    mean: ArrayLike, spread: ArrayLike, bounds: FloatArray
+) -> FloatArray:
+    """Return the bounds of each scale, centred and reduced: shape (..., C, K + 1)."""
+    means = np.asarray(mean, dtype=np.float64)[..., np.newaxis, np.newaxis]
+    spreads = np.asarray(spread, dtype=np.float64)[..., np.newaxis, np.newaxis]
+    z: FloatArray = (bounds - means) / spreads
+    return z
+
+
+def level_probabilities_by_scale(
+    mean: ArrayLike, spread: ArrayLike, bounds: FloatArray
+) -> FloatArray:
+    """Return the probability of each level of each scale under a latent normal opinion.
+
+    The same opinion, of mean ``mean`` and standard deviation ``spread``, is cut by the
+    grid of each scale (see :func:`scale_bounds`). A level past the levels of a scale
+    is an empty interval, of probability 0.
+
+    Returns:
+        An array of shape (..., C, K); on each scale, the probabilities of its levels
+        sum to 1.
+    """
+    return interval_mass(_standardised_bounds_by_scale(mean, spread, bounds))
+
+
+def truncated_moments_by_scale(
+    mean: ArrayLike, spread: ArrayLike, bounds: FloatArray, possible: BoolArray
+) -> tuple[FloatArray, FloatArray]:
+    """Return the moments of the latent opinion truncated to each level of each scale.
+
+    The formulas of :func:`truncated_moments`, on the grid of each scale. The moments
+    of a level that does not exist on a scale are 0, so that a count of 0 times them
+    adds nothing.
+
+    Returns:
+        ``(m1, m2)``, each of shape (..., C, K).
+    """
+    means = np.asarray(mean, dtype=np.float64)[..., np.newaxis, np.newaxis]
+    spreads = np.asarray(spread, dtype=np.float64)[..., np.newaxis, np.newaxis]
+    z = (bounds - means) / spreads
+    density = norm_pdf(z)
+    mass = np.maximum(interval_mass(z), _MIN_MASS)
+    r = np.diff(density, axis=-1) / mass
+    s = np.diff(np.where(np.isfinite(z), z, 0.0) * density, axis=-1) / mass
+    with np.errstate(invalid="ignore"):
+        first: FloatArray = np.clip(means - spreads * r, bounds[..., :-1], bounds[..., 1:])
+        second: FloatArray = np.maximum(
+            means**2 - 2.0 * spreads * means * r - spreads**2 * (s - 1.0), first**2
+        )
+    return np.where(possible, first, 0.0), np.where(possible, second, 0.0)
+
+
 @dataclass(frozen=True)
 class History:
     """What an iterative computation went through.
@@ -232,9 +374,9 @@ def fit_latent_normal(
 ) -> tuple[FloatArray, FloatArray]:
     """Estimate the mean and the spread of the latent opinion of every co-cluster at once.
 
-    Expectation-maximisation on the hidden opinion. ``counts[..., k]`` is the number,
-    integer or fractional, of votes at the level ``k + 1`` of the co-cluster, and ``n``
-    their sum. At each step:
+    Expectation-maximisation on the hidden opinion, for votes on one scale. ``counts[...,
+    k]`` is the number, integer or fractional, of votes at the level ``k + 1`` of the
+    co-cluster, and ``n`` their sum. At each step:
 
     1. the truncated moments ``m1`` and ``m2`` are computed at the current parameters;
     2. ``mean = sum_k(counts_k * m1_k) / n``;
@@ -242,7 +384,8 @@ def fit_latent_normal(
     4. a co-cluster without a vote (``n <= 1e-12``) keeps its parameters.
 
     The loop stops when the largest absolute change of a mean or a spread, over all
-    co-clusters, goes under ``tolerance``, or after ``max_iterations`` steps.
+    co-clusters, goes under ``tolerance``, or after ``max_iterations`` steps. It is
+    :func:`fit_latent_normal_by_scale` on one scale.
 
     Args:
         counts: Shape (..., K): votes of each co-cluster at each level.
@@ -257,16 +400,81 @@ def fit_latent_normal(
     Returns:
         ``(mean, spread)``, each of the shape of the starting values.
     """
-    n_votes = counts.sum(axis=-1)
+    bounds, possible = scale_bounds([thresholds])
+    return fit_latent_normal_by_scale(
+        np.asarray(counts)[..., np.newaxis, :],
+        mean,
+        spread,
+        bounds,
+        possible,
+        min_spread=min_spread,
+        tolerance=tolerance,
+        max_iterations=max_iterations,
+    )
+
+
+def fit_latent_normal_by_scale(
+    counts: FloatArray,
+    mean: FloatArray,
+    spread: FloatArray,
+    bounds: FloatArray,
+    possible: BoolArray,
+    *,
+    min_spread: float,
+    tolerance: float = 1e-8,
+    max_iterations: int,
+    estimable: BoolArray | None = None,
+    fixed_spread: float = 1.0,
+) -> tuple[FloatArray, FloatArray]:
+    """Estimate the latent opinion of every co-cluster from votes on several scales.
+
+    Expectation-maximisation on the hidden opinion. Each co-cluster has one opinion,
+    normal, of mean ``mean`` and standard deviation ``spread``; a vote on the scale
+    ``c`` at its level ``k`` says that the opinion lies between two thresholds of the
+    grid of that scale. ``counts[..., c, k]`` is the number, integer or fractional, of
+    votes at the level ``k + 1`` of the scale ``c``, and ``n`` their sum over the
+    levels and the scales. At each step:
+
+    1. the truncated moments ``m1`` and ``m2`` are computed on the grid of each scale;
+    2. ``mean = sum_c sum_k(counts_ck * m1_ck) / n``;
+    3. ``spread = sqrt(max(sum_c sum_k(counts_ck * m2_ck) / n - mean**2, min_spread**2))``,
+       or ``fixed_spread`` where ``estimable`` is false;
+    4. a co-cluster without a vote (``n <= 1e-12``) keeps its parameters.
+
+    The sums run over the levels first, then over the scales, so that one scale gives
+    exactly the result of :func:`fit_latent_normal`.
+
+    Args:
+        counts: Shape (..., C, K): votes of each co-cluster at each level of each scale.
+        mean: Shape (...): starting means.
+        spread: Shape (...): starting spreads.
+        bounds: Shape (C, K + 1), from :func:`scale_bounds`.
+        possible: Shape (C, K), from :func:`scale_bounds`.
+        min_spread: Lower bound of a spread.
+        tolerance: Change of the parameters under which the loop stops.
+        max_iterations: Largest number of steps.
+        estimable: Shape (...): where the spread can be estimated. Votes on scales of
+            two levels only say on which side of one threshold the opinion lies, which
+            fixes ``(threshold - mean) / spread`` and not the two apart: there, the
+            spread is held at ``fixed_spread`` and only the mean is estimated. ``None``
+            estimates every spread.
+        fixed_spread: The spread where ``estimable`` is false.
+
+    Returns:
+        ``(mean, spread)``, each of the shape of the starting values.
+    """
+    n_votes = counts.sum(axis=-1).sum(axis=-1)
     has_votes = n_votes > _NO_VOTE
     safe_n = np.where(has_votes, n_votes, 1.0)
 
     def step(state: tuple[FloatArray, FloatArray]) -> tuple[FloatArray, FloatArray]:
         current_mean, current_spread = state
-        first, second = truncated_moments(current_mean, current_spread, thresholds)
-        new_mean = (counts * first).sum(axis=-1) / safe_n
-        variance = (counts * second).sum(axis=-1) / safe_n - new_mean**2
+        first, second = truncated_moments_by_scale(current_mean, current_spread, bounds, possible)
+        new_mean = (counts * first).sum(axis=-1).sum(axis=-1) / safe_n
+        variance = (counts * second).sum(axis=-1).sum(axis=-1) / safe_n - new_mean**2
         new_spread = np.sqrt(np.maximum(variance, min_spread**2))
+        if estimable is not None:
+            new_spread = np.where(estimable, new_spread, fixed_spread)
         return (
             np.where(has_votes, new_mean, current_mean),
             np.where(has_votes, new_spread, current_spread),
@@ -288,3 +496,125 @@ def fit_latent_normal(
         max_iterations=max_iterations,
     )
     return fitted_mean, fitted_spread
+
+
+_ORDER_MARGIN = 1e-9
+
+
+def threshold_objective(
+    counts: FloatArray, mean: FloatArray, spread: FloatArray, grid: ArrayLike
+) -> float:
+    """Return the expected log-likelihood of the votes of one scale under a grid.
+
+    ``sum_ql sum_k counts[q, l, k] * log(p_qlk)``, with ``p_qlk`` the normal mass of the
+    level ``k`` of the grid under the opinion of the co-cluster ``(q, l)``, floored at
+    1e-300 before its logarithm.
+
+    Args:
+        counts: Shape (Q, L, K): the votes of each co-cluster at each level of the scale.
+        mean: Shape (Q, L).
+        spread: Shape (Q, L).
+        grid: The K - 1 thresholds of the scale.
+    """
+    masses = level_probabilities(mean, spread, grid)
+    return float((counts * np.log(np.maximum(masses, _MIN_MASS))).sum())
+
+
+def fit_thresholds(
+    counts: FloatArray,
+    mean: FloatArray,
+    spread: FloatArray,
+    grid: FloatArray,
+    *,
+    max_steps: int,
+    tolerance: float = 1e-10,
+) -> FloatArray:
+    """Raise the expected log-likelihood of one scale by moving its inner thresholds.
+
+    The first and the last thresholds of the grid are held: they anchor the scale on its
+    axis, and fix the location and the unit that the means and the spreads would
+    otherwise share with the thresholds. The others, ``t_2 < ... < t_{K-2}``, move.
+
+    At the opinions given, the expected log-likelihood :func:`threshold_objective` is
+    concave in the thresholds (Pratt 1981: the logarithm of a normal mass between two
+    bounds is concave in the bounds). Each step is a Newton step on the inner
+    thresholds, halved until it keeps the thresholds in strict order and does not
+    lower the objective; a step that cannot is not taken. The loop stops after
+    ``max_steps`` steps, or when a step moves no threshold by more than ``tolerance``.
+    It is a generalised expectation-maximisation step: the objective never decreases.
+
+    Args:
+        counts: Shape (Q, L, K): the votes of each co-cluster at each level of the scale.
+        mean: Shape (Q, L): the means of the opinions, held.
+        spread: Shape (Q, L): their spreads, held.
+        grid: The K - 1 thresholds, strictly increasing; at least 3 to have one inner
+            threshold.
+        max_steps: Largest number of Newton steps.
+        tolerance: Size of a step under which the loop stops.
+
+    Returns:
+        The new grid. With fewer than three thresholds, the grid given.
+    """
+    thresholds = np.array(grid, dtype=np.float64)
+    if thresholds.shape[0] < 3:
+        return thresholds
+    means = np.asarray(mean, dtype=np.float64)[..., np.newaxis]
+    spreads = np.asarray(spread, dtype=np.float64)[..., np.newaxis]
+    inner = slice(1, thresholds.shape[0] - 1)
+    current = threshold_objective(counts, mean, spread, thresholds)
+    for _ in range(max_steps):
+        bounds = np.concatenate([[-np.inf], thresholds, [np.inf]])
+        z = (bounds - means) / spreads
+        density = norm_pdf(z)
+        mass = np.maximum(interval_mass(z), _MIN_MASS)
+        # Derivatives of each mass with respect to its upper and its lower threshold.
+        upper = density[..., 1:] / spreads
+        lower = -density[..., :-1] / spreads
+        upper_second = -np.where(np.isfinite(z[..., 1:]), z[..., 1:], 0.0) * upper / spreads
+        lower_second = np.where(np.isfinite(z[..., :-1]), z[..., :-1], 0.0) * density[..., :-1]
+        lower_second = lower_second / spreads**2
+        # The threshold t_m (m = 1..K-1) is the upper bound of the level m and the lower
+        # bound of the level m + 1 (levels counted from 1).
+        weight = counts / mass
+        gradient = (weight[..., :-1] * upper[..., :-1] + weight[..., 1:] * lower[..., 1:]).sum(
+            axis=(0, 1)
+        )
+        square = counts / mass**2
+        diagonal = (
+            weight[..., :-1] * upper_second[..., :-1]
+            - square[..., :-1] * upper[..., :-1] ** 2
+            + weight[..., 1:] * lower_second[..., 1:]
+            - square[..., 1:] * lower[..., 1:] ** 2
+        ).sum(axis=(0, 1))
+        # Two neighbouring thresholds bound the same level, the one between them.
+        off = (-square[..., 1:-1] * upper[..., 1:-1] * lower[..., 1:-1]).sum(axis=(0, 1))
+        hessian = np.diag(diagonal) + np.diag(off, 1) + np.diag(off, -1)
+        free_hessian = hessian[inner, inner]
+        free_gradient = gradient[inner]
+        try:
+            step = -np.linalg.solve(
+                free_hessian - 1e-12 * np.eye(free_hessian.shape[0]), free_gradient
+            )
+        except np.linalg.LinAlgError:
+            break
+        if not np.isfinite(step).all():
+            break
+        scale = 1.0
+        accepted = False
+        for _ in range(40):
+            candidate = thresholds.copy()
+            candidate[inner] += scale * step
+            ordered = bool((np.diff(candidate) > _ORDER_MARGIN).all())
+            if ordered:
+                value = threshold_objective(counts, mean, spread, candidate)
+                if value >= current:
+                    accepted = True
+                    break
+            scale /= 2.0
+        if not accepted:
+            break
+        moved = float(np.abs(candidate - thresholds).max())
+        thresholds, current = candidate, value
+        if moved < tolerance:
+            break
+    return thresholds

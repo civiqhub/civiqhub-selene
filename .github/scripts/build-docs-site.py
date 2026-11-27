@@ -7,11 +7,14 @@ Usage: python .github/scripts/build-docs-site.py --output _site --base-url https
 
 The site that is published holds:
 
-- ``X.Y.Z/``: the documentation of the release that ``origin/main`` holds, and of each
-  earlier release tag ``vX.Y.Z``;
+- ``X.Y.Z/``: the documentation of the latest release, the one ``origin/main`` holds;
+  earlier releases are not published (Decision of 2026-11-24: the site holds the
+  latest release and the development branch, nothing else);
 - ``dev/``: the documentation of the development branch, ``origin/develop``;
 - ``versions.json``: the list that the version selector of every page reads;
-- ``index.html``: a redirection to the latest release, or to ``dev`` before the first one.
+- ``index.html``: a redirection to the latest release, or to ``dev`` before the first one;
+- ``404.html``: a page GitHub Pages serves for a missing address; it sends a retired
+  release to the same page of the latest one.
 
 Each version is built from its own commit, in its own environment, with the tools that
 this commit pins: a version is always rebuilt as it was. A commit without
@@ -73,23 +76,23 @@ class Version:
 
 
 def select_versions(development: Source | None, releases: Sequence[Source]) -> list[Version]:
-    """Return the folders of the site: the releases, latest first, then ``dev``.
+    """Return the folders of the site: the latest release, then ``dev``.
 
     Args:
         development: The development branch, when it holds documentation.
         releases: The commits that may hold a release, by decreasing priority: the
             release branch first, then the tags. When two commits carry the same
             version, the first one is kept. A version that is not ``X.Y.Z`` is not a
-            release and is left out.
+            release and is left out. Only the highest release is published.
     """
     kept: dict[tuple[int, ...], Source] = {}
     for source in releases:
         if RELEASE.fullmatch(source.version):
             kept.setdefault(tuple(int(part) for part in source.version.split(".")), source)
     versions = []
-    for rank, number in enumerate(sorted(kept, reverse=True)):
-        source = kept[number]
-        label = f"{source.version} (latest release)" if rank == 0 else source.version
+    if kept:
+        source = kept[max(kept)]
+        label = f"{source.version} (latest release)"
         versions.append(Version(source.version, label, source.ref, "release"))
     if development is not None:
         label = f"{DEVELOPMENT_SLUG} (development branch)"
@@ -103,6 +106,33 @@ def versions_document(versions: Sequence[Version]) -> str:
         {"slug": version.slug, "label": version.label, "path": version.path} for version in versions
     ]
     return json.dumps({"default": versions[0].slug, "versions": listed}, indent=2) + "\n"
+
+
+def retired_version_page(version: Version, base_url: str) -> str:
+    """Return the GitHub Pages 404 page: send a retired release to the latest one."""
+    root = base_url.rstrip("/") + "/" if base_url else ""
+    href = f"{root}{version.path}"
+    return (
+        "<!doctype html>\n"
+        '<html lang="en">\n'
+        "<head>\n"
+        '<meta charset="utf-8">\n'
+        "<title>This page does not exist</title>\n"
+        "<script>\n"
+        "const match = window.location.pathname.match(/^(.*?\\/)(\\d+\\.\\d+\\.\\d+)\\/(.*)$/);\n"
+        f'if (match && match[2] !== "{version.slug}") {{\n'
+        "  window.location.replace("
+        f'match[1] + "{version.path}" + match[3] + window.location.hash'
+        ");\n"
+        "}\n"
+        "</script>\n"
+        "</head>\n"
+        "<body>\n"
+        "<p>This page does not exist. "
+        f'See the <a href="{href}">latest release</a>.</p>\n'
+        "</body>\n"
+        "</html>\n"
+    )
 
 
 def redirection_page(version: Version, base_url: str) -> str:
@@ -149,6 +179,23 @@ def run(command: Sequence[str | Path], *, cwd: Path, env: dict[str, str] | None 
     subprocess.run([str(part) for part in command], cwd=cwd, env=env, check=True)
 
 
+#: Runs a command in a network namespace of its own, with no interface but loopback.
+NO_NETWORK = ("unshare", "--user", "--map-root-user", "--net")
+
+
+def network_cut() -> list[str]:
+    """Return the prefix that runs a command without network, or ``[]``.
+
+    The prefix is ``[]`` when the system does not allow it: no ``unshare``, or user
+    namespaces refused to this user.
+    """
+    try:
+        probe = subprocess.run([*NO_NETWORK, "true"], capture_output=True, check=False)
+    except OSError:
+        return []
+    return list(NO_NETWORK) if probe.returncode == 0 else []
+
+
 def documented_extras(tree: Path) -> str:
     """Return the requirement of the package with the extras its reference imports.
 
@@ -161,8 +208,12 @@ def documented_extras(tree: Path) -> str:
     return f".[{','.join(extras)}]" if extras else "."
 
 
-def build(version: Version, output: Path, base_url: str) -> None:
-    """Build one version from its commit, in a fresh environment, into its folder."""
+def build(version: Version, output: Path, base_url: str, *, offline: Sequence[str] = ()) -> None:
+    """Build one version from its commit, in a fresh environment, into its folder.
+
+    ``offline`` prefixes the Sphinx command, so that the build runs without network once
+    the package and the tools are installed (see ``network_cut``).
+    """
     print(f"Building {version.slug} from {version.ref}", flush=True)
     with tempfile.TemporaryDirectory() as work:
         tree = Path(work) / "tree"
@@ -191,8 +242,10 @@ def build(version: Version, output: Path, base_url: str) -> None:
                 cwd=tree,
             )
             address = ["-D", f"html_baseurl={base_url}{version.path}"] if base_url else []
+            sphinx: list[str | Path] = [python, "-m", "sphinx", "-W", "-q", "-b", "html"]
+            sphinx += [*address, "docs", target]
             run(
-                [python, "-m", "sphinx", "-W", "-q", "-b", "html", *address, "docs", target],
+                [*offline, *sphinx],
                 cwd=tree,
                 env={**os.environ, "SELENE_DOCS_CHANNEL": version.channel},
             )
@@ -206,6 +259,11 @@ def main() -> None:
     parser.add_argument("--base-url", default="", help="address the site is published at")
     parser.add_argument("--development", default="origin/develop", help="development branch")
     parser.add_argument("--main", default="origin/main", help="release branch")
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="run Sphinx without network when the system allows it, and warn when it does not",
+    )
     arguments = parser.parse_args()
 
     output: Path = arguments.output.resolve()
@@ -214,11 +272,25 @@ def main() -> None:
     if not versions:
         sys.exit("::error::No commit holds documentation: nothing to build.")
 
+    offline: list[str] = []
+    if arguments.offline:
+        offline = network_cut()
+        if offline:
+            print("Sphinx runs without network: " + " ".join(offline), flush=True)
+        else:
+            print(
+                "::warning::Sphinx runs with network: this system refuses " + " ".join(NO_NETWORK)
+            )
+
     output.mkdir(parents=True, exist_ok=True)
     for version in versions:
-        build(version, output, base_url)
+        build(version, output, base_url, offline=offline)
     (output / "versions.json").write_text(versions_document(versions), encoding="utf-8")
     (output / "index.html").write_text(redirection_page(versions[0], base_url), encoding="utf-8")
+    if versions[0].channel == "release":
+        (output / "404.html").write_text(
+            retired_version_page(versions[0], base_url), encoding="utf-8"
+        )
     print("Built: " + ", ".join(f"{version.slug} ({version.ref})" for version in versions))
 
 

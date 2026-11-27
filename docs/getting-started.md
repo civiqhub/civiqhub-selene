@@ -39,6 +39,8 @@ VoteCounts(1, 1, 0, 1, 3; 6 votes)
 6 3 1/2
 ```
 
+Each share is the count of a score over the number of votes, as an exact fraction: the score $+2$ holds $3$ of the $6$ votes, a share of $3/6 = 1/2$. [From the API to the formulas](model/api-to-formulas.md) lists the formulas of each public name.
+
 ## Run a first co-clustering
 
 Co-clustering arranges voters in groups and items in blocks, so that the votes of one group on one block look alike. The pair of a group and a block is a co-cluster.
@@ -81,7 +83,90 @@ Three things to notice:
 - **The seed is explicit.** The same votes, the same settings and the same seed give the same result.
 - **The call is the same for every method.** {py:meth}`~civiqhub_selene.estimator.Estimator.estimate` is written once, for all estimators.
 
-To build a matrix from your own votes, see the constructors of {py:class}`~civiqhub_selene.blocks.data.VoteMatrix`: `from_records`, `from_table` and `from_arrays`.
+**What is estimated.** The model gives each voter $i$ a group $R_i$ and each item $j$ a block $C_j$, and each co-cluster $(q, l)$ the probabilities $F_{qls}$ of the states $s$ of a shown cell: an abstention, or a vote at one of the levels. Without survey weights, it maximises the classified log-likelihood
+
+$$
+\mathcal{L}_{\mathrm{c}} = \sum_{i, j, s} S_{ijs} \log F_{R_i C_j s} + \sum_{i} \log \pi_{R_i} + \sum_{j} \log \rho_{C_j},
+$$
+
+where $S_{ijs}$ is $1$ when the shown cell $(i, j)$ is in the state $s$, and $\pi_q$ and $\rho_l$ are the shares of the groups and of the blocks. {py:attr}`~civiqhub_selene.blocks.results.Coclustering.objective` is its value at the arrangement found. See [The latent block model](model/latent-block-model.md).
+
+To build a matrix from your own votes, see the constructors of {py:class}`~civiqhub_selene.blocks.data.VoteMatrix`: `from_records`, `from_table`, `from_arrays` and `from_responses`.
+
+### Survey responses
+
+Use `VoteMatrix.from_responses` for a respondent-by-item table of ordinal scores.
+Supply a mapping from each item identifier to its `OrdinalScale`. The keys give
+the column order unless `items` supplies it explicitly. Pass unique voter
+identifiers in table order. Each cell holds an integer score on the source scale
+or a missing value (`None` or NaN). A boolean `shown` mask distinguishes an
+unshown question from an abstention. By default every question is shown. A score
+in a cell marked as not shown is refused.
+
+Each item $j$ has its own scale $g_j$, with its $K_{g_j}$ levels, so that a shown
+cell has $K_{g_j} + 1$ states: an abstention, or a vote at one of the levels of its
+scale. Two items whose scales have the same scores share one scale
+({py:class}`~civiqhub_selene.blocks.ItemScales`). In a co-cluster of
+{py:class}`~civiqhub_selene.blocks.responses.OrdinalProbit`, the latent opinion,
+normal of mean $\mu_{ql}$ and standard deviation $\sigma_{ql}$, is common to every
+item, whatever its scale, and each scale cuts it by its own grid of thresholds.
+{py:class}`~civiqhub_selene.blocks.responses.Thresholds` fixes the grid of each
+scale, on the axis of levels or on the unit axis, or by hand; with
+`mode="estimated"`, the inner thresholds of each scale are estimated. See
+[Échelles par proposition](scales.md) and [The response models: items on several
+scales](model/response-models.md#items-on-several-scales), equations
+{eq}`eq-response-probit-by-scale` and {eq}`eq-response-axes`. `from_responses`
+keeps the original ranks of each column and the direction of agreement; it does not
+recode them onto a common grid.
+
+A table whose items share one scale matches `from_records` on the same scores,
+voters and items.
+
+Give the optional `voter_weights` in row order, using one finite positive weight
+per respondent. A survey row with zero weight can be removed before creating
+the matrix. Both block models rescale the weights to average 1. In the
+single-membership model they multiply each voter's response and group-membership
+log terms. In the mixed-membership model they multiply each voter's marginal
+log-likelihood and voter-specific regularisation term. Shared parameter updates
+use the corresponding weighted counts. Item membership regularisation and
+reported response counts keep their usual, unweighted definitions. The spectral
+start and the reported `group_memberships` of the single-membership model are
+not weighted. When the block-share term is neutral (a single block), the fitted
+response parameters match those of a row duplication.
+
+Build a `VoterCovariates` table with `VoterCovariates.from_records(votes, records)`.
+Give one record per voter identifier and the same fields in each record, using
+`None` for missing covariates. The constructor aligns the records to
+`votes.voters`. The covariate table is available for analysis beside the matrix.
+
+For a wide CSV with one row per voter, use `read_survey_csv` with the same
+per-item scales. The reader is part of the input contract of the library. It
+accepts an open text stream. A prepared semicolon CSV can specify ID, weight and
+covariate columns separately:
+
+```python
+from io import StringIO
+
+from civiqhub_selene.blocks import OrdinalScale, read_survey_csv
+
+records = StringIO("responseid;Q1;Q2;weight;mode\nA;2;5;1.25;web\nB;;2;0.75;phone\n")
+five = OrdinalScale((1, 2, 3, 4, 5))
+survey_votes, survey_covariates = read_survey_csv(
+    records,
+    item_scales={"Q1": five, "Q2": five},
+    weight_column="weight",
+    covariate_columns=("mode",),
+    delimiter=";",
+    unshown_label="",
+)
+```
+
+For a file, open it with `newline=""` and `encoding="utf-8-sig"` in place of
+`StringIO`. Declare the full scale of each question, even if some ranks are
+unobserved. The example uses `unshown_label=""` to exclude blank cells from
+the likelihood, as when the prepared data have no indication that the question
+was presented. By default, blank scores count as abstentions. Covariate values
+are read as text and an empty covariate is represented by `None`.
 
 ## Read the result
 
@@ -106,7 +191,9 @@ latent_block_model 0.1.0 0
 d00f9fe3f69a743e
 ```
 
-The fingerprint identifies the computation: the method and its version, the settings, the seed and the input. Two results with the same fingerprint come from the same computation.
+The fingerprint identifies the computation: the method and its version, the settings, the seed and the input. Two results with the same fingerprint come from the same computation ([The estimation](model/estimation.md#determinism-and-provenance)).
+
+Each co-cluster holds a vote rate $\nu_{ql}$ and the shares $p_{qlk}$ of its votes over the levels: a shown cell of the co-cluster is an abstention with the probability $1 - \nu_{ql}$, and a vote at the level $k$ with the probability $\nu_{ql} \, p_{qlk}$ ([The response models](model/response-models.md)). The memberships of a single-membership result are a soft reading of its arrangement, not probabilities of error, and the result carries no uncertainty ([Reading the results](model/reading-results.md)).
 
 ## A result can be an explained absence
 
@@ -126,7 +213,7 @@ False
 no_votes - the matrix holds no vote
 ```
 
-Reading `absent.value` raises {py:class}`~civiqhub_selene.errors.UnavailableError`. Test `is_available` first.
+Reading `absent.value` raises {py:class}`~civiqhub_selene.errors.UnavailableError`. Test `is_available` first. A co-clustering of $Q$ groups and $L$ blocks exists only on a matrix with at least one vote, at least $\max(2, Q)$ voters with a vote and at least $\max(2, L)$ items with a vote ([The data](model/data.md#when-a-result-exists)).
 
 ## Start from a spectral arrangement
 
@@ -144,7 +231,13 @@ print(found.groups.agreement_with(coclustering.groups))
 1.0
 ```
 
-The start is a setting of the model: it enters the provenance of the result. {py:func}`~civiqhub_selene.blocks.spectral.spectral_embedding` gives the embedding itself, to read its spectrum before choosing a shape.
+The start is a setting of the model: it enters the provenance of the result. {py:func}`~civiqhub_selene.blocks.spectral.spectral_embedding` gives the embedding itself, to read its spectrum before choosing a shape. The spectral start divides the matrix $\mathbf{X}$ of the votes by the square roots of its regularised degrees,
+
+$$
+\mathbf{X}_\tau = (\mathbf{D}_{\mathrm{r}} + \tau_{\mathrm{r}} \mathbf{I})^{-1/2} \, \mathbf{X} \, (\mathbf{D}_{\mathrm{c}} + \tau_{\mathrm{c}} \mathbf{I})^{-1/2},
+$$
+
+and groups the rows of its leading singular vectors by k-means ([The starts](model/initialization.md#the-spectral-start)).
 
 ## Let a voter follow several groups
 
@@ -171,6 +264,14 @@ MixedCoclustering(56 voters in 3 groups x 14 items in 2 blocks)
 ```
 
 `role_changes()` counts the voters by the group they follow on block 0 (rows) and on block 1 (columns): off the diagonal, a voter changes role from one block to the other.
+
+The mixed-membership model computes the observed log-likelihood $\mathcal{L}$ exactly, over the $Q^L$ profiles of a voter, and maximises it with Dirichlet priors on the memberships $\theta_{iq}$ and $\phi_{jl}$. Without survey weights,
+
+$$
+\mathcal{J} = \mathcal{L} + (\alpha - 1) \sum_{i, q} \log \theta_{iq} + (\beta - 1) \sum_{j, l} \log \phi_{jl},
+$$
+
+with $\alpha$ and $\beta$ its {py:attr}`~civiqhub_selene.blocks.MixedMembershipBlockModel.voter_concentration` and {py:attr}`~civiqhub_selene.blocks.MixedMembershipBlockModel.item_concentration`. The value reports $\mathcal{J}$ as its objective and $\mathcal{L}$ as {py:attr}`~civiqhub_selene.blocks.results.MixedCoclustering.log_likelihood`. See [The mixed-membership model](model/mixed-membership.md).
 
 ## Draw the result
 
@@ -209,5 +310,6 @@ The [examples](examples.md) run the whole inference, from a CSV file to the figu
 
 - [Examples](examples.md) are notebooks that run the single-membership and the mixed-membership models from end to end.
 - [Finding your way](library-map.md) says which module holds what.
+- The [Mathematical model](model/index.md) derives what each method computes, in one notation.
 - [Architecture](architecture.md) explains the contract behind `estimate` and how to add a method.
 - The [reference](reference/index.md) documents every public name.

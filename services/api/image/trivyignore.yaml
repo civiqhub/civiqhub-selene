@@ -1,0 +1,14 @@
+# Vulnerabilities the image scan accepts for a bounded time, each with its reason.
+#
+# The scan of the CI fails on any HIGH or CRITICAL vulnerability that has a fix. An entry
+# here is a reviewed exception, never a default: it names the vulnerability, why it does
+# not reach the service, what removes it, and it expires. An expired entry fails the scan
+# again. Changes to this file are reviewed by the owners of services/api.
+vulnerabilities:
+  - id: CVE-2026-124851
+    statement: >-
+      libzstd1 1.5.7+dfsg-1 of the Debian base of python:3.13-slim. The service never
+      decompresses zstd data: Python 3.13 has no zstd module and dpkg, its only user in
+      the image, never runs in the container. Removed by the next digest of
+      python:3.13-slim that ships 1.5.7+dfsg-1+deb13u1.
+    expired_at: 2026-12-15
