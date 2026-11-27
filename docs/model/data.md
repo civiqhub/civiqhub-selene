@@ -58,7 +58,7 @@ These counts are the sufficient statistic of the block models: given the arrange
 
 ### The cells that are not shown
 
-A cell that is not shown enters no sum: neither the counts {eq}`eq-data-counts`, nor any likelihood of the following pages. An abstention, on the contrary, is a state of the cell, and each co-cluster has its own probability of abstention.
+A cell that is not shown enters no sum: neither the counts {eq}`eq-data-counts`, nor any likelihood of the following pages. An abstention, on the contrary, is a state of the cell, and each co-cluster has its own probability of abstention, unless the response model shares one between all co-clusters ([A shared vote rate](response-models.md#a-shared-vote-rate)).
 
 Leaving the cells that are not shown out of the likelihood is what likelihood inference does when the missing cells are *missing at random* (Rubin 1976): it assumes that whether an item was shown to a voter does not depend on the vote the voter would have given. The engine makes this assumption for the cells not shown, and only for them: it does not make it for abstentions, which it models.
 

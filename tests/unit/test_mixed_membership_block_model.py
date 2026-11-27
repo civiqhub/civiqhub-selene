@@ -461,3 +461,44 @@ def test_estimated_thresholds_keep_the_objective_from_decreasing() -> None:
     assert value.coclusters.thresholds is not None
     grid = value.coclusters.thresholds[value.coclusters.scales.index(six)]
     assert grid == pytest.approx(planted, abs=0.03)
+
+
+# Shared vote rate ---------------------------------------------------------------------
+# TEST ONLY. Two planted groups with the same opinion on every item, which differ only in
+# how often they vote: only the abstentions tell them apart.
+
+RATE_TRUTH = np.repeat([0, 1], 60)
+RATE_ONLY, _ = make_votes(
+    single_memberships((60, 60)),
+    single_memberships((12,)),
+    vote_rate=[[0.95], [0.55]],
+    latent_mean=[[3.0], [3.0]],
+    latent_spread=[[1.0], [1.0]],
+    seed=0,
+)
+RATE_MASK = np.random.default_rng(0).random(RATE_ONLY.shape) < 0.1
+
+
+def _recovered(groups: Any) -> float:
+    found = np.asarray(groups)
+    return float(max((found == RATE_TRUTH).mean(), (found != RATE_TRUTH).mean()))
+
+
+def test_groups_told_apart_by_their_abstentions_only_need_a_vote_rate_per_cocluster() -> None:
+    by_cocluster = MixedMembershipBlockModel(n_groups=2, n_blocks=1)
+    shared = MixedMembershipBlockModel(
+        n_groups=2, n_blocks=1, response_model=OrdinalProbit(shared_vote_rate=True)
+    )
+    found = by_cocluster.estimate(RATE_ONLY, seed=0).value
+    blind = shared.estimate(RATE_ONLY, seed=0).value
+    assert _recovered(found.group_index) > 0.9
+    assert _recovered(blind.group_index) < 0.7
+    assert np.unique(blind.coclusters.vote_rate).size == 1
+    assert blind.coclusters.vote_rate[0, 0] == pytest.approx(RATE_ONLY.n_votes / RATE_ONLY.n_shown)
+    held_out = [
+        model.estimate(RATE_ONLY.hold_out(RATE_MASK), seed=0)
+        .value.log_probability(RATE_ONLY)[RATE_MASK]
+        .mean()
+        for model in (by_cocluster, shared)
+    ]
+    assert held_out[0] > held_out[1]

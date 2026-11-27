@@ -166,9 +166,12 @@ def test_settings_enter_the_provenance_as_they_are() -> None:
         ({"min_probability": 0.0}, "min_probability"),
         ({"min_probability": 0.5}, "min_probability"),
         ({"min_probability": -1e-6}, "min_probability"),
+        ({"shared_vote_rate": 1}, "shared_vote_rate"),
+        ({"shared_vote_rate": "yes"}, "shared_vote_rate"),
+        ({"shared_vote_rate": None}, "shared_vote_rate"),
     ],
 )
-def test_settings_out_of_range_are_refused(settings: dict[str, float], named: str) -> None:
+def test_settings_out_of_range_are_refused(settings: dict[str, Any], named: str) -> None:
     with pytest.raises(InvalidParameterError, match=named):
         Categorical(**settings)
 
@@ -337,6 +340,8 @@ def test_probit_settings_enter_the_provenance_as_they_are() -> None:
         ({"thresholds": (1.5, float("inf"))}, "finite"),
         ({"thresholds": ()}, "thresholds"),
         ({"thresholds": ("a", "b")}, "thresholds are numbers"),
+        ({"shared_vote_rate": 0}, "shared_vote_rate"),
+        ({"shared_vote_rate": "no"}, "shared_vote_rate"),
     ],
 )
 def test_probit_settings_out_of_range_are_refused(settings: dict[str, object], named: str) -> None:
@@ -549,3 +554,72 @@ def test_estimated_thresholds_move_the_inner_thresholds_only() -> None:
         Thresholds(mode="free")  # type: ignore[arg-type]
     assert Thresholds(mode="estimated").is_estimated
     assert not Thresholds().is_estimated
+
+
+# Shared vote rate ---------------------------------------------------------------------
+# TEST ONLY. Hand-written counts of two co-clusters with different shares of abstentions.
+
+TWO_RATES = np.array(
+    [
+        [
+            [2.0, 0.0, 1.0, 3.0, 2.0, 2.0],  # 2 abstentions, 8 votes
+            [6.0, 1.0, 1.0, 0.0, 1.0, 1.0],  # 6 abstentions, 4 votes
+        ]
+    ]
+)
+
+
+@pytest.mark.parametrize("model", [Categorical(), OrdinalProbit()])
+def test_a_shared_vote_rate_is_the_share_of_votes_of_the_whole_matrix(
+    model: ResponseModel[Any],
+) -> None:
+    shared = dataclasses.replace(model, shared_vote_rate=True)  # type: ignore[type-var]
+    start = model.initial_parameters((1, 2), VOTES, np.random.default_rng(0))
+    by_cocluster = model.update(TWO_RATES, start)
+    one_rate = shared.update(TWO_RATES, start)
+    assert by_cocluster.vote_rate[0].tolist() == pytest.approx([0.8, 0.4])
+    assert one_rate.vote_rate[0].tolist() == pytest.approx([12 / 20, 12 / 20])
+    # The rest of the update does not depend on the setting.
+    if isinstance(model, OrdinalProbit):
+        assert np.array_equal(one_rate.latent_mean, by_cocluster.latent_mean)
+        assert np.array_equal(one_rate.latent_spread, by_cocluster.latent_spread)
+    else:
+        assert np.array_equal(one_rate.vote_shares, by_cocluster.vote_shares)
+
+
+@pytest.mark.parametrize(
+    "model", [Categorical(shared_vote_rate=True), OrdinalProbit(shared_vote_rate=True)]
+)
+def test_a_shared_vote_rate_is_bounded_and_kept_without_any_cell(model: ResponseModel[Any]) -> None:
+    start = model.initial_parameters((1, 2), VOTES, np.random.default_rng(0))
+    unanimous = np.zeros_like(TWO_RATES)
+    unanimous[..., 5] = 3.0
+    assert model.update(unanimous, start).vote_rate.tolist() == [[1 - 1e-6, 1 - 1e-6]]
+    empty = model.update(np.zeros_like(TWO_RATES), start)
+    assert np.array_equal(empty.vote_rate, start.vote_rate)
+
+
+def test_a_shared_vote_rate_reads_the_counts_of_every_scale() -> None:
+    counts = np.zeros((1, 2, 2, 5))
+    counts[0, 0, 0, :3] = [1, 2, 1]  # 1 abstention, 3 votes on two answers
+    counts[0, 1, 1, :] = [3, 1, 0, 0, 0]  # 3 abstentions, 1 vote on four answers
+    model = OrdinalProbit(shared_vote_rate=True)
+    start = model.initial_parameters((1, 2), SURVEY, np.random.default_rng(0))
+    assert model.update(counts, start).vote_rate[0].tolist() == pytest.approx([0.5, 0.5])
+
+
+@pytest.mark.parametrize("model", [Categorical(), OrdinalProbit()])
+def test_a_shared_vote_rate_counts_one_rate_in_the_penalty(model: ResponseModel[Any]) -> None:
+    shared = dataclasses.replace(model, shared_vote_rate=True)  # type: ignore[type-var]
+    gap = model.complexity_penalty((2, 3), VOTES) - shared.complexity_penalty((2, 3), VOTES)
+    assert gap == pytest.approx(0.5 * (2 * 3 - 1) * math.log(12))
+    assert shared.complexity_penalty((1, 1), VOTES) == model.complexity_penalty((1, 1), VOTES)
+
+
+def test_the_shared_vote_rate_enters_the_provenance_only_when_set() -> None:
+    # Left out at its default, so that results computed before it keep their fingerprint.
+    for model in (OrdinalProbit, Categorical):
+        assert model().shared_vote_rate is False
+        assert "shared_vote_rate" not in dict(settings_of(model()))
+        assert dict(settings_of(model(shared_vote_rate=True)))["shared_vote_rate"] is True
+        assert model(shared_vote_rate=True) != model()
